@@ -1,0 +1,33 @@
+# Runtime data. Keep only directory markers.
+data/inbox/*
+data/dev_sample/*
+data/teacher_private/*
+data/user_uploads/*
+data/processed/*
+data/indexes/*
+data/exports/*
+data/manifests/*
+!data/**/.gitkeep
+
+# Generated or source document artifacts are kept local.
+*.docx
+
+# Python / Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local environments and secrets
+.venv/
+.env
+.env.local
+.env.prod
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Corpus Platform{% endblock %}
+
+{% block content %}
+<section class="border rounded bg-white p-4">
+  <p class="text-uppercase text-secondary small mb-2">{{ stage }}</p>
+  <h1 class="h3 mb-3">Corpus Platform</h1>
+  <p class="mb-3">Local Django skeleton with PostgreSQL, Redis, Celery, and Docker Compose.</p>
+  <dl class="row mb-0">
+    <dt class="col-sm-3">Liveness</dt>
+    <dd class="col-sm-9"><a href="{% url 'healthz' %}">/healthz</a></dd>
+    <dt class="col-sm-3">Readiness</dt>
+    <dd class="col-sm-9"><a href="{% url 'readyz' %}">/readyz</a></dd>
+    <dt class="col-sm-3">Data root</dt>
+    <dd class="col-sm-9"><code>{{ data_root }}</code></dd>
+  </dl>
+</section>
+{% endblock %}
