@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}工作台 - 在线语料库平台{% endblock %}
+
+{% block content %}
+<section class="mb-4">
+  <p class="text-secondary small mb-1">阶段 2</p>
+  <h1 class="h3 mb-1">工作台</h1>
+  <p class="text-secondary mb-0">账号审核和后端权限校验已生效。</p>
+</section>
+
+<section class="border rounded bg-white p-4">
+  <dl class="row mb-0">
+    <dt class="col-sm-3">用户名</dt>
+    <dd class="col-sm-9">{{ user.username }}</dd>
+    <dt class="col-sm-3">姓名</dt>
+    <dd class="col-sm-9">{{ profile.full_name|default:user.username }}</dd>
+    <dt class="col-sm-3">角色</dt>
+    <dd class="col-sm-9">{{ profile.get_role_display|default:"管理员" }}</dd>
+    <dt class="col-sm-3">审核状态</dt>
+    <dd class="col-sm-9">{{ profile.get_status_display|default:"已通过" }}</dd>
+    <dt class="col-sm-3">访问范围</dt>
+    <dd class="col-sm-9">
+      {% if access_scope == "demo_only" %}
+        仅限 demo 语料范围
+      {% elif access_scope == "admin" %}
+        管理员范围
+      {% else %}
+        已审核用户范围
+      {% endif %}
+    </dd>
+  </dl>
+</section>
+{% endblock %}

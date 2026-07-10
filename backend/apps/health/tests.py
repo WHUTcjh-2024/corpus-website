@@ -8,8 +8,8 @@ class HealthEndpointTests(SimpleTestCase):
         response = self.client.get(reverse("home"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Corpus Platform")
-        self.assertContains(response, "Stage 0")
+        self.assertContains(response, "在线语料库平台")
+        self.assertContains(response, "Stage 4")
 
     def test_healthz_returns_liveness_payload(self):
         response = self.client.get(reverse("healthz"))

@@ -1,0 +1,4 @@
+<head>Corpus Documentation Sample</head>
+<p n="1">
+<s n="1">This file preserves paragraph and sentence structure.</s>
+</p>

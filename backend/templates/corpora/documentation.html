@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ corpus.name }} - Corpus Documentation{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3">
+  <div>
+    <p class="text-secondary small mb-1">Corpus Documentation</p>
+    <h1 class="h3 mb-1">{{ corpus.name }}</h1>
+    <p class="text-secondary mb-0">{{ corpus.description|default:"暂无说明" }}</p>
+  </div>
+  <a class="btn btn-outline-secondary" href="{% url 'corpora:list' %}">返回列表</a>
+</div>
+
+<section class="border rounded bg-white p-4 mb-3">
+  <h2 class="h5 mb-3">元数据</h2>
+  <dl class="row mb-0">
+    <dt class="col-sm-3">来源</dt><dd class="col-sm-9">{{ corpus.get_source_type_display }}</dd>
+    <dt class="col-sm-3">语料类型</dt><dd class="col-sm-9">{{ corpus.get_corpus_type_display }}</dd>
+    <dt class="col-sm-3">语言</dt><dd class="col-sm-9">{{ corpus.get_language_display }}</dd>
+    <dt class="col-sm-3">访问等级</dt><dd class="col-sm-9">{{ corpus.get_access_level_display }}</dd>
+    <dt class="col-sm-3">状态</dt><dd class="col-sm-9">{{ corpus.get_status_display }}</dd>
+    <dt class="col-sm-3">当前阶段</dt><dd class="col-sm-9">{{ corpus.stage }}</dd>
+  </dl>
+</section>
+
+<section class="border rounded bg-white p-4">
+  <h2 class="h5 mb-3">统计信息</h2>
+  <div class="row g-3">
+    <div class="col-6 col-md-4"><span class="text-secondary">文件</span><div class="fs-5">{{ documentation.file_count }}</div></div>
+    <div class="col-6 col-md-4"><span class="text-secondary">文档</span><div class="fs-5">{{ documentation.document_count }}</div></div>
+    <div class="col-6 col-md-4"><span class="text-secondary">段落</span><div class="fs-5">{{ documentation.paragraph_count }}</div></div>
+    <div class="col-6 col-md-4"><span class="text-secondary">句子</span><div class="fs-5">{{ documentation.sentence_count }}</div></div>
+    <div class="col-6 col-md-4"><span class="text-secondary">Token</span><div class="fs-5">{{ documentation.token_count }}</div></div>
+    <div class="col-6 col-md-4"><span class="text-secondary">Type</span><div class="fs-5">{{ documentation.type_count }}</div></div>
+  </div>
+</section>
+{% endblock %}

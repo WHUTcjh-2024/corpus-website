@@ -1,0 +1,15 @@
+{
+  "total_files": 9,
+  "unknown_file_count": 1,
+  "probable_pair_count": 1,
+  "required_types": [
+    "aligned_tsv",
+    "paired_raw_zh_en",
+    "raw_en",
+    "raw_zh",
+    "tagged_en",
+    "tagged_zh",
+    "xml_like",
+    "unknown"
+  ]
+}

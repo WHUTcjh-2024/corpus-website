@@ -12,7 +12,7 @@ def home(request: HttpRequest):
         request,
         "home.html",
         {
-            "stage": "Stage 0",
+            "stage": "Stage 4",
             "data_root": settings.DATA_ROOT,
         },
     )

@@ -1,0 +1,30 @@
+{
+  "raw_zh": {
+    "document_count": 1,
+    "paragraph_count": 2,
+    "sentence_count": 3
+  },
+  "raw_en": {
+    "document_count": 1,
+    "sentence_count": 2,
+    "token_count": 4
+  },
+  "aligned_tsv": {
+    "document_count": 1,
+    "sentence_count": 4,
+    "parallel_pair_count": 2
+  },
+  "tagged_zh": {
+    "token_count": 4
+  },
+  "tagged_en": {
+    "token_count": 3
+  },
+  "xml_like": {
+    "sentence_count": 2
+  },
+  "paired_raw_zh_en": {
+    "document_count": 2,
+    "parallel_pair_count": 2
+  }
+}

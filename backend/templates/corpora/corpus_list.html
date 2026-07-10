@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}语料库 - 在线语料库平台{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h3 mb-1">语料库</h1>
+    <p class="text-secondary mb-0">列表已按账号角色、访问等级和所有者在后端过滤。</p>
+  </div>
+  {% if can_create_personal %}
+    <a class="btn btn-primary" href="{% url 'corpora:create' %}">登记个人语料库</a>
+  {% endif %}
+</div>
+
+<div class="table-responsive border rounded bg-white">
+  <table class="table table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr>
+        <th scope="col">名称</th>
+        <th scope="col">来源</th>
+        <th scope="col">类型</th>
+        <th scope="col">语言</th>
+        <th scope="col">状态</th>
+        <th scope="col" class="text-end">操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for corpus in corpora %}
+        <tr>
+          <td>{{ corpus.name }}</td>
+          <td>{{ corpus.get_source_type_display }}</td>
+          <td>{{ corpus.get_corpus_type_display }}</td>
+          <td>{{ corpus.get_language_display }}</td>
+          <td>{{ corpus.get_status_display }}</td>
+          <td class="text-end">
+            <a href="{% url 'corpora:documentation' corpus.pk %}">Documentation</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="text-center text-secondary py-4">当前没有可访问的语料库。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
