@@ -57,8 +57,8 @@ class AlignedTsvImporter(BaseImporter):
                 ParallelPairRecord(
                     id=stable_id("pair", source.id, pair_ordinal),
                     ordinal=pair_ordinal,
-                    zh_sentence_id=zh_sentence.id,
-                    en_sentence_id=en_sentence.id,
+                    zh_unit_id=zh_sentence.id,
+                    en_unit_id=en_sentence.id,
                     zh_text=zh_text,
                     en_text=en_text,
                 )

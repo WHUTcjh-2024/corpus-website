@@ -3,8 +3,13 @@ from __future__ import annotations
 from django.contrib import admin
 from django.utils import timezone
 
-from .models import ApplicationStatus, UserProfile
-from .services import review_application
+from .models import (
+    ApplicationStatus,
+    QuotaRequestStatus,
+    UploadQuotaRequest,
+    UserProfile,
+)
+from .services import review_application, review_quota_request
 
 
 @admin.register(UserProfile)
@@ -46,6 +51,8 @@ class UserProfileAdmin(admin.ModelAdmin):
                     "status",
                     "reviewed_by",
                     "reviewed_at",
+                    "upload_max_file_bytes",
+                    "upload_total_bytes",
                     "created_at",
                     "updated_at",
                 )
@@ -84,5 +91,52 @@ class UserProfileAdmin(admin.ModelAdmin):
             review_application(
                 profile,
                 status=ApplicationStatus.DISABLED,
+                reviewer=request.user,
+            )
+
+
+@admin.register(UploadQuotaRequest)
+class UploadQuotaRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "requested_max_file_bytes",
+        "requested_total_bytes",
+        "status",
+        "created_at",
+        "reviewed_by",
+    )
+    list_filter = ("status", "created_at")
+    search_fields = ("user__username", "reason")
+    readonly_fields = (
+        "user",
+        "requested_max_file_bytes",
+        "requested_total_bytes",
+        "reason",
+        "status",
+        "created_at",
+        "updated_at",
+        "reviewed_by",
+        "reviewed_at",
+    )
+    actions = ("approve_requests", "reject_requests")
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    @admin.action(description="批准所选扩容申请")
+    def approve_requests(self, request, queryset) -> None:
+        for item in queryset.filter(status=QuotaRequestStatus.PENDING):
+            review_quota_request(
+                item,
+                status=QuotaRequestStatus.APPROVED,
+                reviewer=request.user,
+            )
+
+    @admin.action(description="拒绝所选扩容申请")
+    def reject_requests(self, request, queryset) -> None:
+        for item in queryset.filter(status=QuotaRequestStatus.PENDING):
+            review_quota_request(
+                item,
+                status=QuotaRequestStatus.REJECTED,
                 reviewer=request.user,
             )

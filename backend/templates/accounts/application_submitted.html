@@ -3,9 +3,15 @@
 {% block title %}申请已提交 - 在线语料库平台{% endblock %}
 
 {% block content %}
-<section class="border rounded bg-white p-4">
-  <h1 class="h3">申请已提交</h1>
-  <p class="mb-3">管理员审核通过后即可登录工作台。待审核、已拒绝或已停用账号均不能进入工作台。</p>
-  <a class="btn btn-primary" href="{% url 'accounts:login' %}">前往登录</a>
+<section class="auth-page d-flex align-items-center">
+  <div class="platform-card mx-auto text-center" style="max-width: 620px">
+    <div class="platform-card__body p-5">
+      <div class="mx-auto mb-4 d-grid place-items-center rounded-circle" style="width:64px;height:64px;background:#eaf8ef;color:#168444;font-size:1.8rem">✓</div>
+      <p class="page-eyebrow">Application Submitted</p>
+      <h1 class="page-title">申请已提交</h1>
+      <p class="text-secondary mt-3 mb-4">管理员审核通过后即可登录工作台。待审核、已拒绝或已停用账号均不能进入工作台。</p>
+      <a class="btn btn-primary px-4" href="{% url 'accounts:login' %}">前往登录</a>
+    </div>
+  </div>
 </section>
 {% endblock %}

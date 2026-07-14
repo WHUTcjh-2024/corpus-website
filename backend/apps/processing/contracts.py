@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.5"
 RECORD_NAMESPACE = uuid.UUID("f304f9dd-a234-4d25-9e56-4eea2aeb6028")
 
 
@@ -74,8 +74,8 @@ class TokenRecord:
 class ParallelPairRecord:
     id: str
     ordinal: int
-    zh_sentence_id: str
-    en_sentence_id: str
+    zh_unit_id: str
+    en_unit_id: str
     zh_text: str
     en_text: str
     alignment_unit: str = "sentence"

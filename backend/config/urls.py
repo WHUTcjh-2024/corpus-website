@@ -9,5 +9,9 @@ urlpatterns = [
     path("", include("apps.health.urls")),
     path("accounts/", include("apps.accounts.urls")),
     path("corpora/", include("apps.corpora.urls")),
+    path("search/", include("apps.search.urls")),
+    path("parallel/", include("apps.parallel.urls")),
+    path("statistics/", include("apps.statistics.urls")),
+    path("exports/", include("apps.exports.urls")),
     path("admin/", admin.site.urls),
 ]

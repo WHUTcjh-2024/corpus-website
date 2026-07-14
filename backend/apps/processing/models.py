@@ -71,7 +71,15 @@ class ProcessingTask(models.Model):
                 fields=["corpus"],
                 condition=Q(status__in=[ProcessingTaskStatus.PENDING, ProcessingTaskStatus.RUNNING]),
                 name="one_active_processing_task_per_corpus",
-            )
+            ),
+            models.UniqueConstraint(
+                fields=["requested_by"],
+                condition=(
+                    Q(requested_by__isnull=False)
+                    & Q(status__in=[ProcessingTaskStatus.PENDING, ProcessingTaskStatus.RUNNING])
+                ),
+                name="one_active_processing_task_per_user",
+            ),
         ]
 
     def __str__(self) -> str:

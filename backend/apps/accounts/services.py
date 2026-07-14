@@ -4,10 +4,20 @@ from dataclasses import dataclass
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractBaseUser
-from django.db import transaction
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from .models import ApplicationStatus, UserProfile, UserRole
+from apps.audit.models import AuditEventType
+from apps.audit.services import record_audit_event
+
+from .models import (
+    ApplicationStatus,
+    QuotaRequestStatus,
+    UploadQuotaRequest,
+    UserProfile,
+    UserRole,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +82,90 @@ def review_application(
     )
     profile.user.refresh_from_db(fields=["email", "is_active"])
     return profile
+
+
+@transaction.atomic
+def submit_quota_request(
+    *,
+    user: AbstractBaseUser,
+    requested_max_file_bytes: int,
+    requested_total_bytes: int,
+    reason: str,
+) -> UploadQuotaRequest:
+    profile = UserProfile.objects.get(user=user)
+    if not profile.is_approved or not user.is_active:
+        raise PermissionDenied("只有已审核且启用的账号可以申请扩大上传配额。")
+    if profile.role == UserRole.TEST:
+        raise PermissionDenied("测试账号不能申请扩大上传配额。")
+    if requested_max_file_bytes <= 0 or requested_total_bytes <= 0:
+        raise ValidationError("配额必须大于 0。")
+    if requested_max_file_bytes > requested_total_bytes:
+        raise ValidationError("单文件配额不能超过账号总配额。")
+    from apps.corpora.services import upload_limits_for
+
+    if requested_total_bytes <= upload_limits_for(user).total_bytes:
+        raise ValidationError("申请总配额必须高于当前配额。")
+    if not reason.strip():
+        raise ValidationError("请填写扩容理由。")
+    try:
+        quota_request = UploadQuotaRequest.objects.create(
+            user=user,
+            requested_max_file_bytes=requested_max_file_bytes,
+            requested_total_bytes=requested_total_bytes,
+            reason=reason.strip(),
+        )
+    except IntegrityError as exc:
+        raise ValidationError("已有待审核的扩容申请，请勿重复提交。") from exc
+    record_audit_event(
+        AuditEventType.QUOTA_REQUEST,
+        actor=user,
+        metadata={
+            "quota_request_id": str(quota_request.pk),
+            "requested_max_file_bytes": requested_max_file_bytes,
+            "requested_total_bytes": requested_total_bytes,
+        },
+    )
+    return quota_request
+
+
+@transaction.atomic
+def review_quota_request(
+    quota_request: UploadQuotaRequest,
+    *,
+    status: str,
+    reviewer: AbstractBaseUser,
+) -> UploadQuotaRequest:
+    if not reviewer.is_active or not reviewer.is_staff:
+        raise PermissionDenied("只有启用的后台管理员可以审核配额申请。")
+    if status not in {QuotaRequestStatus.APPROVED, QuotaRequestStatus.REJECTED}:
+        raise ValueError(f"Unsupported quota request status: {status}")
+    locked = UploadQuotaRequest.objects.select_for_update().select_related("user").get(
+        pk=quota_request.pk
+    )
+    if locked.status != QuotaRequestStatus.PENDING:
+        raise ValidationError("只能审核待处理的配额申请。")
+    locked.status = status
+    locked.reviewed_by = reviewer
+    locked.reviewed_at = timezone.now()
+    locked.save(update_fields=["status", "reviewed_by", "reviewed_at", "updated_at"])
+    if status == QuotaRequestStatus.APPROVED:
+        profile = UserProfile.objects.select_for_update().get(user=locked.user)
+        profile.upload_max_file_bytes = locked.requested_max_file_bytes
+        profile.upload_total_bytes = locked.requested_total_bytes
+        profile.save(
+            update_fields=["upload_max_file_bytes", "upload_total_bytes", "updated_at"]
+        )
+    record_audit_event(
+        AuditEventType.ADMIN_ACTION,
+        actor=reviewer,
+        metadata={
+            "action": "review_upload_quota",
+            "quota_request_id": str(locked.pk),
+            "user_id": str(locked.user_id),
+            "status": status,
+        },
+    )
+    return locked
 
 
 @transaction.atomic

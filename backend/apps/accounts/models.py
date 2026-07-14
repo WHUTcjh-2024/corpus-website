@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 
 
 class UserRole(models.TextChoices):
@@ -17,6 +21,12 @@ class ApplicationStatus(models.TextChoices):
     APPROVED = "approved", "已通过"
     REJECTED = "rejected", "已拒绝"
     DISABLED = "disabled", "已停用"
+
+
+class QuotaRequestStatus(models.TextChoices):
+    PENDING = "pending", "待审核"
+    APPROVED = "approved", "已通过"
+    REJECTED = "rejected", "已拒绝"
 
 
 class UserProfile(models.Model):
@@ -64,6 +74,18 @@ class UserProfile(models.Model):
         verbose_name="审核人",
     )
     reviewed_at = models.DateTimeField("审核时间", null=True, blank=True)
+    upload_max_file_bytes = models.PositiveBigIntegerField(
+        "单文件配额覆盖（字节）",
+        null=True,
+        blank=True,
+        help_text="留空使用角色默认值。",
+    )
+    upload_total_bytes = models.PositiveBigIntegerField(
+        "总上传配额覆盖（字节）",
+        null=True,
+        blank=True,
+        help_text="留空使用角色默认值。",
+    )
     created_at = models.DateTimeField("申请时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
@@ -89,3 +111,71 @@ class UserProfile(models.Model):
             email=self.email,
             is_active=should_be_active,
         )
+
+    def clean(self) -> None:
+        super().clean()
+        if (
+            self.upload_max_file_bytes is not None
+            and self.upload_total_bytes is not None
+            and self.upload_max_file_bytes > self.upload_total_bytes
+        ):
+            raise ValidationError(
+                {"upload_max_file_bytes": "单文件配额不能超过账号总配额。"}
+            )
+
+
+class UploadQuotaRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="upload_quota_requests",
+        verbose_name="申请人",
+    )
+    requested_max_file_bytes = models.PositiveBigIntegerField("申请单文件配额")
+    requested_total_bytes = models.PositiveBigIntegerField("申请总配额")
+    reason = models.TextField("申请理由")
+    status = models.CharField(
+        "状态",
+        max_length=20,
+        choices=QuotaRequestStatus.choices,
+        default=QuotaRequestStatus.PENDING,
+        db_index=True,
+    )
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="reviewed_upload_quota_requests",
+        null=True,
+        blank=True,
+        verbose_name="审核人",
+    )
+    reviewed_at = models.DateTimeField("审核时间", null=True, blank=True)
+    created_at = models.DateTimeField("申请时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "上传配额申请"
+        verbose_name_plural = "上传配额申请"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=Q(status=QuotaRequestStatus.PENDING),
+                name="one_pending_upload_quota_request_per_user",
+            ),
+            models.CheckConstraint(
+                condition=Q(requested_max_file_bytes__lte=models.F("requested_total_bytes")),
+                name="upload_quota_request_max_lte_total",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user.get_username()} · {self.get_status_display()}"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.requested_max_file_bytes > self.requested_total_bytes:
+            raise ValidationError(
+                {"requested_max_file_bytes": "单文件配额不能超过账号总配额。"}
+            )

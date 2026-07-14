@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Wordcloud - {{ corpus.name }}{% endblock %}
+
+{% block content %}
+{% include "statistics/_header.html" %}
+
+<form method="get" class="filter-card">
+  <div class="row g-3 align-items-end">
+    <div class="col-sm-6 col-lg-2"><label class="form-label" for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>{{ form.language }}</div>
+    <div class="col-sm-6 col-lg-2"><label class="form-label" for="{{ form.min_frequency.id_for_label }}">{{ form.min_frequency.label }}</label>{{ form.min_frequency }}</div>
+    <div class="col-sm-6 col-lg-2"><label class="form-label" for="{{ form.max_words.id_for_label }}">{{ form.max_words.label }}</label>{{ form.max_words }}</div>
+    <div class="col-sm-6 col-lg-2"><label class="form-label" for="{{ form.theme.id_for_label }}">{{ form.theme.label }}</label>{{ form.theme }}</div>
+    <div class="col-lg-2"><label class="form-label" for="{{ form.stopwords.id_for_label }}">{{ form.stopwords.label }}</label>{{ form.stopwords }}</div>
+    <div class="col-sm-6 col-lg-2"><div class="form-check mb-2">{{ form.include_punctuation }} <label class="form-check-label" for="{{ form.include_punctuation.id_for_label }}">{{ form.include_punctuation.label }}</label></div><button class="btn btn-primary w-100" type="submit">生成词云</button></div>
+  </div>
+</form>
+
+{% if result %}
+  <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-2">
+    <p class="mb-0">Source Types <strong>{{ result.source_types }}</strong> · Displayed <strong>{{ result.terms|length }}</strong> · Excluded Stopwords <strong>{{ result.excluded_stopwords }}</strong></p>
+    <span class="badge rounded-pill text-bg-light border">对数权重 · 防重叠螺旋布局</span>
+  </div>
+  <style>
+    .wordcloud-shell { background: linear-gradient(145deg, #f8fbff 0%, #eef5fb 100%); border: 1px solid #d9e5ef; border-radius: 1rem; box-shadow: 0 12px 34px rgba(31, 76, 117, .09); overflow: hidden; }
+    .wordcloud-svg { display: block; width: 100%; height: auto; min-height: 360px; }
+    .wordcloud-term, .wordcloud-term text { text-decoration: none; cursor: pointer; }
+    .wordcloud-term text { font-family: Inter, "Noto Sans SC", "Microsoft YaHei", sans-serif; font-weight: 700; paint-order: stroke; stroke: rgba(255,255,255,.86); stroke-width: 2px; stroke-linejoin: round; transition: opacity .16s ease, filter .16s ease, stroke-width .16s ease; }
+    .wordcloud-term:hover text, .wordcloud-term:focus text { opacity: 1; filter: brightness(.72); stroke-width: 3px; }
+  </style>
+  <div class="wordcloud-shell" aria-label="按词频加权的词云">
+    {% if result.terms %}
+      <svg class="wordcloud-svg" viewBox="0 0 {{ result.canvas_width }} {{ result.canvas_height }}" role="img" aria-labelledby="wordcloud-title wordcloud-desc">
+        <title id="wordcloud-title">{{ corpus.name }} 词云</title>
+        <desc id="wordcloud-desc">按词频对数缩放并采用无重叠螺旋布局；点击词项进入 KWIC。</desc>
+        <defs>
+          <radialGradient id="cloud-background" cx="50%" cy="46%" r="72%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#eef5fb"/></radialGradient>
+        </defs>
+        <rect width="1000" height="560" rx="18" fill="url(#cloud-background)"/>
+        <g opacity=".32" fill="none" stroke="#b9d0e3"><ellipse cx="500" cy="280" rx="390" ry="195"/><ellipse cx="500" cy="280" rx="275" ry="137"/></g>
+        {% for term in result.terms %}
+          <a class="wordcloud-term" href="{% url 'search:kwic' corpus.pk %}?q={{ term.term|urlencode }}" aria-label="{{ term.term }}，频次 {{ term.frequency }}">
+            <title>{{ term.term }} · Frequency {{ term.frequency }}</title>
+            <text x="{{ term.x }}" y="{{ term.y }}" text-anchor="middle" dominant-baseline="central" font-size="{{ term.font_size }}" fill="{{ term.color }}">{{ term.term }}</text>
+          </a>
+        {% endfor %}
+      </svg>
+    {% else %}<div class="text-secondary text-center py-5">当前条件没有可显示词项。</div>{% endif %}
+  </div>
+  <p class="small text-secondary mt-2">大小表示 Frequency（对数缩放），颜色辅助区分相邻词项；悬停查看频次，点击进入 KWIC 核查语境。</p>
+{% endif %}
+{% endblock %}

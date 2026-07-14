@@ -1,45 +1,49 @@
 {% extends "base.html" %}
 
-{% block title %}语料库 - 在线语料库平台{% endblock %}
+{% block title %}语料库资源 - 在线语料库平台{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-  <div>
-    <h1 class="h3 mb-1">语料库</h1>
-    <p class="text-secondary mb-0">列表已按账号角色、访问等级和所有者在后端过滤。</p>
+<div class="page-header">
+  <div><p class="page-eyebrow">Corpus Resources</p><h1 class="page-title">语料库资源</h1><p class="page-description">可见范围已根据账号角色、访问等级与语料所有权在后端完成过滤。</p></div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{% url 'corpora:mine' %}">我的语料</a>
+    {% if can_create_personal %}<a class="btn btn-outline-primary" href="{% url 'corpora:create' %}">登记元数据</a>{% endif %}
+    {% if can_upload_personal %}<a class="btn btn-primary" href="{% url 'corpora:upload' %}">上传 TXT 语料</a>{% endif %}
   </div>
-  {% if can_create_personal %}
-    <a class="btn btn-primary" href="{% url 'corpora:create' %}">登记个人语料库</a>
-  {% endif %}
 </div>
 
-<div class="table-responsive border rounded bg-white">
-  <table class="table table-hover align-middle mb-0">
-    <thead class="table-light">
-      <tr>
-        <th scope="col">名称</th>
-        <th scope="col">来源</th>
-        <th scope="col">类型</th>
-        <th scope="col">语言</th>
-        <th scope="col">状态</th>
-        <th scope="col" class="text-end">操作</th>
-      </tr>
-    </thead>
+{% if request.GET.tool %}
+  <div class="alert alert-info">请先选择一个状态为“可用”的语料库，再进入 {% if request.GET.tool == 'parallel' %}ParaConc 平行检索{% elif request.GET.tool == 'statistics' %}统计分析{% else %}KWIC 检索{% endif %}。</div>
+{% endif %}
+
+<section class="filter-card">
+  <div class="row g-3 align-items-end">
+    <div class="col-md-4"><label class="form-label" for="corpusFilter">检索语料库</label><input class="form-control" id="corpusFilter" type="search" placeholder="输入名称、类型或语言" data-table-filter="#corpusTable"></div>
+    <div class="col-md-8 text-md-end"><span class="small text-secondary">共 {{ corpora|length }} 个可访问语料库</span></div>
+  </div>
+</section>
+
+<div class="table-shell table-responsive">
+  <table class="table table-hover align-middle" id="corpusTable">
+    <thead><tr><th>语料库名称</th><th>来源</th><th>语料类型</th><th>语言</th><th>状态</th><th class="text-end">研究工具</th></tr></thead>
     <tbody>
       {% for corpus in corpora %}
         <tr>
-          <td>{{ corpus.name }}</td>
-          <td>{{ corpus.get_source_type_display }}</td>
-          <td>{{ corpus.get_corpus_type_display }}</td>
-          <td>{{ corpus.get_language_display }}</td>
-          <td>{{ corpus.get_status_display }}</td>
+          <td><a class="table-link" href="{% url 'corpora:documentation' corpus.pk %}">{{ corpus.name }}</a><div class="table-meta">更新于 {{ corpus.updated_at|date:"Y-m-d H:i" }}</div></td>
+          <td>{{ corpus.get_source_type_display }}</td><td>{{ corpus.get_corpus_type_display }}</td><td>{{ corpus.get_language_display }}</td>
+          <td><span class="status-badge status-{{ corpus.status }}">{{ corpus.get_status_display }}</span>{% with task=corpus.task_history.0 %}{% if task and task.status == "running" %}<div class="table-meta mt-1">加工进度 {{ task.progress }}%</div>{% endif %}{% endwith %}</td>
           <td class="text-end">
-            <a href="{% url 'corpora:documentation' corpus.pk %}">Documentation</a>
+            <span class="table-actions">
+              <a class="btn btn-sm btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">说明</a>
+              {% if corpus.status == "ready" %}
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'statistics:word_list' corpus.pk %}">统计</a>
+                {% if corpus.corpus_type == "aligned_tsv" or corpus.corpus_type == "paired_raw_zh_en" or corpus.corpus_type == "paired_tagged_zh_en" %}<a class="btn btn-sm btn-primary" href="{% url 'parallel:search' corpus.pk %}">ParaConc</a>{% endif %}
+              {% endif %}
+            </span>
           </td>
         </tr>
-      {% empty %}
-        <tr><td colspan="6" class="text-center text-secondary py-4">当前没有可访问的语料库。</td></tr>
-      {% endfor %}
+      {% empty %}<tr><td colspan="6" class="empty-state">当前没有可访问的语料库。</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

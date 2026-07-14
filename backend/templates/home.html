@@ -1,19 +1,62 @@
 {% extends "base.html" %}
 
-{% block title %}在线语料库平台{% endblock %}
+{% block title %}武汉理工大学外国语学院在线语料库平台{% endblock %}
 
 {% block content %}
-<section class="border rounded bg-white p-4">
-  <p class="text-uppercase text-secondary small mb-2">{{ stage }}</p>
-  <h1 class="h3 mb-3">在线语料库平台</h1>
-  <p class="mb-3">当前已提供用户申请、审核、分级权限和本地基础服务。</p>
-  <dl class="row mb-0">
-    <dt class="col-sm-3">存活检查</dt>
-    <dd class="col-sm-9"><a href="{% url 'healthz' %}">/healthz</a></dd>
-    <dt class="col-sm-3">就绪检查</dt>
-    <dd class="col-sm-9"><a href="{% url 'readyz' %}">/readyz</a></dd>
-    <dt class="col-sm-3">数据目录</dt>
-    <dd class="col-sm-9"><code>{{ data_root }}</code></dd>
-  </dl>
+<section class="home-hero">
+  <div class="home-hero__inner">
+    <div>
+      <div class="home-hero__eyebrow">WUHAN UNIVERSITY OF TECHNOLOGY · {{ stage }}</div>
+      <h1>武汉理工大学外国语学院<span>在线语料库平台</span></h1>
+      <p class="home-hero__lead">面向语言教学与研究的专业语料平台，提供单语检索、双语对照、词频统计与可控数据管理的一体化研究环境。</p>
+      <div class="home-hero__actions">
+        {% if user.is_authenticated %}
+          <a class="btn btn-light px-4" href="{% url 'accounts:dashboard' %}">进入工作台</a>
+        {% else %}
+          <a class="btn btn-light px-4" href="{% url 'accounts:login' %}">登录平台</a>
+          <a class="btn btn-outline-light px-4" href="{% url 'accounts:apply' %}">申请账号</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="hero-toolbox" aria-label="平台研究工具预览">
+      <div class="hero-toolbox__label">Corpus Research Workspace</div>
+      <div class="hero-search"><span>输入关键词、短语或 CQP 条件</span><b>检索</b></div>
+      <div class="hero-tool-grid">
+        <div class="hero-tool"><strong>KWIC</strong><small>关键词语境与左右文排序</small></div>
+        <div class="hero-tool"><strong>ParaConc</strong><small>中英原文与译文同步检索</small></div>
+        <div class="hero-tool"><strong>AntConc Tools</strong><small>词频、搭配与关键词分析</small></div>
+        <div class="hero-tool"><strong>Corpus Workspace</strong><small>个人语料与后台加工任务</small></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="home-section" id="platform-capabilities">
+  <div class="home-section__inner">
+    <header class="section-heading">
+      <span>Core Capabilities</span>
+      <h2>服务教学与研究的核心能力</h2>
+      <p>保留经典语料工具的操作逻辑，以清晰、可复核的网页工作流完成检索与分析。</p>
+    </header>
+    <div class="row g-4">
+      <div class="col-md-6 col-xl-3"><article class="capability-card"><span class="capability-card__number">01</span><h3>本语语料检索</h3><p>支持普通关键词、短语、通配符及安全 CQP 子集检索，可按左右文位置排序。</p></article></div>
+      <div class="col-md-6 col-xl-3"><article class="capability-card"><span class="capability-card__number">02</span><h3>双语平行对照</h3><p>保持人工对齐顺序，支持中英双向检索、组合筛选及源译文同步高亮。</p></article></div>
+      <div class="col-md-6 col-xl-3"><article class="capability-card"><span class="capability-card__number">03</span><h3>统计分析</h3><p>提供 Word List、N-Gram、Collocates、Keywords、分布图与词云。</p></article></div>
+      <div class="col-md-6 col-xl-3"><article class="capability-card"><span class="capability-card__number">04</span><h3>教学科研支持</h3><p>分级开放语料资源，支持个人语料上传、后台加工、受控导出与结果复核。</p></article></div>
+    </div>
+  </div>
+</section>
+
+<section class="home-section home-section--muted" id="platform-security">
+  <div class="home-section__inner security-band">
+    <div>
+      <span class="page-eyebrow">Data Governance</span>
+      <h2>以权限边界保护语料资产</h2>
+      <p>教师语料仅限在线检索，个人语料彼此隔离；上传、检索与导出均执行后端权限校验并保留审计轨迹。</p>
+    </div>
+    <div class="security-list">
+      <div>分级账号审核</div><div>教师语料水印</div><div>个人空间隔离</div><div>受控后台导出</div>
+    </div>
+  </div>
 </section>
 {% endblock %}

@@ -1,28 +1,37 @@
 {% extends "base.html" %}
+{% load static %}
 
-{% block title %}登录 - 在线语料库平台{% endblock %}
+{% block title %}登录 - 武汉理工大学外国语学院在线语料库平台{% endblock %}
+{% block body_class %}auth-body{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-md-6 col-lg-5">
-    <h1 class="h3 mb-3">登录</h1>
-    <form method="post" class="border rounded bg-white p-4" novalidate>
-      {% csrf_token %}
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-      {% endif %}
-      {% for field in form %}
-        <div class="mb-3">
-          <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-          {{ field }}
-          {% for error in field.errors %}
-            <div class="text-danger small mt-1">{{ error }}</div>
-          {% endfor %}
-        </div>
-      {% endfor %}
-      {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-      <button class="btn btn-primary w-100" type="submit">登录</button>
-    </form>
+<section class="auth-page">
+  <div class="auth-shell">
+    <div class="auth-brand-panel">
+      <img src="{% static 'img/whut-logo.png' %}" alt="武汉理工大学校徽">
+      <h1>欢迎登录<br>外国语学院在线语料库平台</h1>
+      <p>专业、安全、可追溯的语言研究工作空间</p>
+      <div class="auth-trust-list"><span>权限分级</span><span>数据隔离</span><span>审计追踪</span></div>
+    </div>
+    <div class="auth-form-panel">
+      <span class="page-eyebrow">Account Sign In</span>
+      <h2>用户登录</h2>
+      <p>请使用已通过审核的平台账号</p>
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+          </div>
+        {% endfor %}
+        {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+        <button class="btn btn-primary w-100 mt-1" type="submit">登录平台</button>
+      </form>
+      <p class="text-center mt-4 mb-0">还没有账号？<a href="{% url 'accounts:apply' %}">提交使用申请</a></p>
+    </div>
   </div>
-</div>
+</section>
 {% endblock %}

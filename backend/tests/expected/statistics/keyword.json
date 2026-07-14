@@ -1,0 +1,20 @@
+{
+  "target_tokens": 4,
+  "reference_tokens": 4,
+  "positive": {
+    "term": "apple",
+    "target_frequency": 3,
+    "reference_frequency": 1,
+    "target_range": 1,
+    "reference_range": 1,
+    "log_likelihood": 2.0929925750581915,
+    "chi_square": 2.0,
+    "log_ratio": 1.584962500721156
+  },
+  "negative": {
+    "term": "banana",
+    "target_frequency": 1,
+    "reference_frequency": 3,
+    "log_ratio": -1.584962500721156
+  }
+}

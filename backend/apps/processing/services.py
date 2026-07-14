@@ -31,10 +31,15 @@ def create_processing_task(*, corpus: Corpus, requested_by=None) -> ProcessingTa
         status__in=[ProcessingTaskStatus.PENDING, ProcessingTaskStatus.RUNNING],
     ).exists():
         raise ProcessingAlreadyQueued("该语料库已有等待或执行中的加工任务。")
+    if requested_by is not None and ProcessingTask.objects.filter(
+        requested_by=requested_by,
+        status__in=[ProcessingTaskStatus.PENDING, ProcessingTaskStatus.RUNNING],
+    ).exists():
+        raise ProcessingAlreadyQueued("当前账号已有等待或执行中的加工任务，请完成后再提交。")
     try:
         task = ProcessingTask.objects.create(corpus=corpus, requested_by=requested_by)
     except IntegrityError as exc:
-        raise ProcessingAlreadyQueued("该语料库已有等待或执行中的加工任务。") from exc
+        raise ProcessingAlreadyQueued("该语料库或当前账号已有等待或执行中的加工任务。") from exc
     corpus.status = CorpusStatus.PENDING_PROCESSING
     corpus.stage = "queued"
     corpus.save(update_fields=["status", "stage", "updated_at"])
@@ -160,7 +165,10 @@ def _mark_success(
             "sentence_count": counts["sentence_count"],
             "token_count": counts["token_count"],
             "type_count": counts["type_count"],
-            "segmentation_tool": "regex-baseline-v1",
+            "segmentation_tool": _segmentation_tool(
+                report.get("importer", ""),
+                task.corpus.language,
+            ),
             "processing_notes": "; ".join(report["warnings"]),
         },
     )
@@ -243,3 +251,15 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _segmentation_tool(importer_name: str, language: str) -> str:
+    if "tagged" in importer_name:
+        if language == "zh_en":
+            return "zh:source-provided-pos-v1;en:source-provided-pos-v1"
+        return f"{language}:source-provided-pos-v1"
+    if language == "zh_en":
+        return "zh:jieba-0.42.1;en:regex-baseline-v1"
+    if language == "zh":
+        return "zh:jieba-0.42.1"
+    return "en:regex-baseline-v1"

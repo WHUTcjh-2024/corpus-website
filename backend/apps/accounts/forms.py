@@ -6,9 +6,9 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
-from .models import UserProfile, UserRole
+from .models import UploadQuotaRequest, UserProfile, UserRole
 from .permissions import AccessScope, workspace_access_scope
-from .services import ApplicationData, submit_application
+from .services import ApplicationData, submit_application, submit_quota_request
 
 
 class AccountApplicationForm(forms.Form):
@@ -102,3 +102,54 @@ class ApprovedUserAuthenticationForm(AuthenticationForm):
                 self.error_messages["not_approved"],
                 code="not_approved",
             )
+
+
+class UploadQuotaRequestForm(forms.Form):
+    requested_max_file_mb = forms.IntegerField(
+        label="申请单文件上限（MB）",
+        min_value=1,
+        max_value=10_240,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    requested_total_mb = forms.IntegerField(
+        label="申请账号总额（MB）",
+        min_value=1,
+        max_value=10_240,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    reason = forms.CharField(
+        label="扩容理由",
+        max_length=2000,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 5}),
+    )
+
+    def __init__(self, *args, user, current_max_file_bytes: int, current_total_bytes: int, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.current_total_bytes = current_total_bytes
+        self.fields["requested_max_file_mb"].initial = max(
+            1, current_max_file_bytes // (1024 * 1024)
+        )
+        self.fields["requested_total_mb"].initial = max(
+            1, current_total_bytes // (1024 * 1024)
+        )
+
+    def clean(self) -> dict:
+        cleaned = super().clean()
+        max_file_mb = cleaned.get("requested_max_file_mb")
+        total_mb = cleaned.get("requested_total_mb")
+        if max_file_mb and total_mb and max_file_mb > total_mb:
+            self.add_error("requested_max_file_mb", "单文件上限不能超过账号总额。")
+        if total_mb and total_mb * 1024 * 1024 <= self.current_total_bytes:
+            self.add_error("requested_total_mb", "申请总额必须高于当前配额。")
+        return cleaned
+
+    def save(self) -> UploadQuotaRequest:
+        if not self.is_valid():
+            raise ValueError("Cannot save an invalid quota request form.")
+        return submit_quota_request(
+            user=self.user,
+            requested_max_file_bytes=self.cleaned_data["requested_max_file_mb"] * 1024 * 1024,
+            requested_total_bytes=self.cleaned_data["requested_total_mb"] * 1024 * 1024,
+            reason=self.cleaned_data["reason"],
+        )

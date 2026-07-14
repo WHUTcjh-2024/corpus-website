@@ -25,6 +25,12 @@
   },
   "paired_raw_zh_en": {
     "document_count": 2,
-    "parallel_pair_count": 2
+    "parallel_pair_count": 1
+  },
+  "paired_tagged_zh_en": {
+    "document_count": 2,
+    "paragraph_count": 4,
+    "sentence_count": 6,
+    "parallel_pair_count": 5
   }
 }

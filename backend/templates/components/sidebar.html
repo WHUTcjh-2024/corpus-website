@@ -1,0 +1,49 @@
+<aside class="offcanvas-lg offcanvas-start platform-sidebar" tabindex="-1" id="platformSidebar" aria-labelledby="platformSidebarLabel">
+  <div class="offcanvas-header d-lg-none">
+    <h2 class="offcanvas-title h6 mb-0" id="platformSidebarLabel">平台导航</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#platformSidebar" aria-label="关闭"></button>
+  </div>
+  <div class="offcanvas-body">
+    <nav class="sidebar-nav" aria-label="工作台导航">
+      <p class="sidebar-section-label">工作空间</p>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'dashboard' %} active{% endif %}" href="{% url 'accounts:dashboard' %}">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><span>工作台</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'list' %} active{% endif %}" href="{% url 'corpora:list' %}">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>语料库资源</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'mine' %} active{% endif %}" href="{% url 'corpora:mine' %}">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6.5h7l2 2h9v10H3z"/><path d="M3 6.5V5h7l2 2"/></svg><span>我的语料</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'upload' %} active{% endif %}" href="{% url 'corpora:upload' %}">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v6h14v-6"/></svg><span>上传语料</span>
+      </a>
+
+      <p class="sidebar-section-label mt-4">研究工具</p>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'search' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=kwic">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M7 10h6"/></svg><span>KWIC 检索</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'parallel' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=parallel">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h11M11 3l4 4-4 4M20 17H9M13 13l-4 4 4 4"/></svg><span>平行语料检索</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'statistics' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=statistics">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7"/></svg><span>统计分析</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'exports' %} active{% endif %}" href="{% url 'exports:list' %}">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 13h6M9 17h6"/></svg><span>导出管理</span>
+      </a>
+
+      {% if user.is_staff %}
+        <p class="sidebar-section-label mt-4">系统管理</p>
+        <a class="sidebar-link" href="{% url 'admin:index' %}">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.5h-4L10.4 6A8 8 0 0 0 8.8 7L6.5 6 4.5 9.5 6.6 11a7 7 0 0 0 0 2l-2.1 1.5 2 3.5 2.3-1a8 8 0 0 0 1.6 1l.3 2.5h4L15 18a8 8 0 0 0 1.6-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg><span>管理后台</span>
+        </a>
+      {% endif %}
+    </nav>
+
+    <div class="sidebar-help">
+      <span class="sidebar-help__icon">?</span>
+      <div><strong>使用帮助</strong><small>从语料说明页进入对应分析工具</small></div>
+    </div>
+  </div>
+</aside>

@@ -11,4 +11,5 @@ urlpatterns = [
     path("login/", views.AccountLoginView.as_view(), name="login"),
     path("logout/", views.AccountLogoutView.as_view(), name="logout"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("quota/request/", views.quota_request, name="quota_request"),
 ]

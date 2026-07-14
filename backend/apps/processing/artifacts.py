@@ -4,11 +4,18 @@ import json
 import os
 import shutil
 import sqlite3
-from collections import Counter
+import unicodedata
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, TextIO
 
-from .contracts import ImportResult, SCHEMA_VERSION, TokenRecord, record_dict
+from .contracts import (
+    ImportResult,
+    ParallelPairRecord,
+    SCHEMA_VERSION,
+    TokenRecord,
+    record_dict,
+)
 
 
 PROCESSED_JSONL_FILES = {
@@ -18,12 +25,7 @@ PROCESSED_JSONL_FILES = {
     "tokens": "tokens.jsonl",
     "parallel_pairs": "parallel_pairs.jsonl",
 }
-DEFERRED_INDEX_FILES = (
-    "ngram_frequency.json",
-    "collocate_cache.json",
-    "concordance_plot.json",
-    "wordcloud_terms.json",
-)
+DEFERRED_INDEX_FILES: tuple[str, ...] = ()
 
 
 class ArtifactWriter:
@@ -39,6 +41,7 @@ class ArtifactWriter:
         self._sqlite: sqlite3.Connection | None = None
         self._frequency: Counter[str] = Counter()
         self._global_position = 0
+        self._parallel_position = 0
         self.counts = {
             "file_count": 0,
             "document_count": 0,
@@ -71,7 +74,39 @@ class ArtifactWriter:
                 language TEXT NOT NULL,
                 document_id TEXT NOT NULL,
                 sentence_id TEXT NOT NULL,
-                sentence_position INTEGER NOT NULL
+                sentence_position INTEGER NOT NULL,
+                is_punctuation INTEGER NOT NULL
+            )
+            """
+        )
+        self._sqlite.execute(
+            """
+            CREATE TABLE ngrams (
+                language TEXT NOT NULL,
+                n INTEGER NOT NULL,
+                normalized TEXT NOT NULL,
+                display TEXT NOT NULL,
+                frequency INTEGER NOT NULL,
+                contains_punctuation INTEGER NOT NULL,
+                PRIMARY KEY (language, n, normalized)
+            )
+            """
+        )
+        self._sqlite.execute(
+            """
+            CREATE TABLE parallel_pairs (
+                global_position INTEGER PRIMARY KEY,
+                pair_id TEXT NOT NULL UNIQUE,
+                pair_ordinal INTEGER NOT NULL,
+                zh_unit_id TEXT NOT NULL,
+                en_unit_id TEXT NOT NULL,
+                zh_text TEXT NOT NULL,
+                en_text TEXT NOT NULL,
+                zh_normalized TEXT NOT NULL,
+                en_normalized TEXT NOT NULL,
+                alignment_unit TEXT NOT NULL,
+                method TEXT NOT NULL,
+                confidence REAL NOT NULL
             )
             """
         )
@@ -85,11 +120,14 @@ class ArtifactWriter:
         self.counts["parallel_pair_count"] += len(result.parallel_pairs)
         self.warnings.extend(result.warnings)
 
-        for key in ("documents", "paragraphs", "sentences", "parallel_pairs"):
+        for key in ("documents", "paragraphs", "sentences"):
             for record in getattr(result, key):
                 self._write_jsonl(key, record_dict(record))
+        for pair in result.parallel_pairs:
+            self._write_parallel_pair(pair)
         for token in result.tokens:
             self._write_token(token)
+        self._write_ngrams(result.tokens)
 
     def finalize(
         self,
@@ -144,8 +182,8 @@ class ArtifactWriter:
             """
             INSERT INTO tokens (
                 global_position, token_id, normalized, surface, lemma, pos,
-                language, document_id, sentence_id, sentence_position
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                language, document_id, sentence_id, sentence_position, is_punctuation
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 self._global_position,
@@ -158,7 +196,71 @@ class ArtifactWriter:
                 token.document_id,
                 token.sentence_id,
                 token.ordinal,
+                int(_is_punctuation(token.text)),
             ),
+        )
+
+    def _write_parallel_pair(self, pair: ParallelPairRecord) -> None:
+        self._write_jsonl("parallel_pairs", record_dict(pair))
+        self._parallel_position += 1
+        if self._sqlite is None:
+            raise RuntimeError("ArtifactWriter is not open.")
+        self._sqlite.execute(
+            """
+            INSERT INTO parallel_pairs (
+                global_position, pair_id, pair_ordinal, zh_unit_id,
+                en_unit_id, zh_text, en_text, zh_normalized,
+                en_normalized, alignment_unit, method, confidence
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                self._parallel_position,
+                pair.id,
+                pair.ordinal,
+                pair.zh_unit_id,
+                pair.en_unit_id,
+                pair.zh_text,
+                pair.en_text,
+                pair.zh_text.casefold(),
+                pair.en_text.casefold(),
+                pair.alignment_unit,
+                pair.method,
+                pair.confidence,
+            ),
+        )
+
+    def _write_ngrams(self, tokens: list[TokenRecord]) -> None:
+        if self._sqlite is None:
+            raise RuntimeError("ArtifactWriter is not open.")
+        by_sentence: dict[str, list[TokenRecord]] = defaultdict(list)
+        for token in tokens:
+            by_sentence[token.sentence_id].append(token)
+        counts: Counter[tuple[str, int, str, str, int]] = Counter()
+        for sentence_tokens in by_sentence.values():
+            ordered = sorted(sentence_tokens, key=lambda token: token.ordinal)
+            if not ordered:
+                continue
+            language = ordered[0].language
+            separator = "" if language == "zh" else " "
+            for n in range(2, 6):
+                for start in range(0, len(ordered) - n + 1):
+                    window = ordered[start : start + n]
+                    normalized = "\x1f".join(token.normalized for token in window)
+                    display = separator.join(token.text for token in window)
+                    contains_punctuation = int(
+                        any(_is_punctuation(token.text) for token in window)
+                    )
+                    counts[(language, n, normalized, display, contains_punctuation)] += 1
+        self._sqlite.executemany(
+            """
+            INSERT INTO ngrams (
+                language, n, normalized, display, contains_punctuation, frequency
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(language, n, normalized)
+            DO UPDATE SET frequency = frequency + excluded.frequency
+            """,
+            [(*key, frequency) for key, frequency in counts.items()],
         )
 
     def _write_jsonl(self, key: str, payload: dict[str, Any]) -> None:
@@ -179,12 +281,49 @@ class ArtifactWriter:
             raise RuntimeError("ArtifactWriter is not open.")
         self._sqlite.executescript(
             """
+            CREATE TABLE word_totals AS
+            SELECT language,
+                   normalized,
+                   MIN(surface) AS display,
+                   COUNT(*) AS frequency,
+                   COUNT(DISTINCT document_id) AS document_range,
+                   MIN(is_punctuation) AS is_punctuation
+            FROM tokens
+            GROUP BY language, normalized;
+
+            CREATE TABLE word_frequencies AS
+            SELECT language,
+                   normalized,
+                   MIN(surface) AS display,
+                   pos,
+                   COUNT(*) AS frequency,
+                   COUNT(DISTINCT document_id) AS document_range,
+                   MIN(is_punctuation) AS is_punctuation
+            FROM tokens
+            GROUP BY language, normalized, pos;
+
             CREATE INDEX idx_tokens_normalized_position
                 ON tokens(normalized, global_position);
+            CREATE INDEX idx_tokens_language_normalized
+                ON tokens(language, normalized);
+            CREATE INDEX idx_tokens_language_pos
+                ON tokens(language, pos);
             CREATE INDEX idx_tokens_document_position
                 ON tokens(document_id, global_position);
             CREATE INDEX idx_tokens_sentence_position
                 ON tokens(sentence_id, sentence_position);
+            CREATE INDEX idx_parallel_pairs_unit_position
+                ON parallel_pairs(alignment_unit, global_position);
+            CREATE INDEX idx_ngrams_language_n_frequency
+                ON ngrams(language, n, frequency DESC, normalized);
+            CREATE UNIQUE INDEX idx_word_totals_language_normalized
+                ON word_totals(language, normalized);
+            CREATE INDEX idx_word_totals_language_frequency
+                ON word_totals(language, frequency DESC, normalized);
+            CREATE UNIQUE INDEX idx_word_frequencies_language_normalized_pos
+                ON word_frequencies(language, normalized, pos);
+            CREATE INDEX idx_word_frequencies_language_pos_frequency
+                ON word_frequencies(language, pos, frequency DESC, normalized);
             """
         )
         self._sqlite.commit()
@@ -206,7 +345,49 @@ class ArtifactWriter:
         )
         self._write_json(
             self.index_staging / "word_frequency.json",
-            {"schema_version": SCHEMA_VERSION, "items": frequency},
+            {
+                "schema_version": SCHEMA_VERSION,
+                "status": "ready",
+                "storage": "kwic_index.sqlite",
+                "tables": ["word_totals", "word_frequencies"],
+                "items": frequency,
+            },
+        )
+        self._write_json(
+            self.index_staging / "ngram_frequency.json",
+            {
+                "schema_version": SCHEMA_VERSION,
+                "status": "ready",
+                "storage": "kwic_index.sqlite",
+                "table": "ngrams",
+                "n_values": [2, 3, 4, 5],
+            },
+        )
+        self._write_json(
+            self.index_staging / "collocate_cache.json",
+            {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dynamic",
+                "storage": "kwic_index.sqlite",
+            },
+        )
+        self._write_json(
+            self.index_staging / "concordance_plot.json",
+            {
+                "schema_version": SCHEMA_VERSION,
+                "status": "dynamic",
+                "storage": "kwic_index.sqlite",
+                "bins_per_document": 100,
+            },
+        )
+        self._write_json(
+            self.index_staging / "wordcloud_terms.json",
+            {
+                "schema_version": SCHEMA_VERSION,
+                "status": "ready",
+                "storage": "kwic_index.sqlite",
+                "table": "word_totals",
+            },
         )
         for filename in DEFERRED_INDEX_FILES:
             self._write_json(
@@ -256,3 +437,9 @@ class ArtifactWriter:
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+
+
+def _is_punctuation(value: str) -> bool:
+    return bool(value) and all(
+        unicodedata.category(character).startswith(("P", "S")) for character in value
+    )

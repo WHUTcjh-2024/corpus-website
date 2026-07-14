@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}我的语料 - 在线语料库平台{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><p class="page-eyebrow">Private Corpus Workspace</p><h1 class="page-title">我的语料</h1><p class="page-description">已使用 {{ used_bytes|filesizeformat }} / {{ total_bytes|filesizeformat }}；每个账号同时只运行一个加工任务。</p></div>
+  <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'accounts:quota_request' %}">申请扩容</a><a class="btn btn-outline-secondary" href="{% url 'exports:list' %}">我的导出</a><a class="btn btn-primary" href="{% url 'corpora:upload' %}">上传语料</a></div>
+</div>
+
+<div class="platform-card mb-3">
+  <div class="platform-card__body py-3">
+    <div class="d-flex justify-content-between small mb-2"><span>存储配额</span><span>{{ used_bytes|filesizeformat }} / {{ total_bytes|filesizeformat }}</span></div>
+    <div class="progress" style="height:7px"><div class="progress-bar" role="progressbar" style="width:{% widthratio used_bytes total_bytes 100 %}%" aria-label="存储配额使用率"></div></div>
+  </div>
+</div>
+
+<div class="table-shell table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th>名称</th><th>类型</th><th>文件</th><th>状态</th><th>更新时间</th><th class="text-end">操作</th></tr></thead>
+    <tbody>
+      {% for corpus in corpora %}{% with task=corpus.task_history.0 %}
+        <tr><td><a class="table-link" href="{% url 'corpora:documentation' corpus.pk %}">{{ corpus.name }}</a></td><td>{{ corpus.get_corpus_type_display }}</td><td>{{ corpus.documentation.file_count|default:0 }}</td><td><span class="status-badge status-{{ corpus.status }}">{{ corpus.get_status_display }}</span>{% if task %}<div class="table-meta mt-1{% if task.status == 'failed' %} text-danger{% endif %}">{{ task.get_status_display }} · {{ task.progress }}%</div>{% endif %}</td><td>{{ corpus.updated_at|date:"Y-m-d H:i" }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'corpora:documentation' corpus.pk %}">管理与分析</a></td></tr>
+      {% endwith %}{% empty %}<tr><td colspan="6" class="empty-state">尚未上传个人语料。</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

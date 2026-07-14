@@ -1,0 +1,9 @@
+{% if page_obj.num_pages > 1 %}
+  <nav class="platform-pagination" aria-label="结果分页">
+    <span class="platform-pagination__summary">共 {{ page_obj.total }} 条 · 第 {{ page_obj.page }} / {{ page_obj.num_pages }} 页</span>
+    <div class="btn-group btn-group-sm">
+      {% if page_obj.has_previous %}<a class="btn btn-outline-secondary" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.page|add:'-1' }}">上一页</a>{% else %}<button class="btn btn-outline-secondary" disabled>上一页</button>{% endif %}
+      {% if page_obj.has_next %}<a class="btn btn-outline-secondary" href="?{% if query_string %}{{ query_string }}&amp;{% endif %}page={{ page_obj.page|add:'1' }}">下一页</a>{% else %}<button class="btn btn-outline-secondary" disabled>下一页</button>{% endif %}
+    </div>
+  </nav>
+{% endif %}

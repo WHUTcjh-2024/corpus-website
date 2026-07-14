@@ -12,7 +12,7 @@ def home(request: HttpRequest):
         request,
         "home.html",
         {
-            "stage": "Stage 4",
+            "stage": settings.PLATFORM_STAGE.replace("stage-", "Stage "),
             "data_root": settings.DATA_ROOT,
         },
     )
@@ -23,7 +23,7 @@ def healthz(request: HttpRequest) -> JsonResponse:
         {
             "status": "ok",
             "service": "corpus-platform",
-            "stage": "stage-0",
+            "stage": settings.PLATFORM_STAGE,
         }
     )
 

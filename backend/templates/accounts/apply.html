@@ -1,36 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}申请账号 - 在线语料库平台{% endblock %}
+{% block title %}账号申请 - 武汉理工大学外国语学院在线语料库平台{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    <div class="d-flex justify-content-between align-items-start mb-3">
-      <div>
-        <h1 class="h3 mb-1">申请账号</h1>
-        <p class="text-secondary mb-0">提交后由管理员审核并确定最终权限等级。</p>
-      </div>
+<section class="auth-page">
+  <div class="container" style="max-width: 980px">
+    <div class="page-header">
+      <div><p class="page-eyebrow">Account Application</p><h1 class="page-title">申请平台账号</h1><p class="page-description">填写基本信息并选择申请等级，管理员将根据教学或研究用途进行审核。</p></div>
+      <a class="btn btn-outline-secondary" href="{% url 'accounts:login' %}">返回登录</a>
     </div>
-    <form method="post" class="border rounded bg-white p-4" novalidate>
+    <ol class="stepper" aria-label="账号申请步骤">
+      <li class="active" data-step="1">填写信息</li><li data-step="2">选择角色</li><li data-step="3">提交审核</li>
+    </ol>
+    <form method="post" class="platform-card" novalidate>
       {% csrf_token %}
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
-      {% endif %}
-      <div class="row g-3">
-        {% for field in form %}
-          <div class="{% if field.name == 'application_reason' %}col-12{% else %}col-md-6{% endif %}">
-            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
-            {{ field }}
-            {% for error in field.errors %}
-              <div class="text-danger small mt-1">{{ error }}</div>
-            {% endfor %}
-          </div>
-        {% endfor %}
-      </div>
-      <div class="mt-4 d-flex justify-content-end">
-        <button class="btn btn-primary" type="submit">提交申请</button>
+      <div class="platform-card__body p-4 p-md-5">
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="row g-3">
+          {% for field in form %}
+            <div class="{% if field.name == 'application_reason' %}col-12{% else %}col-md-6{% endif %}">
+              <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% for error in field.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+            </div>
+          {% endfor %}
+        </div>
+        <div class="d-flex justify-content-end mt-4"><button class="btn btn-primary px-5" type="submit">提交申请</button></div>
       </div>
     </form>
   </div>
-</div>
+</section>
 {% endblock %}

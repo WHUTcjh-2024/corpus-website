@@ -1,0 +1,11 @@
+<head>Sample_NN1 Title_NN1 </head>
+<p>
+<author>Teacher_NN1 </author>
+</p>
+<p n="1">
+<s n="1">The_AT digital_JJ economy_NN1 develops_VVZ ._.</s>
+<s n="2">Artificial_JJ intelligence_NN1 changes_VVZ lives_NN2 ._.</s>
+</p>
+<p n="2">
+<s n="3">3_MC ECONOMIC_JJ ITEM_NN1 </s>
+</p>

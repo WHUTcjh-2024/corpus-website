@@ -9,14 +9,14 @@ class HealthEndpointTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "在线语料库平台")
-        self.assertContains(response, "Stage 4")
+        self.assertContains(response, "Stage 11")
 
     def test_healthz_returns_liveness_payload(self):
         response = self.client.get(reverse("healthz"))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
-        self.assertEqual(response.json()["stage"], "stage-0")
+        self.assertEqual(response.json()["stage"], "stage-11")
 
 
 class Stage0SettingsTests(SimpleTestCase):

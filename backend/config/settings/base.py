@@ -92,6 +92,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.audit.context_processors.teacher_watermark",
             ],
         },
     },
@@ -115,6 +116,7 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = "static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -123,6 +125,7 @@ LOGIN_REDIRECT_URL = "accounts:dashboard"
 LOGOUT_REDIRECT_URL = "home"
 
 DATA_ROOT = Path(os.getenv("DATA_ROOT", PROJECT_ROOT / "data")).resolve()
+PLATFORM_STAGE = os.getenv("PLATFORM_STAGE", "stage-11")
 DATA_SUBDIRS = [
     "inbox",
     "demo",
@@ -134,6 +137,28 @@ DATA_SUBDIRS = [
     "exports",
     "manifests",
 ]
+
+# User uploads are deliberately bounded at both file and account level. Test
+# accounts use a smaller sandbox quota while approved users retain the 30 MB
+# project default.
+USER_UPLOAD_MAX_FILE_BYTES = int(os.getenv("USER_UPLOAD_MAX_FILE_BYTES", 30 * 1024 * 1024))
+USER_UPLOAD_TOTAL_BYTES = int(os.getenv("USER_UPLOAD_TOTAL_BYTES", 30 * 1024 * 1024))
+TEST_UPLOAD_MAX_FILE_BYTES = int(os.getenv("TEST_UPLOAD_MAX_FILE_BYTES", 2 * 1024 * 1024))
+TEST_UPLOAD_TOTAL_BYTES = int(os.getenv("TEST_UPLOAD_TOTAL_BYTES", 5 * 1024 * 1024))
+UPLOAD_SCANNER_BACKEND = os.getenv(
+    "UPLOAD_SCANNER_BACKEND",
+    "apps.corpora.scanners.DisabledUploadScanner",
+)
+CLAMAV_HOST = os.getenv("CLAMAV_HOST", "127.0.0.1")
+CLAMAV_PORT = int(os.getenv("CLAMAV_PORT", "3310"))
+CLAMAV_TIMEOUT_SECONDS = float(os.getenv("CLAMAV_TIMEOUT_SECONDS", "15"))
+
+# Export jobs are asynchronous and deliberately bounded to protect the worker,
+# source corpora, and users from accidental bulk disclosure.
+EXPORT_TTL_SECONDS = int(os.getenv("EXPORT_TTL_SECONDS", 24 * 60 * 60))
+EXPORT_MAX_ROWS = int(os.getenv("EXPORT_MAX_ROWS", 100_000))
+EXPORT_MAX_DOWNLOADS = int(os.getenv("EXPORT_MAX_DOWNLOADS", 5))
+EXPORT_MAX_JOBS_PER_HOUR = int(os.getenv("EXPORT_MAX_JOBS_PER_HOUR", 10))
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CACHES = {

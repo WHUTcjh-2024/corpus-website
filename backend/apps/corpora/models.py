@@ -18,6 +18,7 @@ class CorpusType(models.TextChoices):
     RAW_EN = "raw_en", "英文原文"
     ALIGNED_TSV = "aligned_tsv", "中英对齐 TSV"
     PAIRED_RAW_ZH_EN = "paired_raw_zh_en", "中英原文配对"
+    PAIRED_TAGGED_ZH_EN = "paired_tagged_zh_en", "中英人工对齐标注语料"
     TAGGED_ZH = "tagged_zh", "中文词性标注"
     TAGGED_EN = "tagged_en", "英文词性标注"
     XML_LIKE = "xml_like", "类 XML 结构"

@@ -22,11 +22,13 @@ from apps.corpora.models import (
     CorpusStatus,
     CorpusType,
 )
+from apps.search.kwic import KwicSearchEngine
 
 from .exceptions import ProcessingAlreadyQueued, ProcessingError
 from .models import ProcessingTask, ProcessingTaskStatus
 from .services import create_processing_task, process_task
 from .tasks import process_corpus_task
+from .text import token_matches
 
 
 class ProcessingPipelineTests(TestCase):
@@ -38,6 +40,15 @@ class ProcessingPipelineTests(TestCase):
         self.data_root = Path(self.temp_dir)
         self.enterContext(override_settings(DATA_ROOT=self.data_root))
         self.expected = json.loads(self.expected_path.read_text(encoding="utf-8"))
+
+    def test_raw_chinese_tokenization_uses_words_instead_of_single_characters(self):
+        terms = [match.group(0) for match in token_matches("中国社会各阶级的分析", "zh")]
+
+        self.assertEqual(terms, ["中国", "社会", "各", "阶级", "的", "分析"])
+        self.assertEqual(
+            [(match.start(), match.end()) for match in token_matches("数字经济", "zh")],
+            [(0, 2), (2, 4)],
+        )
 
     def create_corpus(
         self,
@@ -214,7 +225,7 @@ class ProcessingPipelineTests(TestCase):
         documents = self.read_jsonl(corpus, "documents.jsonl")
         self.assertEqual(documents[0]["title"], "测试文档")
 
-    def test_auto_align_basic_version_pairs_by_sentence_ordinal(self):
+    def test_paired_raw_files_preserve_provided_paragraph_alignment(self):
         corpus = self.create_corpus(
             corpus_type=CorpusType.PAIRED_RAW_ZH_EN,
             language=CorpusLanguage.ZH_EN,
@@ -232,8 +243,126 @@ class ProcessingPipelineTests(TestCase):
             report["counts"]["parallel_pair_count"], expected["parallel_pair_count"]
         )
         pairs = self.read_jsonl(corpus, "parallel_pairs.jsonl")
-        self.assertTrue(all(pair["method"] == "ordinal_baseline" for pair in pairs))
-        self.assertTrue(all(pair["confidence"] == 0.5 for pair in pairs))
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["alignment_unit"], "paragraph")
+        self.assertEqual(pairs[0]["method"], "provided_paragraph_order")
+        self.assertEqual(pairs[0]["confidence"], 1.0)
+        self.assertEqual(report["counts"]["sentence_count"], 5)
+        self.assertEqual(pairs[0]["zh_text"], "数字经济发展。人工智能进步并改变生活。")
+        self.assertEqual(
+            pairs[0]["en_text"],
+            "The digital economy develops. Artificial intelligence advances. It changes lives.",
+        )
+
+    def test_paired_raw_files_reject_mismatched_paragraph_counts(self):
+        corpus = self.create_corpus(
+            corpus_type=CorpusType.PAIRED_RAW_ZH_EN,
+            language=CorpusLanguage.ZH_EN,
+            files=[
+                ("paired_zh.txt", CorpusType.PAIRED_RAW_ZH_EN, CorpusLanguage.ZH),
+                ("raw_zh.txt", CorpusType.PAIRED_RAW_ZH_EN, CorpusLanguage.EN),
+            ],
+        )
+        task = create_processing_task(corpus=corpus)
+
+        with self.assertRaisesMessage(
+            ProcessingError,
+            "Provided paragraph alignment is invalid",
+        ):
+            process_task(task.pk)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, ProcessingTaskStatus.FAILED)
+
+    def test_paired_tagged_structure_preserves_ids_pos_and_clean_surface_text(self):
+        corpus = self.create_corpus(
+            corpus_type=CorpusType.PAIRED_TAGGED_ZH_EN,
+            language=CorpusLanguage.ZH_EN,
+            files=[
+                (
+                    "paired_tagged_zh.txt",
+                    CorpusType.PAIRED_TAGGED_ZH_EN,
+                    CorpusLanguage.ZH,
+                ),
+                (
+                    "paired_tagged_en.txt",
+                    CorpusType.PAIRED_TAGGED_ZH_EN,
+                    CorpusLanguage.EN,
+                ),
+            ],
+        )
+
+        _, report = self.run_pipeline(corpus)
+
+        expected = self.expected["paired_tagged_zh_en"]
+        for key, value in expected.items():
+            self.assertEqual(report["counts"][key], value)
+        pairs = self.read_jsonl(corpus, "parallel_pairs.jsonl")
+        self.assertEqual(
+            [pair["alignment_unit"] for pair in pairs],
+            ["sentence", "sentence", "sentence", "paragraph", "paragraph"],
+        )
+        self.assertTrue(all(pair["method"] == "provided_structure_id" for pair in pairs))
+        self.assertTrue(all(pair["confidence"] == 1.0 for pair in pairs))
+        self.assertEqual(pairs[0]["zh_text"], "数字经济发展。")
+        self.assertEqual(pairs[0]["en_text"], "The digital economy develops.")
+        self.assertEqual(pairs[2]["zh_text"], "第三件经济")
+
+        tokens = self.read_jsonl(corpus, "tokens.jsonl")
+        self.assertIn(("数字", "n"), [(token["text"], token["pos"]) for token in tokens])
+        self.assertIn(("digital", "JJ"), [(token["text"], token["pos"]) for token in tokens])
+        for record in [*pairs, *self.read_jsonl(corpus, "sentences.jsonl")]:
+            serialized = json.dumps(record, ensure_ascii=False)
+            self.assertNotIn("<s", serialized)
+            self.assertNotIn("/n", serialized)
+            self.assertNotIn("_NN", serialized)
+
+        kwic = KwicSearchEngine(
+            data_root=self.data_root,
+            corpus_id=str(corpus.pk),
+        ).search("发展", pos="v")
+        self.assertEqual(kwic.total, 1)
+        self.assertEqual(kwic.hits[0].keyword, "发展")
+        self.assertEqual(
+            KwicSearchEngine(
+                data_root=self.data_root,
+                corpus_id=str(corpus.pk),
+            ).search("发展", pos="n").total,
+            0,
+        )
+        corpus.documentation.refresh_from_db()
+        self.assertEqual(
+            corpus.documentation.segmentation_tool,
+            "zh:source-provided-pos-v1;en:source-provided-pos-v1",
+        )
+
+    def test_paired_tagged_structure_rejects_cross_language_id_mismatch(self):
+        corpus = self.create_corpus(
+            corpus_type=CorpusType.PAIRED_TAGGED_ZH_EN,
+            language=CorpusLanguage.ZH_EN,
+            files=[
+                (
+                    "paired_tagged_zh.txt",
+                    CorpusType.PAIRED_TAGGED_ZH_EN,
+                    CorpusLanguage.ZH,
+                ),
+                (
+                    "paired_tagged_en_mismatch.txt",
+                    CorpusType.PAIRED_TAGGED_ZH_EN,
+                    CorpusLanguage.EN,
+                ),
+            ],
+        )
+        task = create_processing_task(corpus=corpus)
+
+        with self.assertRaisesMessage(
+            ProcessingError,
+            "Tagged sentence n identifiers differ",
+        ):
+            process_task(task.pk)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, ProcessingTaskStatus.FAILED)
 
     def test_processing_failure_persists_error_message(self):
         corpus = self.create_corpus(
@@ -283,7 +412,7 @@ class ProcessingPipelineTests(TestCase):
         corpus.documentation.refresh_from_db()
         self.assertEqual(corpus.documentation.token_count, report["counts"]["token_count"])
         self.assertEqual(corpus.documentation.type_count, report["counts"]["type_count"])
-        self.assertEqual(corpus.documentation.segmentation_tool, "regex-baseline-v1")
+        self.assertEqual(corpus.documentation.segmentation_tool, "en:regex-baseline-v1")
 
     def test_duplicate_active_task_is_rejected(self):
         corpus = self.create_corpus(
@@ -297,6 +426,23 @@ class ProcessingPipelineTests(TestCase):
             create_processing_task(corpus=corpus)
 
         self.assertEqual(ProcessingTask.objects.filter(corpus=corpus).count(), 1)
+
+    def test_user_can_have_only_one_active_processing_task(self):
+        user = get_user_model().objects.create_user(username="queued-owner")
+        first = self.create_corpus(
+            corpus_type=CorpusType.RAW_EN,
+            language=CorpusLanguage.EN,
+            files=[("raw_en.txt", CorpusType.RAW_EN, CorpusLanguage.EN)],
+        )
+        second = self.create_corpus(
+            corpus_type=CorpusType.RAW_ZH,
+            language=CorpusLanguage.ZH,
+            files=[("raw_zh.txt", CorpusType.RAW_ZH, CorpusLanguage.ZH)],
+        )
+        create_processing_task(corpus=first, requested_by=user)
+
+        with self.assertRaisesMessage(ProcessingAlreadyQueued, "当前账号已有"):
+            create_processing_task(corpus=second, requested_by=user)
 
     def test_database_constraint_rejects_two_active_tasks(self):
         corpus = self.create_corpus(
