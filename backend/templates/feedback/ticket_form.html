@@ -1,0 +1,86 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}提交反馈 - 在线语料库平台{% endblock %}
+
+{% block dashboard_content %}
+<div class="page-header">
+  <div>
+    <p class="page-eyebrow">Feedback</p>
+    <h1 class="page-title">提交反馈</h1>
+    <p class="page-description">请描述可复现的信息。不要提交完整语料原文、账号密码或其他敏感内容。</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{% url 'feedback:list' %}">返回列表</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <form class="platform-card" method="post" novalidate>
+      {% csrf_token %}
+      <div class="platform-card__body">
+        {% if form.non_field_errors %}<div class="alert alert-danger">{{ form.non_field_errors }}</div>{% endif %}
+        <div class="mb-3">
+          <label class="form-label" for="{{ form.title.id_for_label }}">标题</label>
+          {{ form.title }}
+          {{ form.title.errors }}
+        </div>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.category.id_for_label }}">类型</label>
+            {{ form.category }}
+            {{ form.category.errors }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.severity.id_for_label }}">影响程度</label>
+            {{ form.severity }}
+            {{ form.severity.errors }}
+          </div>
+        </div>
+        <div class="row g-3 mt-0">
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.page_url.id_for_label }}">相关页面</label>
+            {{ form.page_url }}
+            {{ form.page_url.errors }}
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="{{ form.contact_email.id_for_label }}">联系邮箱</label>
+            {{ form.contact_email }}
+            {{ form.contact_email.errors }}
+          </div>
+        </div>
+        <div class="mt-3">
+          <label class="form-label" for="{{ form.description.id_for_label }}">详细说明</label>
+          {{ form.description }}
+          {{ form.description.errors }}
+        </div>
+      </div>
+      <div class="platform-card__footer">
+        <button class="btn btn-primary" type="submit">提交反馈</button>
+      </div>
+    </form>
+  </div>
+  <div class="col-xl-4">
+    <aside class="platform-card">
+      <header class="platform-card__header"><h2>建议填写</h2></header>
+      <div class="platform-card__body">
+        <ol class="compact-list">
+          <li>你正在使用哪个页面或功能。</li>
+          <li>实际做了哪些操作。</li>
+          <li>期望结果和实际结果分别是什么。</li>
+          <li>问题是否稳定复现。</li>
+        </ol>
+      </div>
+    </aside>
+    <aside class="platform-card mt-4">
+      <header class="platform-card__header"><h2>人工联系</h2></header>
+      <div class="platform-card__body">
+        <dl class="profile-list mb-0">
+          <div><dt>联系人</dt><dd>{{ feedback_support_name }}</dd></div>
+          <div><dt>反馈邮箱</dt><dd><a href="mailto:{{ feedback_support_email }}">{{ feedback_support_email }}</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -8,14 +8,7 @@ from redis import Redis
 
 
 def home(request: HttpRequest):
-    return render(
-        request,
-        "home.html",
-        {
-            "stage": settings.PLATFORM_STAGE.replace("stage-", "Stage "),
-            "data_root": settings.DATA_ROOT,
-        },
-    )
+    return render(request, "frontend/index.html")
 
 
 def healthz(request: HttpRequest) -> JsonResponse:

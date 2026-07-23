@@ -1,0 +1,20 @@
+{% if index_repair %}
+  <section
+    class="alert {% if index_repair.is_active %}alert-info{% else %}alert-danger{% endif %} d-flex align-items-start gap-3"
+    role="{% if index_repair.is_active %}status{% else %}alert{% endif %}"
+    {% if index_repair.is_active %}data-index-repair-refresh="{{ index_repair.retry_after_seconds }}"{% endif %}
+  >
+    {% if index_repair.is_active %}
+      <span class="spinner-border spinner-border-sm mt-1 flex-shrink-0" aria-hidden="true"></span>
+    {% else %}
+      <span class="fw-bold flex-shrink-0" aria-hidden="true">!</span>
+    {% endif %}
+    <div>
+      <div class="fw-semibold">{% if index_repair.is_active %}正在自动修复检索索引{% else %}索引修复需要管理员关注{% endif %}</div>
+      <div>{{ index_repair.message }}</div>
+      {% if index_repair.task_id %}
+        <div class="small opacity-75 mt-1">任务 {{ index_repair.task_id }} · 当前进度 {{ index_repair.progress }}%</div>
+      {% endif %}
+    </div>
+  </section>
+{% endif %}

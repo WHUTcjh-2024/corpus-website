@@ -88,7 +88,11 @@ def summarize_records(records: list[ManifestRecord]) -> dict[str, object]:
 
 def _iter_supported_files(root: Path):
     for path in root.rglob("*"):
-        if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES:
+        if (
+            path.is_file()
+            and path.suffix.lower() in SUPPORTED_SUFFIXES
+            and not path.name.startswith("~$")
+        ):
             yield path
 
 
@@ -134,6 +138,25 @@ def _apply_pair_detection(records: list[ManifestRecord]) -> None:
                 record.confidence = max(record.confidence, 0.86)
                 record.notes = _append_note(record.notes, f"pair_key={key}")
 
+    tagged_buckets: dict[str, list[ManifestRecord]] = defaultdict(list)
+    for record in records:
+        if record.detected_type not in {"tagged_zh", "tagged_en"}:
+            continue
+        tagged_buckets[_tagged_pair_key(record.original_path, record.filename)].append(record)
+    for key in sorted(tagged_buckets):
+        bucket = tagged_buckets[key]
+        zh_records = [record for record in bucket if record.detected_language == "zh"]
+        en_records = [record for record in bucket if record.detected_language == "en"]
+        if len(zh_records) != 1 or len(en_records) != 1:
+            continue
+        pair_id = f"pair-{pair_index:04d}"
+        pair_index += 1
+        for record in (*zh_records, *en_records):
+            record.probable_pair_id = pair_id
+            record.detected_type = "paired_tagged_zh_en"
+            record.confidence = max(record.confidence, 0.95)
+            record.notes = _append_note(record.notes, f"pair_key={key}")
+
 
 def _file_id(relative_path: str) -> str:
     digest = hashlib.sha1(relative_path.encode("utf-8")).hexdigest()
@@ -142,9 +165,26 @@ def _file_id(relative_path: str) -> str:
 
 def _pair_key(original_path: str, filename: str) -> str:
     path_parts = Path(original_path).parts[:-1]
-    parent_key = "/".join(_normalize_name(part) for part in path_parts)
+    parent_key = "/".join(
+        normalized
+        for part in path_parts
+        if (normalized := _normalize_name(part))
+    )
     stem = _normalize_name(Path(filename).stem)
     return f"{parent_key}/{stem}" if parent_key else stem
+
+
+def _tagged_pair_key(original_path: str, filename: str) -> str:
+    path_parts = Path(original_path).parts[:-1]
+    parent_key = "/".join(
+        normalized
+        for part in path_parts
+        if (normalized := _normalize_name(part))
+    )
+    stem = Path(filename).stem
+    identifier = re.match(r"^\s*(\d+)(?:\s*-|$)", stem)
+    document_key = identifier.group(1) if identifier else _normalize_name(stem)
+    return f"{parent_key}/{document_key}" if parent_key else document_key
 
 
 def _normalize_name(value: str) -> str:

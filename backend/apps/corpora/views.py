@@ -18,6 +18,7 @@ from apps.parallel.engine import (
 )
 
 from apps.processing.exceptions import ProcessingError
+from apps.processing.index_health import ensure_corpus_index_ready
 from apps.processing.models import ProcessingTask
 from apps.processing.services import dispatch_processing_task
 
@@ -163,8 +164,13 @@ def corpus_documentation(request: HttpRequest, corpus_id) -> HttpResponse:
                 data_root=settings.DATA_ROOT,
                 corpus_id=str(corpus.pk),
             ).preview(alignment_unit=alignment_unit)
-        except (ParallelIndexUnavailable, ParallelIndexCorrupt) as exc:
-            alignment_preview_error = str(exc)
+        except (ParallelIndexUnavailable, ParallelIndexCorrupt):
+            repair = ensure_corpus_index_ready(corpus, force=True)
+            alignment_preview_error = (
+                repair.message
+                if repair
+                else "平行语料索引暂时不可用，系统已记录该异常。"
+            )
     return render(
         request,
         "corpora/documentation.html",

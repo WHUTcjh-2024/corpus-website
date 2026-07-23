@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 
 {% block title %}上传语料 - 在线语料库平台{% endblock %}
 
-{% block content %}
+{% block dashboard_content %}
 <div class="page-header"><div><p class="page-eyebrow">Private Corpus Upload</p><h1 class="page-title">上传个人语料</h1><p class="page-description">单语语料进入 AntConc 工具；人工对齐双语语料同时进入 ParaConc。文件仅本人和管理员可见。</p></div><div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'corpora:mine' %}">返回我的语料</a></div></div>
 
 <ol class="stepper" aria-label="语料上传步骤"><li class="active" data-step="1">上传文件</li><li data-step="2">填写信息</li><li data-step="3">后台加工</li><li data-step="4">完成</li></ol>

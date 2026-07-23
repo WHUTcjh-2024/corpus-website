@@ -225,7 +225,13 @@ def _normalize_query(corpus: Corpus, kind: str, parameters: Mapping[str, Any]) -
             "language": form.cleaned_data["language"],
             "context": form.cleaned_data["context"],
             "sort_by": form.cleaned_data["sort_by"],
+            "sort_2": form.cleaned_data["sort_2"],
+            "sort_3": form.cleaned_data["sort_3"],
+            "sort_order": form.cleaned_data["sort_order"] or "value",
             "pos": form.cleaned_data["pos"],
+            "whole_words": form.cleaned_data["whole_words"],
+            "case_sensitive": form.cleaned_data["case_sensitive"],
+            "regex": form.cleaned_data["regex"],
         }
 
     if corpus.corpus_type not in PARALLEL_TYPES:
@@ -250,6 +256,12 @@ def _normalize_query(corpus: Corpus, kind: str, parameters: Mapping[str, Any]) -
         "zh_not_contains": query.zh_not_contains,
         "en_not_contains": query.en_not_contains,
         "alignment_unit": query.alignment_unit,
+        "whole_words": query.whole_words,
+        "case_sensitive": query.case_sensitive,
+        "nth_entry": query.nth_entry,
+        "sort_1": query.sort_1,
+        "sort_2": query.sort_2,
+        "sort_3": query.sort_3,
     }
 
 
@@ -280,7 +292,18 @@ def _export_rows(job: ExportJob) -> tuple[Sequence[str], Iterator[Sequence[objec
             _kwic_rows(job),
         )
     return (
-        ("全局序号", "语料内序号", "中文", "英文", "对齐单元", "对齐方法", "置信度"),
+        (
+            "全局序号",
+            "语料内序号",
+            "单元内命中序号",
+            "中文来源",
+            "英文来源",
+            "中文",
+            "英文",
+            "对齐单元",
+            "对齐方法",
+            "置信度",
+        ),
         _parallel_rows(job),
     )
 
@@ -296,11 +319,27 @@ def _kwic_rows(job: ExportJob) -> Iterator[Sequence[object]]:
             "context_size": query["context"],
             "page": page,
             "page_size": 100,
-            "sort_by": query["sort_by"],
+            "sort_by": query.get("sort_by", ""),
+            "sort_keys": (
+                query.get("sort_by", ""),
+                query.get("sort_2", ""),
+                query.get("sort_3", ""),
+            ),
+            "sort_order": query.get("sort_order", "value"),
             "pos": query["pos"],
         }
         if query["query_mode"] == "cqp":
             options["language"] = query["language"]
+        else:
+            options.update(
+                {
+                    "language": query["language"],
+                    "whole_words": query.get("whole_words", True),
+                    "case_sensitive": query.get("case_sensitive", False),
+                    "regex": query.get("regex", False),
+                    "full_regex": query["query_mode"] == "full_regex",
+                }
+            )
         result = engine.search(**options)
         for hit in result.hits:
             yield (

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "1.5"
+SCHEMA_VERSION = "2.1"
 RECORD_NAMESPACE = uuid.UUID("f304f9dd-a234-4d25-9e56-4eea2aeb6028")
 
 

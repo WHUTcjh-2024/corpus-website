@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 
 {% block title %}申请上传扩容 - 在线语料库平台{% endblock %}
 
-{% block content %}
+{% block dashboard_content %}
 <div class="page-header"><div><p class="page-eyebrow">Upload Quota Review</p><h1 class="page-title">申请上传扩容</h1><p class="page-description">当前单文件上限 {{ limits.max_file_bytes|filesizeformat }}，账号总额 {{ limits.total_bytes|filesizeformat }}。</p></div><div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'corpora:mine' %}">返回我的语料</a></div></div>
 <div class="row justify-content-center"><div class="col-xl-8">
   {% if pending_request %}<div class="alert alert-info">已有待审核申请：单文件 {{ pending_request.requested_max_file_bytes|filesizeformat }}，总额 {{ pending_request.requested_total_bytes|filesizeformat }}，提交于 {{ pending_request.created_at|date:"Y-m-d H:i" }}。</div>

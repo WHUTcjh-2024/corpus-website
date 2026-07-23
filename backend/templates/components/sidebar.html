@@ -1,49 +1,79 @@
 <aside class="offcanvas-lg offcanvas-start platform-sidebar" tabindex="-1" id="platformSidebar" aria-labelledby="platformSidebarLabel">
   <div class="offcanvas-header d-lg-none">
-    <h2 class="offcanvas-title h6 mb-0" id="platformSidebarLabel">平台导航</h2>
+    <div class="sidebar-mobile-brand">
+      <span class="sidebar-mobile-brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M5 19V9l7-4 7 4v10M8 19v-7h8v7M3 19h18"/></svg>
+      </span>
+      <div>
+        <h2 class="offcanvas-title" id="platformSidebarLabel">平台导航</h2>
+        <small>Corpus Research Workspace</small>
+      </div>
+    </div>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#platformSidebar" aria-label="关闭"></button>
   </div>
   <div class="offcanvas-body">
+    <div class="sidebar-workspace-card">
+      <span class="sidebar-workspace-card__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5zM20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>
+      </span>
+      <span class="sidebar-workspace-card__copy">
+        <small>RESEARCH WORKSPACE</small>
+        <strong>语料研究工作台</strong>
+      </span>
+      <span class="sidebar-workspace-card__status"><i></i>已连接</span>
+    </div>
+
     <nav class="sidebar-nav" aria-label="工作台导航">
-      <p class="sidebar-section-label">工作空间</p>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'dashboard' %} active{% endif %}" href="{% url 'accounts:dashboard' %}">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><span>工作台</span>
+      <p class="sidebar-section-label"><span>工作空间</span><small>Workspace</small></p>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'dashboard' %} active{% endif %}" href="{% url 'accounts:dashboard' %}"{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'dashboard' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></span><span class="sidebar-link__label">工作台</span>
       </a>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'list' %} active{% endif %}" href="{% url 'corpora:list' %}">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg><span>语料库资源</span>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'list' and not request.GET.tool %} active{% endif %}" href="{% url 'corpora:list' %}"{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'list' and not request.GET.tool %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></span><span class="sidebar-link__label">语料库资源</span>
       </a>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'mine' %} active{% endif %}" href="{% url 'corpora:mine' %}">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6.5h7l2 2h9v10H3z"/><path d="M3 6.5V5h7l2 2"/></svg><span>我的语料</span>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'mine' %} active{% endif %}" href="{% url 'corpora:mine' %}"{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'mine' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6.5h7l2 2h9v10H3z"/><path d="M3 6.5V5h7l2 2"/></svg></span><span class="sidebar-link__label">我的语料</span>
       </a>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'upload' %} active{% endif %}" href="{% url 'corpora:upload' %}">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v6h14v-6"/></svg><span>上传语料</span>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'upload' %} active{% endif %}" href="{% url 'corpora:upload' %}"{% if request.resolver_match.namespace == 'corpora' and request.resolver_match.url_name == 'upload' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v6h14v-6"/></svg></span><span class="sidebar-link__label">上传语料</span>
       </a>
 
-      <p class="sidebar-section-label mt-4">研究工具</p>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'search' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=kwic">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M7 10h6"/></svg><span>KWIC 检索</span>
+      <p class="sidebar-section-label"><span>研究工具</span><small>Research tools</small></p>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'search' or request.GET.tool == 'kwic' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=kwic"{% if request.resolver_match.namespace == 'search' or request.GET.tool == 'kwic' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M7 10h6"/></svg></span><span class="sidebar-link__label">KWIC 检索</span>
       </a>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'parallel' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=parallel">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h11M11 3l4 4-4 4M20 17H9M13 13l-4 4 4 4"/></svg><span>平行语料检索</span>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'parallel' or request.GET.tool == 'parallel' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=parallel"{% if request.resolver_match.namespace == 'parallel' or request.GET.tool == 'parallel' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 7h11M11 3l4 4-4 4M20 17H9M13 13l-4 4 4 4"/></svg></span><span class="sidebar-link__label">平行语料检索</span>
       </a>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'statistics' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=statistics">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7"/></svg><span>统计分析</span>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'statistics' or request.GET.tool == 'statistics' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=statistics"{% if request.resolver_match.namespace == 'statistics' or request.GET.tool == 'statistics' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7"/></svg></span><span class="sidebar-link__label">统计分析</span>
       </a>
-      <a class="sidebar-link{% if request.resolver_match.namespace == 'exports' %} active{% endif %}" href="{% url 'exports:list' %}">
-        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 13h6M9 17h6"/></svg><span>导出管理</span>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'exports' %} active{% endif %}" href="{% url 'exports:list' %}"{% if request.resolver_match.namespace == 'exports' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 13h6M9 17h6"/></svg></span><span class="sidebar-link__label">导出管理</span>
+      </a>
+      <a class="sidebar-link{% if request.resolver_match.namespace == 'feedback' %} active{% endif %}" href="{% url 'feedback:list' %}"{% if request.resolver_match.namespace == 'feedback' %} aria-current="page"{% endif %}>
+        <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v10H8l-3 3zM8 9h8M8 12h5"/></svg></span><span class="sidebar-link__label">反馈与问题</span>
       </a>
 
       {% if user.is_staff %}
-        <p class="sidebar-section-label mt-4">系统管理</p>
+        <p class="sidebar-section-label"><span>系统管理</span><small>Administration</small></p>
         <a class="sidebar-link" href="{% url 'admin:index' %}">
-          <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.5h-4L10.4 6A8 8 0 0 0 8.8 7L6.5 6 4.5 9.5 6.6 11a7 7 0 0 0 0 2l-2.1 1.5 2 3.5 2.3-1a8 8 0 0 0 1.6 1l.3 2.5h4L15 18a8 8 0 0 0 1.6-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg><span>管理后台</span>
+          <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.5h-4L10.4 6A8 8 0 0 0 8.8 7L6.5 6 4.5 9.5 6.6 11a7 7 0 0 0 0 2l-2.1 1.5 2 3.5 2.3-1a8 8 0 0 0 1.6 1l.3 2.5h4L15 18a8 8 0 0 0 1.6-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg></span><span class="sidebar-link__label">管理后台</span>
         </a>
       {% endif %}
     </nav>
 
-    <div class="sidebar-help">
-      <span class="sidebar-help__icon">?</span>
-      <div><strong>使用帮助</strong><small>从语料说明页进入对应分析工具</small></div>
-    </div>
+    <figure class="sidebar-campus-gate" aria-hidden="true">
+      <img src="/static/img/whut-campus-building-pale.png" alt="">
+      <figcaption><small>WUT · SCHOOL OF FOREIGN LANGUAGES</small><strong>厚德博学 · 追求卓越</strong></figcaption>
+    </figure>
+
+    <a class="sidebar-help" href="{% url 'home' %}#platform-guide">
+      <span class="sidebar-help__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 1 1 3.8 1.9c-1 .7-1.6 1.2-1.6 2.6M12 17h.01"/></svg>
+      </span>
+      <span class="sidebar-help__copy"><strong>使用帮助</strong><small>查看平台功能与语料说明</small></span>
+      <svg class="sidebar-help__arrow" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+    </a>
   </div>
 </aside>

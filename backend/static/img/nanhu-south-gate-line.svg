@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 190" role="img" aria-label="武汉理工大学南湖校区入口线稿">
+  <defs>
+    <linearGradient id="gold" x1="0" x2="1">
+      <stop offset="0" stop-color="#d9b46a"/>
+      <stop offset="1" stop-color="#8f6424"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" x2="1">
+      <stop offset="0" stop-color="#6f92b5"/>
+      <stop offset="1" stop-color="#274b6d"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 155h318" stroke="#d9b46a" stroke-width="1.4" opacity=".9"/>
+    <path d="M50 147c25-18 68-25 111-24 54 1 91 12 142 24" stroke="#6f92b5" stroke-width="1" opacity=".42"/>
+    <path d="M72 116c21-7 47-10 78-9 40 1 75 8 117 18" stroke="#6f92b5" stroke-width=".9" opacity=".32"/>
+
+    <path d="M73 126h198l24 28H48l25-28Z" stroke="url(#gold)" stroke-width="2"/>
+    <path d="M85 112h178l8 14H73l12-14Z" stroke="#d9b46a" stroke-width="1.4" opacity=".9"/>
+    <path d="M94 119h158" stroke="#d9b46a" stroke-width=".9" opacity=".55"/>
+    <path d="M64 154c14-9 32-15 53-18m111 0c22 3 41 9 57 18" stroke="#d9b46a" stroke-width=".9" opacity=".48"/>
+
+    <path d="M90 88v23M117 78v33M144 84v27M240 82v30M267 72v40M294 88v24" stroke="#6f92b5" stroke-width="1" opacity=".36"/>
+    <path d="M83 111h220" stroke="#6f92b5" stroke-width="1" opacity=".28"/>
+    <path d="M111 78h13v33h-13zM261 72h13v40h-13z" stroke="#6f92b5" stroke-width=".9" opacity=".34"/>
+
+    <path d="M32 153l34-20M328 153l-39-21M132 154l-21 23M222 154l20 23" stroke="#d9b46a" stroke-width=".9" opacity=".55"/>
+    <path d="M0 176h360" stroke="#d9b46a" stroke-width=".8" opacity=".38"/>
+    <path d="M23 167h44m39 0h64m72 0h87" stroke="#6f92b5" stroke-width=".8" opacity=".34"/>
+
+    <path d="M20 137c4-10 12-16 22-15 11 1 18 9 20 18M288 139c3-11 12-18 23-17 13 1 22 10 25 23" stroke="#6f92b5" stroke-width="1" opacity=".38"/>
+    <path d="M22 141c9-3 20-3 34 0M292 145c13-4 26-4 39 1" stroke="#6f92b5" stroke-width=".9" opacity=".35"/>
+  </g>
+  <g fill="url(#gold)" font-family="'STKaiti','KaiTi','Microsoft YaHei',serif" font-weight="700">
+    <text x="99" y="143" font-size="18" letter-spacing="5">武汉理工大学</text>
+  </g>
+</svg>

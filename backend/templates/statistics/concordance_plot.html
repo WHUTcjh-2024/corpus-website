@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 {% block title %}Concordance Plot - {{ corpus.name }}{% endblock %}
-{% block content %}
+{% block dashboard_content %}
 {% include "statistics/_header.html" %}
 <form method="get" class="filter-card">{% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}<div class="row g-3 align-items-end"><div class="col-lg-7"><label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>{{ form.q }}</div><div class="col-sm-6 col-lg-2"><label class="form-label" for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>{{ form.language }}</div><div class="col-sm-6 col-lg-3 d-grid"><button class="btn btn-primary" type="submit">绘制分布</button></div></div></form>
 {% if result %}

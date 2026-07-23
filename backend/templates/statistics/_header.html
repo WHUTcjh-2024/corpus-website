@@ -4,10 +4,11 @@
 </div>
 <nav class="nav tool-tabs" aria-label="统计分析工具">
   <a class="nav-link{% if request.resolver_match.url_name == 'word_list' %} active{% endif %}" href="{% url 'statistics:word_list' corpus.pk %}">Word List</a>
-  <a class="nav-link{% if request.resolver_match.url_name == 'ngrams' %} active{% endif %}" href="{% url 'statistics:ngrams' corpus.pk %}">N-Gram / Clusters</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'ngrams' %} active{% endif %}" href="{% url 'statistics:ngrams' corpus.pk %}">N-Gram</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'collocates' %} active{% endif %}" href="{% url 'statistics:collocates' corpus.pk %}">Collocates</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'keywords' %} active{% endif %}" href="{% url 'statistics:keywords' corpus.pk %}">Keywords</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'concordance_plot' %} active{% endif %}" href="{% url 'statistics:concordance_plot' corpus.pk %}">Concordance Plot</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'wordcloud' %} active{% endif %}" href="{% url 'statistics:wordcloud' corpus.pk %}">Wordcloud</a>
 </nav>
-{% if statistics_error %}<div class="alert alert-warning">{{ statistics_error }}</div>{% endif %}
+{% include "components/index_repair_notice.html" %}
+{% if statistics_error and not index_repair %}<div class="alert alert-warning">{{ statistics_error }}</div>{% endif %}

@@ -1,0 +1,7 @@
+<nav class="breadcrumb-bar" aria-label="面包屑导航">
+  <a href="{% url 'accounts:dashboard' %}">工作台</a>
+  {% if current_label %}
+    <span aria-hidden="true"> / </span>
+    <span>{{ current_label }}</span>
+  {% endif %}
+</nav>

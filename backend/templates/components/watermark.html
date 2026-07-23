@@ -1,0 +1,14 @@
+{% if teacher_watermark %}
+  <div class="teacher-watermark-layer" hidden data-watermark-trace="{{ teacher_watermark.trace }}">{{ teacher_watermark.label }}</div>
+  <div class="watermark-strip">
+    <span>仅供在线研究使用</span>
+    <span>用户：{{ request.user.username }}</span>
+    <span>{{ teacher_watermark.label }}</span>
+  </div>
+{% elif show_demo_watermark %}
+  <div class="watermark-strip">
+    <span>仅供在线研究使用</span>
+    <span>用户：{{ request.user.username }}</span>
+    <span>时间：后续可接入服务器时间</span>
+  </div>
+{% endif %}

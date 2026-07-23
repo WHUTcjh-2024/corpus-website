@@ -2,20 +2,22 @@ from __future__ import annotations
 
 import math
 import sqlite3
+from collections.abc import Sequence
 from contextlib import closing
 
-from .filters import TokenFilter, compile_token_filter
+from .filters import compile_token_filter
 from .kwic import (
     DEFAULT_CONTEXT_SIZE,
     DEFAULT_PAGE_SIZE,
     MAX_CONTEXT_SIZE,
     MAX_PAGE_SIZE,
-    SORT_FIELDS,
     KwicIndexCorrupt,
     KwicMatch,
     KwicPage,
     KwicSearchEngine,
-    sort_offset,
+    _sort_clauses,
+    normalize_sort_keys,
+    normalize_sort_order,
 )
 from .query_parser import QueryPlan, parse_query
 
@@ -32,14 +34,18 @@ class ComplexQueryEngine(KwicSearchEngine):
         page: int = 1,
         page_size: int = DEFAULT_PAGE_SIZE,
         sort_by: str = "",
+        sort_keys: Sequence[str] | None = None,
+        sort_order: str = "value",
         pos: str = "",
     ) -> KwicPage:
         plan = parse_query(query, language=language)
-        sort_by, pos = _validate_options(
+        normalized_sort_keys, sort_order, pos = _validate_options(
             context_size=context_size,
             page=page,
             page_size=page_size,
             sort_by=sort_by,
+            sort_keys=sort_keys,
+            sort_order=sort_order,
             pos=pos,
         )
         self._require_artifacts()
@@ -47,6 +53,7 @@ class ComplexQueryEngine(KwicSearchEngine):
             with closing(
                 sqlite3.connect(f"file:{self.index_path}?mode=ro", uri=True)
             ) as connection:
+                self._require_index_schema(connection)
                 total = self._count_plan(connection, plan, pos=pos)
                 num_pages = max(1, math.ceil(total / page_size))
                 effective_page = min(page, num_pages)
@@ -55,23 +62,31 @@ class ComplexQueryEngine(KwicSearchEngine):
                     plan,
                     page=effective_page,
                     page_size=page_size,
-                    sort_by=sort_by,
+                    sort_keys=normalized_sort_keys,
+                    sort_order=sort_order,
                     pos=pos,
                 )
-                token_rows = self._sentence_tokens(
+                token_rows = self._context_tokens(
                     connection,
-                    {match.sentence_id for match in matches},
+                    matches,
+                    radius=max(context_size, 5),
+                )
+                source_snippets = self._source_snippets(
+                    connection,
+                    matches,
+                    context_size=context_size,
                 )
         except sqlite3.Error as exc:
-            raise KwicIndexCorrupt("复杂查询索引无法读取，请重新加工该语料库。") from exc
+            raise KwicIndexCorrupt("复杂查询索引读取失败。") from exc
 
         metadata = self._metadata_for(matches)
         hits = tuple(
             self._build_hit(
                 match,
-                token_rows.get(match.sentence_id, ()),
+                token_rows,
                 metadata,
                 context_size,
+                source_snippets=source_snippets,
             )
             for match in matches
         )
@@ -82,7 +97,9 @@ class ComplexQueryEngine(KwicSearchEngine):
             page=effective_page,
             page_size=page_size,
             context_size=context_size,
-            sort_by=sort_by,
+            sort_by=normalized_sort_keys[0] if normalized_sort_keys else "",
+            sort_keys=normalized_sort_keys,
+            sort_order=sort_order,
             pos=pos,
         )
 
@@ -91,25 +108,31 @@ class ComplexQueryEngine(KwicSearchEngine):
         plan: QueryPlan,
         *,
         count: bool,
-        sort_by: str = "",
+        sort_keys: tuple[str, ...] = (),
+        sort_order: str = "value",
         pos: str = "",
     ) -> tuple[str, list[str]]:
         aliases = [f"t{index}" for index in range(len(plan.filters))]
         select = "COUNT(*)" if count else (
-            "t0.sentence_id, t0.document_id, t0.sentence_position, t0.language, "
+            "t0.global_position, t0.stream_position, t0.sentence_id, t0.document_id, "
+            f"t0.sentence_position, t0.language, t0.document_start, "
+            f"{aliases[-1]}.document_end, "
             + ", ".join(f"{alias}.surface" for alias in aliases)
         )
         joins = " ".join(
-            f"JOIN tokens {alias} ON {alias}.sentence_id = t0.sentence_id "
-            f"AND {alias}.sentence_position = t0.sentence_position + {index}"
+            f"JOIN tokens {alias} ON {alias}.document_id = t0.document_id "
+            f"AND {alias}.language = t0.language "
+            f"AND {alias}.stream_position = t0.stream_position + {index}"
             for index, alias in enumerate(aliases[1:], start=1)
         )
-        if sort_by:
-            offset = sort_offset(sort_by, len(plan.filters))
-            joins += (
-                " LEFT JOIN tokens sort_token ON sort_token.sentence_id = t0.sentence_id "
-                f"AND sort_token.sentence_position = t0.sentence_position + {offset}"
+        order_expressions: list[str] = []
+        if not count and sort_keys:
+            sort_joins, order_expressions = _sort_clauses(
+                sort_keys,
+                len(plan.filters),
+                order_by_frequency=sort_order == "frequency",
             )
+            joins = f"{joins} {sort_joins}".strip()
         predicates = ["t0.language = ?"]
         parameters = [plan.language]
         for alias, token_filter in zip(aliases, plan.filters, strict=True):
@@ -125,10 +148,9 @@ class ComplexQueryEngine(KwicSearchEngine):
             parameters.append(pos)
         sql = f"SELECT {select} FROM tokens t0 {joins} WHERE {' AND '.join(predicates)}"
         if not count:
-            if sort_by:
-                sql += (
-                    " ORDER BY CASE WHEN sort_token.normalized IS NULL THEN 1 ELSE 0 END, "
-                    "sort_token.normalized COLLATE NOCASE, t0.global_position"
+            if order_expressions:
+                sql += " ORDER BY " + ", ".join(
+                    [*order_expressions, "t0.global_position"]
                 )
             else:
                 sql += " ORDER BY t0.global_position"
@@ -153,13 +175,15 @@ class ComplexQueryEngine(KwicSearchEngine):
         *,
         page: int,
         page_size: int,
-        sort_by: str,
+        sort_keys: tuple[str, ...],
+        sort_order: str,
         pos: str,
     ) -> list[KwicMatch]:
         sql, parameters = self._match_sql(
             plan,
             count=False,
-            sort_by=sort_by,
+            sort_keys=sort_keys,
+            sort_order=sort_order,
             pos=pos,
         )
         rows = connection.execute(
@@ -169,11 +193,15 @@ class ComplexQueryEngine(KwicSearchEngine):
         filter_count = len(plan.filters)
         return [
             KwicMatch(
-                sentence_id=str(row[0]),
-                document_id=str(row[1]),
-                sentence_position=int(row[2]),
-                language=str(row[3]),
-                keyword_surfaces=tuple(str(value) for value in row[4 : 4 + filter_count]),
+                global_position=int(row[0]),
+                stream_position=int(row[1]),
+                sentence_id=str(row[2]),
+                document_id=str(row[3]),
+                sentence_position=int(row[4]),
+                language=str(row[5]),
+                document_start=int(row[6]),
+                document_end=int(row[7]),
+                keyword_surfaces=tuple(str(value) for value in row[8 : 8 + filter_count]),
             )
             for row in rows
         ]
@@ -185,15 +213,15 @@ def _validate_options(
     page: int,
     page_size: int,
     sort_by: str,
+    sort_keys: Sequence[str] | None,
+    sort_order: str,
     pos: str,
-) -> tuple[str, str]:
+) -> tuple[tuple[str, ...], str, str]:
     if not 0 <= context_size <= MAX_CONTEXT_SIZE:
         raise ValueError(f"context_size must be between 0 and {MAX_CONTEXT_SIZE}.")
     if page < 1:
         raise ValueError("page must be at least 1.")
     if not 1 <= page_size <= MAX_PAGE_SIZE:
         raise ValueError(f"page_size must be between 1 and {MAX_PAGE_SIZE}.")
-    normalized_sort = sort_by.strip().upper()
-    if normalized_sort and normalized_sort not in SORT_FIELDS:
-        raise ValueError(f"sort_by must be one of: {', '.join(SORT_FIELDS)}.")
-    return normalized_sort, pos.strip()
+    normalized_sort = normalize_sort_keys(sort_keys, fallback=sort_by)
+    return normalized_sort, normalize_sort_order(sort_order), pos.strip()

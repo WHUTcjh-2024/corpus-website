@@ -1,0 +1,36 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}反馈与问题 - 在线语料库平台{% endblock %}
+
+{% block dashboard_content %}
+<div class="page-header">
+  <div>
+    <p class="page-eyebrow">Feedback</p>
+    <h1 class="page-title">反馈与问题</h1>
+    <p class="page-description">提交平台使用中的问题、数据异常或功能建议；处理状态会保留在这里。联系人：{{ feedback_support_name }}，邮箱：{{ feedback_support_email }}。</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="{% url 'feedback:create' %}">提交反馈</a>
+  </div>
+</div>
+
+<div class="table-shell table-responsive">
+  <table class="table table-hover align-middle">
+    <thead><tr><th>反馈</th><th>类型</th><th>影响程度</th><th>状态</th><th>提交时间</th><th class="text-end">操作</th></tr></thead>
+    <tbody>
+      {% for ticket in tickets %}
+        <tr>
+          <td><a class="table-link" href="{% url 'feedback:detail' ticket.pk %}">{{ ticket.title }}</a>{% if ticket.page_url %}<div class="table-meta">{{ ticket.page_url }}</div>{% endif %}</td>
+          <td>{{ ticket.get_category_display }}</td>
+          <td>{{ ticket.get_severity_display }}</td>
+          <td><span class="status-badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span></td>
+          <td>{{ ticket.created_at|date:"Y-m-d H:i" }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'feedback:detail' ticket.pk %}">查看</a></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" class="empty-state">还没有反馈记录。</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

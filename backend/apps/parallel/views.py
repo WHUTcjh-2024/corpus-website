@@ -16,6 +16,7 @@ from apps.audit.models import AuditEventType
 from apps.audit.services import record_audit_event, serializable_form_data
 from apps.corpora.models import Corpus, CorpusSourceType, CorpusStatus, CorpusType
 from apps.corpora.services import visible_corpora_for
+from apps.processing.index_health import ensure_corpus_index_ready
 
 from .engine import ParallelIndexCorrupt, ParallelIndexUnavailable, ParallelSearchEngine
 from .forms import ParallelSearchForm
@@ -45,7 +46,8 @@ def parallel_search(request: HttpRequest, corpus_id) -> HttpResponse:
         available_alignment_units=available_alignment_units,
     )
     result = None
-    search_error = _availability_error(corpus)
+    index_repair = ensure_corpus_index_ready(corpus)
+    search_error = index_repair.message if index_repair else _availability_error(corpus)
     if not search_error and form.is_bound and form.is_valid():
         engine = ParallelSearchEngine(data_root=settings.DATA_ROOT, corpus_id=str(corpus.pk))
         try:
@@ -63,8 +65,13 @@ def parallel_search(request: HttpRequest, corpus_id) -> HttpResponse:
                     "result_count": result.total,
                 },
             )
-        except (ParallelIndexUnavailable, ParallelIndexCorrupt) as exc:
-            search_error = str(exc)
+        except (ParallelIndexUnavailable, ParallelIndexCorrupt):
+            index_repair = ensure_corpus_index_ready(corpus, force=True)
+            search_error = (
+                index_repair.message
+                if index_repair
+                else "平行检索索引暂时不可用，系统已记录该异常。"
+            )
 
     query_parameters = form_data.copy() if form_data is not None else request.GET.copy()
     query_parameters.pop("page", None)
@@ -76,12 +83,13 @@ def parallel_search(request: HttpRequest, corpus_id) -> HttpResponse:
             "form": form,
             "result": result,
             "search_error": search_error,
+            "index_repair": index_repair,
             "query_string": query_parameters.urlencode(),
             "can_export": corpus.source_type == CorpusSourceType.USER
             and corpus.owner_id == request.user.pk,
             "export_query_string": query_parameters.urlencode(),
         },
-        status=409 if search_error else 200,
+        status=202 if index_repair and index_repair.is_active else (409 if search_error else 200),
     )
 
 
@@ -110,8 +118,12 @@ def parallel_export(request: HttpRequest, corpus_id) -> HttpResponse:
     engine = ParallelSearchEngine(data_root=settings.DATA_ROOT, corpus_id=str(corpus.pk))
     try:
         engine.search(form.to_query(), page_size=1)
-    except (ParallelIndexUnavailable, ParallelIndexCorrupt) as exc:
-        return HttpResponse(str(exc), status=409)
+    except (ParallelIndexUnavailable, ParallelIndexCorrupt):
+        repair = ensure_corpus_index_ready(corpus, force=True)
+        return HttpResponse(
+            repair.message if repair else "平行检索索引暂时不可用。",
+            status=202 if repair and repair.is_active else 409,
+        )
     response = StreamingHttpResponse(
         _tsv_rows(engine, form),
         content_type="text/tab-separated-values; charset=utf-8",
@@ -144,7 +156,10 @@ def _available_alignment_units(corpus: Corpus) -> tuple[str, ...]:
 
 
 def _tsv_rows(engine: ParallelSearchEngine, form: ParallelSearchForm) -> Iterator[str]:
-    yield "\ufeff全局序号\t语料内序号\t中文\t英文\t对齐单元\t对齐方法\t置信度\r\n"
+    yield (
+        "\ufeff全局序号\t语料内序号\t单元内命中序号\t中文来源\t英文来源\t中文\t英文"
+        "\t对齐单元\t对齐方法\t置信度\r\n"
+    )
     for row in engine.iter_export_rows(form.to_query()):
         yield "\t".join(_safe_tsv_cell(value) for value in row) + "\r\n"
 

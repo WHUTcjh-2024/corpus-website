@@ -72,4 +72,6 @@ def token_matches(text: str, language: str):
 
 
 def normalize_token(value: str, language: str) -> str:
-    return value if language == "zh" else value.casefold()
+    # Case-insensitive search must also work for Latin text embedded in a
+    # Chinese corpus.  Unicode casefold leaves Chinese characters unchanged.
+    return value.casefold()

@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/public_layout.html" %}
 
 {% block title %}申请已提交 - 在线语料库平台{% endblock %}
 
-{% block content %}
+{% block public_content %}
 <section class="auth-page d-flex align-items-center">
   <div class="platform-card mx-auto text-center" style="max-width: 620px">
     <div class="platform-card__body p-5">
@@ -10,7 +10,7 @@
       <p class="page-eyebrow">Application Submitted</p>
       <h1 class="page-title">申请已提交</h1>
       <p class="text-secondary mt-3 mb-4">管理员审核通过后即可登录工作台。待审核、已拒绝或已停用账号均不能进入工作台。</p>
-      <a class="btn btn-primary px-4" href="{% url 'accounts:login' %}">前往登录</a>
+      <a class="btn btn-primary px-4" href="{% url 'home' %}?login=required#home-login">前往首页登录</a>
     </div>
   </div>
 </section>

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from urllib.parse import urlencode
+
 from django.contrib import messages
-from django.contrib.auth.views import LoginView, LogoutView
+from django.contrib.auth.views import LogoutView
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
-from django.urls import reverse_lazy
+from django.urls import reverse, reverse_lazy
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db.models import Sum
 
 from apps.corpora.models import CorpusStatus
@@ -14,7 +17,6 @@ from apps.exports.models import ExportJob
 
 from .forms import (
     AccountApplicationForm,
-    ApprovedUserAuthenticationForm,
     UploadQuotaRequestForm,
 )
 from .models import QuotaRequestStatus, UploadQuotaRequest
@@ -37,10 +39,17 @@ def application_submitted(request: HttpRequest) -> HttpResponse:
     return render(request, "accounts/application_submitted.html")
 
 
-class AccountLoginView(LoginView):
-    authentication_form = ApprovedUserAuthenticationForm
-    template_name = "accounts/login.html"
-    redirect_authenticated_user = True
+def login_redirect(request: HttpRequest) -> HttpResponse:
+    """Keep old bookmarks working without maintaining a second login page."""
+    params = {"login": "required"}
+    next_url = request.GET.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        params["next"] = next_url
+    return redirect(f"{reverse('home')}?{urlencode(params)}#home-login")
 
 
 class AccountLogoutView(LogoutView):

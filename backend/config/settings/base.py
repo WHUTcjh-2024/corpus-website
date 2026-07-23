@@ -57,6 +57,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "rest_framework",
+    "apps.api",
     "apps.health",
     "apps.accounts",
     "apps.corpora",
@@ -124,8 +126,21 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "accounts:dashboard"
 LOGOUT_REDIRECT_URL = "home"
 
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_RENDERER_CLASSES": [
+        "rest_framework.renderers.JSONRenderer",
+    ],
+}
+
 DATA_ROOT = Path(os.getenv("DATA_ROOT", PROJECT_ROOT / "data")).resolve()
 PLATFORM_STAGE = os.getenv("PLATFORM_STAGE", "stage-11")
+FIXED_TEST_ACCOUNT_ENABLED = env_bool("FIXED_TEST_ACCOUNT_ENABLED", False)
 DATA_SUBDIRS = [
     "inbox",
     "demo",

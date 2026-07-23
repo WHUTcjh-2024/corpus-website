@@ -1,13 +1,13 @@
-{% extends "base.html" %}
+{% extends "layouts/public_layout.html" %}
 
 {% block title %}账号申请 - 武汉理工大学外国语学院在线语料库平台{% endblock %}
 
-{% block content %}
+{% block public_content %}
 <section class="auth-page">
   <div class="container" style="max-width: 980px">
     <div class="page-header">
       <div><p class="page-eyebrow">Account Application</p><h1 class="page-title">申请平台账号</h1><p class="page-description">填写基本信息并选择申请等级，管理员将根据教学或研究用途进行审核。</p></div>
-      <a class="btn btn-outline-secondary" href="{% url 'accounts:login' %}">返回登录</a>
+      <a class="btn btn-outline-secondary" href="{% url 'home' %}?login=required#home-login">返回首页登录</a>
     </div>
     <ol class="stepper" aria-label="账号申请步骤">
       <li class="active" data-step="1">填写信息</li><li data-step="2">选择角色</li><li data-step="3">提交审核</li>

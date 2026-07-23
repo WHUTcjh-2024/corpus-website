@@ -437,17 +437,6 @@ def _load_manifest_payload(manifest_path: Path) -> tuple[Path, dict[str, Any]]:
     return path, payload
 
 
-def load_manifest_record(manifest_path: Path, file_id: str) -> dict[str, Any]:
-    _, payload = _load_manifest_payload(manifest_path)
-    records = payload.get("records")
-    if not isinstance(records, list):
-        raise ValueError("Manifest JSON must contain a records list.")
-    for record in records:
-        if isinstance(record, dict) and record.get("file_id") == file_id:
-            return record
-    raise LookupError(f"Manifest record not found: {file_id}")
-
-
 @transaction.atomic
 def register_manifest_corpus(
     *,

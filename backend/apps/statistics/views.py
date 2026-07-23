@@ -9,6 +9,7 @@ from apps.audit.models import AuditEventType
 from apps.audit.services import record_audit_event, serializable_form_data
 from apps.corpora.models import Corpus, CorpusLanguage, CorpusStatus
 from apps.corpora.services import visible_corpora_for
+from apps.processing.index_health import IndexRepairNotice, ensure_corpus_index_ready
 
 from .engine import StatisticsEngine, StatisticsIndexCorrupt, StatisticsIndexUnavailable
 from .forms import (
@@ -30,20 +31,22 @@ def word_list(request: HttpRequest, corpus_id) -> HttpResponse:
     form_data = _form_data(request, languages[0])
     form = WordListForm(form_data, available_languages=languages)
     result = None
-    error = _availability_error(corpus)
+    error, index_repair = _index_availability(corpus)
     if not error and form.is_valid():
         try:
             result = _engine(corpus).word_list(
                 language=form.cleaned_data["language"],
                 filter_text=form.cleaned_data["filter"],
                 pos=form.cleaned_data["pos"],
+                min_frequency=form.cleaned_data["min_frequency"],
+                min_range=form.cleaned_data["min_range"],
                 sort_by=form.cleaned_data["sort_by"],
                 include_punctuation=form.cleaned_data["include_punctuation"],
                 page=form.cleaned_data["page"],
                 page_size=form.cleaned_data["page_size"],
             )
-        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt) as exc:
-            error = str(exc)
+        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+            error, index_repair = _runtime_index_failure(corpus)
     return _render(
         request,
         "statistics/word_list.html",
@@ -52,6 +55,7 @@ def word_list(request: HttpRequest, corpus_id) -> HttpResponse:
         result,
         error,
         form_data,
+        index_repair,
     )
 
 
@@ -64,20 +68,22 @@ def ngrams(request: HttpRequest, corpus_id) -> HttpResponse:
     form_data = _form_data(request, languages[0])
     form = NgramForm(form_data, available_languages=languages)
     result = None
-    error = _availability_error(corpus)
+    error, index_repair = _index_availability(corpus)
     if not error and form.is_valid():
         try:
             result = _engine(corpus).ngrams(
                 language=form.cleaned_data["language"],
                 n=form.cleaned_data["n"],
                 min_frequency=form.cleaned_data["min_frequency"],
+                min_range=form.cleaned_data["min_range"],
                 filter_text=form.cleaned_data["filter"],
+                sort_by=form.cleaned_data["sort_by"],
                 include_punctuation=form.cleaned_data["include_punctuation"],
                 page=form.cleaned_data["page"],
                 page_size=form.cleaned_data["page_size"],
             )
-        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt) as exc:
-            error = str(exc)
+        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+            error, index_repair = _runtime_index_failure(corpus)
     return _render(
         request,
         "statistics/ngrams.html",
@@ -86,6 +92,7 @@ def ngrams(request: HttpRequest, corpus_id) -> HttpResponse:
         result,
         error,
         form_data,
+        index_repair,
     )
 
 
@@ -132,30 +139,38 @@ def keywords(request: HttpRequest, corpus_id) -> HttpResponse:
         reference_corpora=reference_choices,
     )
     result = None
-    error = _availability_error(corpus)
+    error, index_repair = _index_availability(corpus)
     if not references and not error:
         error = "没有可访问且已加工完成的参照语料库。"
     if not error and form.is_bound and form.is_valid():
         references_by_id = {str(reference.pk): reference for reference in references}
         reference = references_by_id[form.cleaned_data["reference_corpus"]]
-        try:
-            result = _engine(corpus).keywords(
-                reference=_engine(reference),
-                reference_name=reference.name,
-                language=form.cleaned_data["language"],
-                min_frequency=form.cleaned_data["min_frequency"],
-                min_range=form.cleaned_data["min_range"],
-                filter_text=form.cleaned_data["filter"],
-                include_negative=form.cleaned_data["include_negative"],
-                sort_by=form.cleaned_data["sort_by"],
-                include_punctuation=form.cleaned_data["include_punctuation"],
-                page=form.cleaned_data["page"],
-                page_size=form.cleaned_data["page_size"],
+        reference_repair = ensure_corpus_index_ready(reference)
+        if reference_repair:
+            index_repair = reference_repair
+            error = (
+                f"参照语料库“{reference.name}”的检索索引正在自动修复。"
+                "完成后本页会自动恢复。"
             )
-        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt) as exc:
-            error = str(exc)
-        except ValueError as exc:
-            form.add_error(None, str(exc))
+        else:
+            try:
+                result = _engine(corpus).keywords(
+                    reference=_engine(reference),
+                    reference_name=reference.name,
+                    language=form.cleaned_data["language"],
+                    min_frequency=form.cleaned_data["min_frequency"],
+                    min_range=form.cleaned_data["min_range"],
+                    filter_text=form.cleaned_data["filter"],
+                    include_negative=form.cleaned_data["include_negative"],
+                    sort_by=form.cleaned_data["sort_by"],
+                    include_punctuation=form.cleaned_data["include_punctuation"],
+                    page=form.cleaned_data["page"],
+                    page_size=form.cleaned_data["page_size"],
+                )
+            except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+                error, index_repair = _runtime_index_failure(corpus)
+            except ValueError as exc:
+                form.add_error(None, str(exc))
     return _render(
         request,
         "statistics/keywords.html",
@@ -164,6 +179,7 @@ def keywords(request: HttpRequest, corpus_id) -> HttpResponse:
         result,
         error,
         form_data or QueryDict(),
+        index_repair,
     )
 
 
@@ -176,7 +192,7 @@ def wordcloud(request: HttpRequest, corpus_id) -> HttpResponse:
     form_data = _form_data(request, languages[0])
     form = WordcloudForm(form_data, available_languages=languages)
     result = None
-    error = _availability_error(corpus)
+    error, index_repair = _index_availability(corpus)
     if not error and form.is_valid():
         try:
             result = _engine(corpus).wordcloud(
@@ -187,8 +203,8 @@ def wordcloud(request: HttpRequest, corpus_id) -> HttpResponse:
                 include_punctuation=form.cleaned_data["include_punctuation"],
                 theme=form.cleaned_data["theme"],
             )
-        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt) as exc:
-            error = str(exc)
+        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+            error, index_repair = _runtime_index_failure(corpus)
     return _render(
         request,
         "statistics/wordcloud.html",
@@ -197,6 +213,7 @@ def wordcloud(request: HttpRequest, corpus_id) -> HttpResponse:
         result,
         error,
         form_data,
+        index_repair,
     )
 
 
@@ -209,7 +226,7 @@ def collocates(request: HttpRequest, corpus_id) -> HttpResponse:
     form_data = _form_data(request, languages[0], bind_empty=False)
     form = CollocateForm(form_data, available_languages=languages)
     result = None
-    error = _availability_error(corpus)
+    error, index_repair = _index_availability(corpus)
     if not error and form.is_bound and form.is_valid():
         try:
             result = _engine(corpus).collocates(
@@ -218,14 +235,15 @@ def collocates(request: HttpRequest, corpus_id) -> HttpResponse:
                 left_span=form.cleaned_data["left_span"],
                 right_span=form.cleaned_data["right_span"],
                 min_frequency=form.cleaned_data["min_frequency"],
+                min_range=form.cleaned_data["min_range"],
                 pos=form.cleaned_data["pos"],
                 sort_by=form.cleaned_data["sort_by"],
                 include_punctuation=form.cleaned_data["include_punctuation"],
                 page=form.cleaned_data["page"],
                 page_size=form.cleaned_data["page_size"],
             )
-        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt) as exc:
-            error = str(exc)
+        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+            error, index_repair = _runtime_index_failure(corpus)
     return _render(
         request,
         "statistics/collocates.html",
@@ -234,6 +252,7 @@ def collocates(request: HttpRequest, corpus_id) -> HttpResponse:
         result,
         error,
         form_data or QueryDict(),
+        index_repair,
     )
 
 
@@ -246,15 +265,15 @@ def concordance_plot(request: HttpRequest, corpus_id) -> HttpResponse:
     form_data = _form_data(request, languages[0], bind_empty=False)
     form = ConcordancePlotForm(form_data, available_languages=languages)
     result = None
-    error = _availability_error(corpus)
+    error, index_repair = _index_availability(corpus)
     if not error and form.is_bound and form.is_valid():
         try:
             result = _engine(corpus).concordance_plot(
                 form.cleaned_data["q"],
                 language=form.cleaned_data["language"],
             )
-        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt) as exc:
-            error = str(exc)
+        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+            error, index_repair = _runtime_index_failure(corpus)
     return _render(
         request,
         "statistics/concordance_plot.html",
@@ -263,6 +282,7 @@ def concordance_plot(request: HttpRequest, corpus_id) -> HttpResponse:
         result,
         error,
         form_data or QueryDict(),
+        index_repair,
     )
 
 
@@ -310,6 +330,24 @@ def _availability_error(corpus: Corpus) -> str:
     return "" if corpus.status == CorpusStatus.READY else "语料库尚未加工完成。"
 
 
+def _index_availability(
+    corpus: Corpus,
+) -> tuple[str, IndexRepairNotice | None]:
+    index_repair = ensure_corpus_index_ready(corpus)
+    if index_repair:
+        return index_repair.message, index_repair
+    return _availability_error(corpus), None
+
+
+def _runtime_index_failure(
+    corpus: Corpus,
+) -> tuple[str, IndexRepairNotice | None]:
+    index_repair = ensure_corpus_index_ready(corpus, force=True)
+    if index_repair:
+        return index_repair.message, index_repair
+    return "统计索引暂时不可用，系统已记录该异常。", None
+
+
 def _engine(corpus: Corpus) -> StatisticsEngine:
     return StatisticsEngine(data_root=settings.DATA_ROOT, corpus_id=str(corpus.pk))
 
@@ -322,6 +360,7 @@ def _render(
     result,
     error: str,
     form_data: QueryDict,
+    index_repair: IndexRepairNotice | None = None,
 ) -> HttpResponse:
     query_parameters = form_data.copy()
     query_parameters.pop("page", None)
@@ -349,7 +388,8 @@ def _render(
             "form": form,
             "result": result,
             "statistics_error": error,
+            "index_repair": index_repair,
             "query_string": query_parameters.urlencode(),
         },
-        status=409 if error else 200,
+        status=202 if index_repair and index_repair.is_active else (409 if error else 200),
     )

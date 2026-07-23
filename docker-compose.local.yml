@@ -30,11 +30,12 @@ services:
   web:
     build:
       context: ./backend
-    command: python manage.py runserver 0.0.0.0:8000
+    command: sh -c "python manage.py ensure_test_account && python manage.py runserver 0.0.0.0:8000"
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
       DJANGO_DEBUG: "true"
+      FIXED_TEST_ACCOUNT_ENABLED: "true"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
       DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
       REDIS_URL: redis://redis:6379/0

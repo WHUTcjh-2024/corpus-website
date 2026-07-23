@@ -50,6 +50,14 @@ _AUTHORS = {
 
 
 def classify_path(path: Path) -> ClassificationResult:
+    if path.name.startswith("~$"):
+        return ClassificationResult(
+            detected_type="unknown",
+            detected_language="unknown",
+            encoding=UNKNOWN_ENCODING,
+            confidence=0.0,
+            notes=["temporary_office_lock_file"],
+        )
     data = path.read_bytes()
     text, encoding = decode_text(data)
     return classify_text(text, filename=path.name, encoding=encoding)

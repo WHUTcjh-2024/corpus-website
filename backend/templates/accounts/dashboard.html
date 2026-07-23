@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 
 {% block title %}工作台 - 在线语料库平台{% endblock %}
 
-{% block content %}
+{% block dashboard_content %}
 <div class="page-header">
   <div>
     <p class="page-eyebrow">Research Workspace</p>
@@ -43,6 +43,7 @@
         <a class="quick-action" href="{% url 'corpora:list' %}?tool=parallel"><span>⇄</span>平行语料检索</a>
         <a class="quick-action" href="{% url 'corpora:upload' %}"><span>↑</span>上传个人语料</a>
         <a class="quick-action" href="{% url 'exports:list' %}"><span>↓</span>查看导出任务</a>
+        <a class="quick-action" href="{% url 'feedback:create' %}"><span>!</span>提交反馈问题</a>
       </div>
     </section>
     <section class="platform-card">

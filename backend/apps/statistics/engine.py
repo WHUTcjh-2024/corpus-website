@@ -37,6 +37,7 @@ class FrequencyRow:
     rank: int
     term: str
     frequency: int
+    document_range: int
     per_million: float
 
 
@@ -51,6 +52,8 @@ class FrequencyPage:
     language: str
     filter_text: str
     pos: str
+    min_frequency: int
+    min_range: int
     sort_by: str
     include_punctuation: bool
 
@@ -111,6 +114,7 @@ class NgramRow:
     rank: int
     ngram: str
     frequency: int
+    document_range: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,7 +127,9 @@ class NgramPage:
     language: str
     n: int
     min_frequency: int
+    min_range: int
     filter_text: str
+    sort_by: str
     include_punctuation: bool
 
     @property
@@ -141,6 +147,9 @@ class CollocateRow:
     term: str
     pos: str
     frequency: int
+    left_frequency: int
+    right_frequency: int
+    document_range: int
     corpus_frequency: int
     mutual_information: float
     t_score: float
@@ -161,6 +170,7 @@ class CollocatePage:
     left_span: int
     right_span: int
     min_frequency: int
+    min_range: int
     pos: str
     sort_by: str
     include_punctuation: bool
@@ -233,6 +243,8 @@ class StatisticsEngine:
         language: str,
         filter_text: str = "",
         pos: str = "",
+        min_frequency: int = 1,
+        min_range: int = 1,
         sort_by: str = "frequency",
         include_punctuation: bool = False,
         page: int = 1,
@@ -240,8 +252,12 @@ class StatisticsEngine:
     ) -> FrequencyPage:
         _validate_language(language)
         _validate_page(page, page_size)
-        if sort_by not in {"frequency", "term"}:
-            raise ValueError("sort_by must be frequency or term.")
+        if not 1 <= min_frequency <= 1_000_000:
+            raise ValueError("min_frequency must be between 1 and 1000000.")
+        if not 1 <= min_range <= 1_000_000:
+            raise ValueError("min_range must be between 1 and 1000000.")
+        if sort_by not in {"frequency", "range", "term"}:
+            raise ValueError("sort_by must be frequency, range, or term.")
         normalized_filter = _normalize_filter(filter_text, language)
         table = "word_frequencies" if pos else "word_totals"
         predicates = ["language = ?"]
@@ -256,19 +272,25 @@ class StatisticsEngine:
         if normalized_filter:
             filtered_predicates.append("instr(normalized, ?) > 0")
             filtered_parameters.append(normalized_filter)
-        where = " AND ".join(predicates)
+        filtered_predicates.extend(("frequency >= ?", "document_range >= ?"))
+        filtered_parameters.extend((min_frequency, min_range))
         filtered_where = " AND ".join(filtered_predicates)
-        order = (
-            "frequency DESC, normalized COLLATE NOCASE"
-            if sort_by == "frequency"
-            else "normalized COLLATE NOCASE, frequency DESC"
-        )
+        order = {
+            "frequency": "frequency DESC, document_range DESC, normalized COLLATE NOCASE",
+            "range": "document_range DESC, frequency DESC, normalized COLLATE NOCASE",
+            "term": "normalized COLLATE NOCASE, frequency DESC",
+        }[sort_by]
         try:
-            with closing(self._connect(required_tables=(table,))) as connection:
+            with closing(self._connect(required_tables=(table, "word_totals"))) as connection:
+                denominator_predicates = ["language = ?"]
+                denominator_parameters: list[object] = [language]
+                if not include_punctuation:
+                    denominator_predicates.append("is_punctuation = 0")
                 total_tokens = int(
                     connection.execute(
-                        f"SELECT COALESCE(SUM(frequency), 0) FROM {table} WHERE {where}",
-                        parameters,
+                        "SELECT COALESCE(SUM(frequency), 0) FROM word_totals "
+                        f"WHERE {' AND '.join(denominator_predicates)}",
+                        denominator_parameters,
                     ).fetchone()[0]
                 )
                 total_types = int(
@@ -282,7 +304,9 @@ class StatisticsEngine:
                 offset = (effective_page - 1) * page_size
                 rows = connection.execute(
                     f"""
-                    SELECT normalized, MIN(display) AS display, SUM(frequency) AS frequency
+                    SELECT normalized, MIN(display) AS display,
+                           SUM(frequency) AS frequency,
+                           MAX(document_range) AS document_range
                     FROM {table}
                     WHERE {filtered_where}
                     GROUP BY normalized
@@ -292,12 +316,13 @@ class StatisticsEngine:
                     [*filtered_parameters, page_size, offset],
                 ).fetchall()
         except sqlite3.Error as exc:
-            raise StatisticsIndexCorrupt("词频索引无法读取，请重新加工语料库。") from exc
+            raise StatisticsIndexCorrupt("词频索引读取失败。") from exc
         result_rows = tuple(
             FrequencyRow(
                 rank=offset + index,
                 term=str(row[1]),
                 frequency=int(row[2]),
+                document_range=int(row[3]),
                 per_million=(int(row[2]) * 1_000_000 / total_tokens if total_tokens else 0.0),
             )
             for index, row in enumerate(rows, start=1)
@@ -312,6 +337,8 @@ class StatisticsEngine:
             language=language,
             filter_text=filter_text,
             pos=pos,
+            min_frequency=min_frequency,
+            min_range=min_range,
             sort_by=sort_by,
             include_punctuation=include_punctuation,
         )
@@ -322,7 +349,9 @@ class StatisticsEngine:
         language: str,
         n: int = 2,
         min_frequency: int = 2,
+        min_range: int = 1,
         filter_text: str = "",
+        sort_by: str = "frequency",
         include_punctuation: bool = False,
         page: int = 1,
         page_size: int = 50,
@@ -333,16 +362,37 @@ class StatisticsEngine:
             raise ValueError("n must be between 2 and 5.")
         if not 1 <= min_frequency <= 1_000_000:
             raise ValueError("min_frequency must be between 1 and 1000000.")
-        predicates = ["language = ?", "n = ?", "frequency >= ?"]
-        parameters: list[object] = [language, n, min_frequency]
+        if not 1 <= min_range <= 1_000_000:
+            raise ValueError("min_range must be between 1 and 1000000.")
+        if sort_by not in {"frequency", "range", "term"}:
+            raise ValueError("sort_by must be frequency, range, or term.")
+        predicates = [
+            "language = ?",
+            "n = ?",
+            "frequency >= ?",
+            "document_range >= ?",
+        ]
+        parameters: list[object] = [language, n, min_frequency, min_range]
         if filter_text:
             predicates.append("instr(lower(display), ?) > 0")
             parameters.append(filter_text.casefold())
         if not include_punctuation:
             predicates.append("contains_punctuation = 0")
         where = " AND ".join(predicates)
+        order = {
+            "frequency": "frequency DESC, document_range DESC, normalized COLLATE NOCASE",
+            "range": "document_range DESC, frequency DESC, normalized COLLATE NOCASE",
+            "term": "normalized COLLATE NOCASE, frequency DESC",
+        }[sort_by]
         try:
             with closing(self._connect(required_tables=("ngrams",))) as connection:
+                ngram_columns = {
+                    str(row[1]) for row in connection.execute("PRAGMA table_info(ngrams)")
+                }
+                if "document_range" not in ngram_columns:
+                    raise StatisticsIndexUnavailable(
+                        "N-Gram 索引结构不兼容。"
+                    )
                 total_types = int(
                     connection.execute(
                         f"SELECT COUNT(*) FROM ngrams WHERE {where}", parameters
@@ -353,19 +403,19 @@ class StatisticsEngine:
                 offset = (effective_page - 1) * page_size
                 rows = connection.execute(
                     f"""
-                    SELECT display, frequency
+                    SELECT display, frequency, document_range
                     FROM ngrams
                     WHERE {where}
-                    ORDER BY frequency DESC, normalized COLLATE NOCASE
+                    ORDER BY {order}
                     LIMIT ? OFFSET ?
                     """,
                     [*parameters, page_size, offset],
                 ).fetchall()
         except sqlite3.Error as exc:
-            raise StatisticsIndexCorrupt("N-Gram 索引无法读取，请重新加工语料库。") from exc
+            raise StatisticsIndexCorrupt("N-Gram 索引读取失败。") from exc
         return NgramPage(
             rows=tuple(
-                NgramRow(offset + index, str(row[0]), int(row[1]))
+                NgramRow(offset + index, str(row[0]), int(row[1]), int(row[2]))
                 for index, row in enumerate(rows, start=1)
             ),
             total_types=total_types,
@@ -375,7 +425,9 @@ class StatisticsEngine:
             language=language,
             n=n,
             min_frequency=min_frequency,
+            min_range=min_range,
             filter_text=filter_text,
+            sort_by=sort_by,
             include_punctuation=include_punctuation,
         )
 
@@ -566,7 +618,7 @@ class StatisticsEngine:
                     [*filtered_parameters, max_words],
                 ).fetchall()
         except sqlite3.Error as exc:
-            raise StatisticsIndexCorrupt("词云索引无法读取，请重新加工语料库。") from exc
+            raise StatisticsIndexCorrupt("词云索引读取失败。") from exc
 
         frequencies = [int(row[1]) for row in rows]
         minimum = min(frequencies, default=0)
@@ -598,6 +650,7 @@ class StatisticsEngine:
         left_span: int = 5,
         right_span: int = 5,
         min_frequency: int = 2,
+        min_range: int = 1,
         pos: str = "",
         sort_by: str = "log_dice",
         include_punctuation: bool = False,
@@ -615,7 +668,18 @@ class StatisticsEngine:
             raise ValueError("at least one collocate span must be greater than 0.")
         if not 1 <= min_frequency <= 1_000_000:
             raise ValueError("min_frequency must be between 1 and 1000000.")
-        if sort_by not in {"frequency", "mi", "t_score", "log_dice", "term"}:
+        if not 1 <= min_range <= 1_000_000:
+            raise ValueError("min_range must be between 1 and 1000000.")
+        if sort_by not in {
+            "frequency",
+            "left_frequency",
+            "right_frequency",
+            "range",
+            "mi",
+            "t_score",
+            "log_dice",
+            "term",
+        }:
             raise ValueError("unsupported collocate sort.")
         detected_language, default_terms = query_terms(query)
         if detected_language != language:
@@ -630,18 +694,27 @@ class StatisticsEngine:
                         node_parameters,
                     ).fetchone()[0]
                 )
+                corpus_predicates = ["language = ?"]
+                corpus_parameters: list[object] = [language]
+                if pos:
+                    corpus_predicates.append("pos = ?")
+                    corpus_parameters.append(pos)
+                if not include_punctuation:
+                    corpus_predicates.append("is_punctuation = 0")
                 corpus_size = int(
                     connection.execute(
-                        "SELECT COUNT(*) FROM tokens WHERE language = ?", (language,)
+                        f"SELECT COUNT(*) FROM tokens WHERE {' AND '.join(corpus_predicates)}",
+                        corpus_parameters,
                     ).fetchone()[0]
                 )
                 if node_frequency:
                     rows = connection.execute(
                         f"""
                         WITH node AS ({node_sql}),
-                        observed AS (
-                            SELECT c.normalized, c.pos, MIN(c.surface) AS display,
-                                   COUNT(*) AS observed_frequency
+                        context AS (
+                            SELECT c.normalized, c.pos, c.surface, c.document_id,
+                                   CASE WHEN c.sentence_position < node.sentence_position
+                                        THEN 'left' ELSE 'right' END AS side
                             FROM node
                             JOIN tokens c ON c.sentence_id = node.sentence_id
                             WHERE (
@@ -652,21 +725,35 @@ class StatisticsEngine:
                             )
                             AND (? = '' OR c.pos = ?)
                             AND (? = 1 OR c.is_punctuation = 0)
-                            GROUP BY c.normalized, c.pos
+                        ),
+                        observed AS (
+                            SELECT normalized, MIN(surface) AS display,
+                                   GROUP_CONCAT(DISTINCT pos) AS pos,
+                                   COUNT(*) AS observed_frequency,
+                                   SUM(CASE WHEN side = 'left' THEN 1 ELSE 0 END) AS left_frequency,
+                                   SUM(CASE WHEN side = 'right' THEN 1 ELSE 0 END) AS right_frequency,
+                                   COUNT(DISTINCT document_id) AS document_range
+                            FROM context
+                            GROUP BY normalized
                             HAVING COUNT(*) >= ?
+                               AND COUNT(DISTINCT document_id) >= ?
                         ),
                         corpus_frequency AS (
-                            SELECT normalized, pos, COUNT(*) AS frequency
+                            SELECT normalized, COUNT(*) AS frequency
                             FROM tokens
                             WHERE language = ?
-                            GROUP BY normalized, pos
+                              AND (? = '' OR pos = ?)
+                              AND (? = 1 OR is_punctuation = 0)
+                            GROUP BY normalized
                         )
                         SELECT observed.normalized, observed.display, observed.pos,
-                               observed.observed_frequency, corpus_frequency.frequency
+                               observed.observed_frequency, observed.left_frequency,
+                               observed.right_frequency, observed.document_range,
+                               corpus_frequency.frequency,
+                               (SELECT COUNT(*) FROM context) AS context_size
                         FROM observed
                         JOIN corpus_frequency
                           ON corpus_frequency.normalized = observed.normalized
-                         AND corpus_frequency.pos = observed.pos
                         """,
                         [
                             *node_parameters,
@@ -677,20 +764,38 @@ class StatisticsEngine:
                             pos,
                             int(include_punctuation),
                             min_frequency,
+                            min_range,
                             language,
+                            pos,
+                            pos,
+                            int(include_punctuation),
                         ],
                     ).fetchall()
                 else:
                     rows = []
         except sqlite3.Error as exc:
-            raise StatisticsIndexCorrupt("搭配索引无法读取，请重新加工语料库。") from exc
+            raise StatisticsIndexCorrupt("搭配索引读取失败。") from exc
 
-        calculated: list[tuple[str, str, int, int, float, float, float]] = []
-        for _, display, row_pos, observed, corpus_frequency in rows:
+        calculated: list[
+            tuple[str, str, int, int, int, int, int, float, float, float]
+        ] = []
+        for (
+            _,
+            display,
+            row_pos,
+            observed,
+            left_frequency,
+            right_frequency,
+            document_range,
+            corpus_frequency,
+            context_size,
+        ) in rows:
             observed_value = int(observed)
             corpus_frequency_value = int(corpus_frequency)
             expected = (
-                node_frequency * corpus_frequency_value / corpus_size if corpus_size else 0.0
+                int(context_size) * corpus_frequency_value / corpus_size
+                if corpus_size
+                else 0.0
             )
             mutual_information = (
                 math.log2(observed_value / expected) if expected > 0 and observed_value else 0.0
@@ -713,13 +818,23 @@ class StatisticsEngine:
                     str(display),
                     str(row_pos),
                     observed_value,
+                    int(left_frequency),
+                    int(right_frequency),
+                    int(document_range),
                     corpus_frequency_value,
                     mutual_information,
                     t_score,
                     log_dice,
                 )
             )
-        sort_index = {"mi": 4, "t_score": 5, "log_dice": 6}.get(sort_by)
+        sort_index = {
+            "left_frequency": 3,
+            "right_frequency": 4,
+            "range": 5,
+            "mi": 7,
+            "t_score": 8,
+            "log_dice": 9,
+        }.get(sort_by)
         if sort_by == "frequency":
             calculated.sort(key=lambda row: (-row[2], row[0].casefold(), row[1]))
         elif sort_by == "term":
@@ -740,10 +855,13 @@ class StatisticsEngine:
                     term=row[0],
                     pos=row[1],
                     frequency=row[2],
-                    corpus_frequency=row[3],
-                    mutual_information=row[4],
-                    t_score=row[5],
-                    log_dice=row[6],
+                    left_frequency=row[3],
+                    right_frequency=row[4],
+                    document_range=row[5],
+                    corpus_frequency=row[6],
+                    mutual_information=row[7],
+                    t_score=row[8],
+                    log_dice=row[9],
                 )
                 for index, row in enumerate(page_rows, start=1)
             ),
@@ -758,6 +876,7 @@ class StatisticsEngine:
             left_span=left_span,
             right_span=right_span,
             min_frequency=min_frequency,
+            min_range=min_range,
             pos=pos,
             sort_by=sort_by,
             include_punctuation=include_punctuation,
@@ -808,7 +927,7 @@ class StatisticsEngine:
                     [*node_parameters, language],
                 ).fetchall()
         except sqlite3.Error as exc:
-            raise StatisticsIndexCorrupt("分布图索引无法读取，请重新加工语料库。") from exc
+            raise StatisticsIndexCorrupt("分布图索引读取失败。") from exc
 
         document_metadata = _documents_by_id(self.processed_dir / "documents.jsonl")
         grouped: dict[str, dict[int, int]] = {}
@@ -864,7 +983,7 @@ class StatisticsEngine:
                     parameters,
                 ).fetchall()
         except sqlite3.Error as exc:
-            raise StatisticsIndexCorrupt("词频索引无法读取，请重新加工语料库。") from exc
+            raise StatisticsIndexCorrupt("词频索引读取失败。") from exc
         snapshot = {
             str(normalized): (str(display), int(frequency), int(document_range))
             for normalized, display, frequency, document_range in rows
@@ -873,7 +992,7 @@ class StatisticsEngine:
 
     def _connect(self, *, required_tables: tuple[str, ...]) -> sqlite3.Connection:
         if not self.index_path.is_file():
-            raise StatisticsIndexUnavailable("统计索引不存在，请先加工语料库。")
+            raise StatisticsIndexUnavailable("统计索引不存在。")
         try:
             connection = sqlite3.connect(f"file:{self.index_path.as_posix()}?mode=ro", uri=True)
             existing = {
@@ -885,7 +1004,7 @@ class StatisticsEngine:
             missing = set(required_tables) - existing
             if missing:
                 connection.close()
-                raise StatisticsIndexUnavailable("索引版本过旧，请重新加工语料库。")
+                raise StatisticsIndexUnavailable("统计索引结构不兼容。")
             return connection
         except StatisticsIndexUnavailable:
             raise
@@ -930,7 +1049,7 @@ def _resolve_terms(
 
 def _documents_by_id(path: Path) -> dict[str, dict]:
     if not path.is_file():
-        raise StatisticsIndexUnavailable("文档元数据不存在，请重新加工语料库。")
+        raise StatisticsIndexUnavailable("文档元数据不存在。")
     try:
         return {
             str(record.get("id", "")): record

@@ -1,7 +1,7 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 {% load static %}
 {% block title %}Keywords - {{ corpus.name }}{% endblock %}
-{% block content %}
+{% block dashboard_content %}
 {% include "statistics/_header.html" %}
 <form method="get" class="filter-card">
   {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}

@@ -6,11 +6,12 @@
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
     {% endif %}
-    <a class="platform-brand" href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'home' %}{% endif %}" aria-label="武汉理工大学外国语学院在线语料库平台首页">
-      <img src="{% static 'img/whut-logo.png' %}" alt="武汉理工大学校徽" width="44" height="44">
-      <span class="platform-brand__copy">
-        <strong>武汉理工大学</strong>
-        <small>外国语学院在线语料库平台</small>
+
+    <a class="platform-brand" href="{% if user.is_authenticated %}{% url 'accounts:dashboard' %}{% else %}{% url 'home' %}{% endif %}" aria-label="在线语料库平台首页">
+      <img class="platform-brand__mark platform-brand__mark--wide" src="{% static 'img/translation-center-wordmark-black.png' %}" alt="武汉理工大学与外国语学院联合标识" width="656" height="80">
+      <span class="platform-brand__center">
+        <strong>翻译跨学科研究中心</strong>
+        <small>Translation Interdisciplinary Research Center</small>
       </span>
     </a>
 
@@ -31,6 +32,7 @@
           <ul class="dropdown-menu dropdown-menu-end shadow-sm">
             <li><a class="dropdown-item" href="{% url 'accounts:dashboard' %}">个人工作台</a></li>
             <li><a class="dropdown-item" href="{% url 'exports:list' %}">我的导出</a></li>
+            <li><a class="dropdown-item" href="{% url 'feedback:list' %}">反馈与问题</a></li>
             {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin:index' %}">管理后台</a></li>{% endif %}
             <li><hr class="dropdown-divider"></li>
             <li>
@@ -42,12 +44,25 @@
           </ul>
         </div>
       </div>
+      <nav class="app-top-nav" aria-label="平台主导航">
+        <a class="{% if request.resolver_match.namespace == 'accounts' %}active{% endif %}" href="{% url 'accounts:dashboard' %}">工作台</a>
+        <a class="{% if request.resolver_match.namespace == 'corpora' %}active{% endif %}" href="{% url 'corpora:list' %}">语料资源</a>
+        <a class="{% if request.resolver_match.namespace == 'search' %}active{% endif %}" href="{% url 'corpora:list' %}?tool=kwic">检索中心</a>
+        <a class="{% if request.resolver_match.namespace == 'parallel' %}active{% endif %}" href="{% url 'corpora:list' %}?tool=parallel">对齐工具</a>
+        <a class="{% if request.resolver_match.namespace == 'statistics' %}active{% endif %}" href="{% url 'corpora:list' %}?tool=statistics">统计分析</a>
+        <a class="{% if request.resolver_match.namespace == 'exports' %}active{% endif %}" href="{% url 'exports:list' %}">导出管理</a>
+        <a class="{% if request.resolver_match.namespace == 'feedback' %}active{% endif %}" href="{% url 'feedback:list' %}">反馈帮助</a>
+      </nav>
     {% else %}
       <nav class="public-nav ms-auto" aria-label="公共导航">
-        <a href="{% url 'home' %}#platform-capabilities">平台功能</a>
-        <a href="{% url 'home' %}#platform-security">数据安全</a>
-        <a href="{% url 'accounts:apply' %}">账号申请</a>
-        <a class="btn btn-primary btn-sm px-3" href="{% url 'accounts:login' %}">登录平台</a>
+        <a href="{% url 'home' %}">首页</a>
+        <a href="{% url 'home' %}?login=required#home-login">语料资源</a>
+        <a href="{% url 'home' %}?login=required#home-login">检索中心</a>
+        <a href="{% url 'home' %}?login=required#home-login">用户语料</a>
+        <a href="{% url 'home' %}?login=required#home-login">对齐工具</a>
+        <a href="{% url 'home' %}?login=required#home-login">统计分析</a>
+        <a href="{% url 'home' %}#platform-guide">帮助中心</a>
+        <a class="btn btn-primary btn-sm px-3" href="{% url 'home' %}?login=required#home-login">登录</a>
       </nav>
     {% endif %}
   </div>

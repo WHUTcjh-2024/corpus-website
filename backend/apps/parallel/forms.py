@@ -5,6 +5,22 @@ from django import forms
 from .engine import ParallelQuery, normalize_condition
 
 
+SORT_CHOICES = (
+    ("", "不排序"),
+    ("CEN", "命中词 CEN"),
+    ("L1", "左 1 词"),
+    ("L2", "左 2 词"),
+    ("L3", "左 3 词"),
+    ("L4", "左 4 词"),
+    ("L5", "左 5 词"),
+    ("R1", "右 1 词"),
+    ("R2", "右 2 词"),
+    ("R3", "右 3 词"),
+    ("R4", "右 4 词"),
+    ("R5", "右 5 词"),
+)
+
+
 class ParallelSearchForm(forms.Form):
     q = forms.CharField(
         label="主检索词",
@@ -56,10 +72,58 @@ class ParallelSearchForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+    whole_words = forms.BooleanField(
+        label="完整词匹配（优先使用源语料词界）",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    case_sensitive = forms.BooleanField(
+        label="区分大小写",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    infer_target_highlights = forms.BooleanField(
+        label="显示目标侧统计提示（实验性，不代表词语对齐）",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    nth_entry = forms.IntegerField(
+        label="每 N 条显示一条",
+        min_value=1,
+        max_value=1_000,
+        initial=1,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    sort_1 = forms.ChoiceField(
+        label="一级排序",
+        choices=(("", "语料顺序"), *SORT_CHOICES[1:]),
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sort_2 = forms.ChoiceField(
+        label="二级排序",
+        choices=SORT_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sort_3 = forms.ChoiceField(
+        label="三级排序",
+        choices=SORT_CHOICES,
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     page_size = forms.ChoiceField(
         label="每页条数",
         choices=(("20", "20"), ("50", "50"), ("100", "100")),
         initial="50",
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    context_size = forms.ChoiceField(
+        label="上下文",
+        choices=(("10", "10"), ("20", "20"), ("50", "50"), ("100", "100")),
+        initial="20",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
@@ -109,6 +173,9 @@ class ParallelSearchForm(forms.Form):
     def clean_page_size(self) -> int:
         return int(self.cleaned_data.get("page_size") or 50)
 
+    def clean_context_size(self) -> int:
+        return int(self.cleaned_data.get("context_size") or 20)
+
     def clean_search_side(self) -> str:
         return self.cleaned_data.get("search_side") or "zh"
 
@@ -117,6 +184,9 @@ class ParallelSearchForm(forms.Form):
 
     def clean_page(self) -> int:
         return self.cleaned_data.get("page") or 1
+
+    def clean_nth_entry(self) -> int:
+        return self.cleaned_data.get("nth_entry") or 1
 
     def to_query(self, cleaned: dict | None = None) -> ParallelQuery:
         values = cleaned if cleaned is not None else self.cleaned_data
@@ -128,4 +198,12 @@ class ParallelSearchForm(forms.Form):
             zh_not_contains=values.get("zh_not_contains", ""),
             en_not_contains=values.get("en_not_contains", ""),
             alignment_unit=values.get("alignment_unit") or self.default_alignment_unit,
+            whole_words=bool(values.get("whole_words", False)),
+            case_sensitive=bool(values.get("case_sensitive", False)),
+            infer_target_highlights=bool(values.get("infer_target_highlights", False)),
+            sort_1=values.get("sort_1", ""),
+            sort_2=values.get("sort_2", ""),
+            sort_3=values.get("sort_3", ""),
+            context_size=values.get("context_size") or 20,
+            nth_entry=values.get("nth_entry") or 1,
         )

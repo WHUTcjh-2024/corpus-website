@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from django import forms
 
-from .kwic import SORT_FIELDS, query_terms
+from .kwic import SORT_FIELDS, KwicQueryError, compile_query, validate_full_regex
 from .query_parser import QuerySyntaxError, parse_query
 
 
@@ -12,7 +12,11 @@ LANGUAGE_LABELS = {"zh": "中文", "en": "English"}
 class KwicSearchForm(forms.Form):
     query_mode = forms.ChoiceField(
         label="查询语法",
-        choices=(("simple", "普通 KWIC"), ("cqp", "CQP 子集")),
+        choices=(
+            ("simple", "普通 KWIC"),
+            ("full_regex", "全文正则"),
+            ("cqp", "CQP 子集"),
+        ),
         initial="simple",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -60,10 +64,46 @@ class KwicSearchForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": "form-control", "min": 1, "max": 100}),
     )
     sort_by = forms.ChoiceField(
-        label="排序位置",
+        label="一级排序",
         required=False,
         choices=[("", "语料顺序"), *((value, value) for value in SORT_FIELDS)],
         widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sort_2 = forms.ChoiceField(
+        label="二级排序",
+        required=False,
+        choices=[("", "不启用"), *((value, value) for value in SORT_FIELDS)],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sort_3 = forms.ChoiceField(
+        label="三级排序",
+        required=False,
+        choices=[("", "不启用"), *((value, value) for value in SORT_FIELDS)],
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sort_order = forms.ChoiceField(
+        label="排序方式",
+        required=False,
+        initial="value",
+        choices=(("value", "按值"), ("frequency", "按模式频次")),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    whole_words = forms.ChoiceField(
+        label="匹配范围",
+        required=False,
+        initial="1",
+        choices=(("1", "整词（Words）"), ("0", "词内子串")),
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    case_sensitive = forms.BooleanField(
+        label="区分大小写（Case）",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    regex = forms.BooleanField(
+        label="逐 Token 正则（Regex）",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     page = forms.IntegerField(
         min_value=1,
@@ -102,8 +142,10 @@ class KwicSearchForm(forms.Form):
         self.fields["language"].initial = available_languages[0]
 
     def clean_q(self) -> str:
-        query = " ".join(self.cleaned_data["q"].split())
-        return query
+        query = self.cleaned_data["q"].strip()
+        if self.cleaned_data.get("query_mode") == "full_regex":
+            return query
+        return " ".join(query.split())
 
     def clean_query_mode(self) -> str:
         return self.cleaned_data.get("query_mode") or "simple"
@@ -114,19 +156,46 @@ class KwicSearchForm(forms.Form):
     def clean(self) -> dict:
         cleaned = super().clean()
         query = cleaned.get("q", "")
+        query_mode = cleaned.get("query_mode")
+        if query_mode == "cqp" and (
+            cleaned.get("case_sensitive") or cleaned.get("regex")
+        ):
+            raise forms.ValidationError(
+                "CQP 子集使用表达式自身的匹配规则，请关闭 Case/Regex 开关。",
+                code="incompatible_options",
+            )
+        if query_mode == "full_regex":
+            if cleaned.get("pos"):
+                raise forms.ValidationError(
+                    "全文正则不能同时使用首词 POS 条件。",
+                    code="incompatible_options",
+                )
+            cleaned["whole_words"] = False
+            cleaned["regex"] = True
         if query and not self.errors:
             try:
-                if cleaned.get("query_mode") == "cqp":
+                if query_mode == "cqp":
                     parse_query(query, language=cleaned["language"])
+                elif query_mode == "full_regex":
+                    validate_full_regex(
+                        query,
+                        case_sensitive=cleaned.get("case_sensitive", False),
+                    )
                 else:
-                    detected_language, _ = query_terms(query)
-                    if detected_language not in self.available_languages:
-                        raise QuerySyntaxError("检索词语言不属于当前语料库。")
-                    if detected_language != cleaned["language"]:
-                        raise QuerySyntaxError("检索词语言与所选语言不一致。")
-            except (QuerySyntaxError, ValueError) as exc:
+                    compile_query(
+                        query,
+                        language=cleaned["language"],
+                        whole_words=cleaned.get("whole_words", True),
+                        case_sensitive=cleaned.get("case_sensitive", False),
+                        regex=cleaned.get("regex", False),
+                    )
+            except (QuerySyntaxError, KwicQueryError, ValueError) as exc:
                 raise forms.ValidationError(str(exc), code="invalid_query") from exc
         return cleaned
+
+    def clean_whole_words(self) -> bool:
+        value = self.cleaned_data.get("whole_words")
+        return value != "0"
 
     def clean_context(self) -> int:
         return self.cleaned_data.get("context") if self.cleaned_data.get("context") is not None else 5

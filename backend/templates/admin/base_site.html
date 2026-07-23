@@ -1,0 +1,46 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | 在线语料库平台管理后台{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/tokens.css' %}">
+<link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+<a class="admin-brand" href="{% url 'admin:index' %}" aria-label="在线语料库平台管理后台">
+  <img src="{% static 'img/translation-center-wordmark-black.png' %}" alt="武汉理工大学与外国语学院联合标识" width="656" height="80">
+  <span class="admin-brand__center">
+    <strong>翻译跨学科研究中心</strong>
+    <small>Translation Interdisciplinary Research Center</small>
+  </span>
+  <em>管理后台</em>
+</a>
+{% if user.is_anonymous %}
+  {% include "admin/color_theme_toggle.html" %}
+{% endif %}
+{% endblock %}
+
+{% block userlinks %}
+  {% if site_url %}
+    <a class="admin-user-link" href="{{ site_url }}">{% translate 'View site' %}</a>
+  {% endif %}
+  {% if user.has_usable_password %}
+    <a class="admin-user-link" href="{% url 'admin:password_change' %}">{% translate 'Change password' %}</a>
+  {% endif %}
+  <form id="logout-form" method="post" action="{% url 'admin:logout' %}">
+    {% csrf_token %}
+    <button class="admin-user-link admin-user-link--danger" type="submit">{% translate 'Log out' %}</button>
+  </form>
+  {% include "admin/color_theme_toggle.html" %}
+{% endblock %}
+
+{% block nav-global %}
+<nav class="admin-global-nav" aria-label="后台快捷导航">
+  <a href="{% url 'accounts:dashboard' %}">工作台</a>
+  <a href="{% url 'corpora:list' %}">语料资源</a>
+  <a href="{% url 'feedback:list' %}">反馈工单</a>
+</nav>
+{% endblock %}

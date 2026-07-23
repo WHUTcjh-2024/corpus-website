@@ -56,15 +56,3 @@ def approved_user_required(
         return view_func(request, *args, **kwargs)
 
     return wrapped
-
-
-def admin_user_required(
-    view_func: Callable[..., HttpResponse],
-) -> Callable[..., HttpResponse]:
-    @wraps(view_func)
-    def wrapped(request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
-        if workspace_access_scope(request.user) != AccessScope.ADMIN:
-            return HttpResponseForbidden("仅管理员可访问。")
-        return view_func(request, *args, **kwargs)
-
-    return wrapped

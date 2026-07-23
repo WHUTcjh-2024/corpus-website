@@ -1,0 +1,59 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}反馈详情 - 在线语料库平台{% endblock %}
+
+{% block dashboard_content %}
+<div class="page-header">
+  <div>
+    <p class="page-eyebrow">Feedback Detail</p>
+    <h1 class="page-title">{{ ticket.title }}</h1>
+    <p class="page-description">提交于 {{ ticket.created_at|date:"Y-m-d H:i" }}，最近更新 {{ ticket.updated_at|date:"Y-m-d H:i" }}。</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{% url 'feedback:list' %}">返回列表</a>
+    <a class="btn btn-primary" href="{% url 'feedback:create' %}">继续反馈</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <article class="platform-card">
+      <header class="platform-card__header">
+        <h2>问题描述</h2>
+        <span class="status-badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span>
+      </header>
+      <div class="platform-card__body">
+        <dl class="profile-list mb-4">
+          <div><dt>类型</dt><dd>{{ ticket.get_category_display }}</dd></div>
+          <div><dt>影响程度</dt><dd>{{ ticket.get_severity_display }}</dd></div>
+          <div><dt>相关页面</dt><dd>{{ ticket.page_url|default:"未填写" }}</dd></div>
+          <div><dt>联系邮箱</dt><dd>{{ ticket.contact_email|default:"未填写" }}</dd></div>
+        </dl>
+        <div class="text-block">{{ ticket.description|linebreaksbr }}</div>
+      </div>
+    </article>
+  </div>
+  <div class="col-xl-4">
+    <aside class="platform-card">
+      <header class="platform-card__header"><h2>处理备注</h2></header>
+      <div class="platform-card__body">
+        {% if ticket.admin_note %}
+          <div class="text-block">{{ ticket.admin_note|linebreaksbr }}</div>
+        {% else %}
+          <p class="text-secondary mb-0">管理员尚未添加处理备注。</p>
+        {% endif %}
+        {% if ticket.resolved_at %}<p class="table-meta mt-3 mb-0">解决时间：{{ ticket.resolved_at|date:"Y-m-d H:i" }}</p>{% endif %}
+      </div>
+    </aside>
+    <aside class="platform-card mt-4">
+      <header class="platform-card__header"><h2>人工联系</h2></header>
+      <div class="platform-card__body">
+        <dl class="profile-list mb-0">
+          <div><dt>联系人</dt><dd>{{ feedback_support_name }}</dd></div>
+          <div><dt>反馈邮箱</dt><dd><a href="mailto:{{ feedback_support_email }}">{{ feedback_support_email }}</a></dd></div>
+        </dl>
+      </div>
+    </aside>
+  </div>
+</div>
+{% endblock %}

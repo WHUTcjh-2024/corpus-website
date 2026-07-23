@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 
 {% block title %}我的导出 - 在线语料库平台{% endblock %}
 
-{% block content %}
+{% block dashboard_content %}
 <div class="page-header">
   <div><p class="page-eyebrow">Controlled Exports</p><h1 class="page-title">我的导出</h1><p class="page-description">仅本人语料可导出；文件有有效期和下载次数限制，所有操作均写入审计日志。</p></div>
   <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'corpora:mine' %}">我的语料</a></div>

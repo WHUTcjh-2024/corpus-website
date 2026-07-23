@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 import sqlite3
@@ -14,6 +15,20 @@ from apps.processing.text import token_matches
 
 ALIGNMENT_UNITS = ("sentence", "paragraph")
 SEARCH_SIDES = ("zh", "en")
+SORT_POSITIONS = (
+    "",
+    "L5",
+    "L4",
+    "L3",
+    "L2",
+    "L1",
+    "CEN",
+    "R1",
+    "R2",
+    "R3",
+    "R4",
+    "R5",
+)
 MAX_CONDITION_LENGTH = 200
 AUTO_HIGHLIGHT_MIN_MATCHES = 5
 AUTO_HIGHLIGHT_MIN_COVERAGE = 0.20
@@ -54,12 +69,26 @@ class ParallelQuery:
     zh_not_contains: str = ""
     en_not_contains: str = ""
     alignment_unit: str = "sentence"
+    whole_words: bool = False
+    case_sensitive: bool = False
+    infer_target_highlights: bool = False
+    sort_1: str = ""
+    sort_2: str = ""
+    sort_3: str = ""
+    context_size: int = 20
+    nth_entry: int = 1
 
     def validate(self) -> None:
         if self.search_side not in SEARCH_SIDES:
             raise ValueError("search_side must be zh or en.")
         if self.alignment_unit not in ALIGNMENT_UNITS:
             raise ValueError("alignment_unit must be sentence or paragraph.")
+        if not 1 <= self.nth_entry <= 1_000:
+            raise ValueError("nth_entry must be between 1 and 1000.")
+        if not 5 <= self.context_size <= 100:
+            raise ValueError("context_size must be between 5 and 100.")
+        if any(value not in SORT_POSITIONS for value in self.sort_positions):
+            raise ValueError("sort positions must be CEN, L1-L5, R1-R5, or blank.")
         values = (
             self.q,
             self.zh_contains,
@@ -86,6 +115,12 @@ class ParallelQuery:
             values.insert(0, self.q)
         return _unique_nonempty(values)
 
+    @property
+    def sort_positions(self) -> tuple[str, ...]:
+        return tuple(
+            value for value in (self.sort_1, self.sort_2, self.sort_3) if value
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class HighlightFragment:
@@ -105,6 +140,9 @@ class ParallelHit:
     alignment_unit: str
     method: str
     confidence: float
+    zh_filename: str = ""
+    en_filename: str = ""
+    occurrence_ordinal: int = 1
 
     @property
     def alignment_unit_display(self) -> str:
@@ -119,7 +157,16 @@ class ParallelHit:
             "provided": "人工提供",
             "provided_paragraph_order": "人工段落顺序",
             "provided_structure_id": "人工结构编号",
+            "provided_structure_order": "人工结构顺序",
         }.get(self.method, self.method)
+
+    @property
+    def zh_is_gap(self) -> bool:
+        return not self.zh_text.strip()
+
+    @property
+    def en_is_gap(self) -> bool:
+        return not self.en_text.strip()
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +174,7 @@ class ParallelSearchResult:
     query: ParallelQuery
     hits: tuple[ParallelHit, ...]
     total: int
+    raw_total: int
     page: int
     page_size: int
     num_pages: int
@@ -139,6 +187,13 @@ class ParallelSearchResult:
     @property
     def has_next(self) -> bool:
         return self.page < self.num_pages
+
+
+@dataclass(frozen=True, slots=True)
+class _MatchedOccurrence:
+    row: tuple[object, ...]
+    occurrence_ordinal: int
+    span: tuple[int, int] | None
 
 
 class ParallelSearchEngine:
@@ -158,50 +213,65 @@ class ParallelSearchEngine:
         if not 1 <= page_size <= 100:
             raise ValueError("page_size must be between 1 and 100.")
 
-        where_sql, parameters = _build_filter(query)
         try:
             with closing(self._connect()) as connection:
-                total = int(
-                    connection.execute(
-                        f"SELECT COUNT(*) FROM parallel_pairs WHERE {where_sql}",
-                        parameters,
-                    ).fetchone()[0]
+                columns = _parallel_columns(connection)
+                where_sql, parameters = _build_filter(
+                    query,
+                    has_token_spans={
+                        "zh_token_spans",
+                        "en_token_spans",
+                    }.issubset(columns),
                 )
-                num_pages = max(1, math.ceil(total / page_size))
-                effective_page = min(page, num_pages)
+                select_columns = _parallel_select_columns(columns)
                 rows = connection.execute(
                     f"""
-                    SELECT global_position, pair_id, pair_ordinal, zh_text, en_text,
-                           alignment_unit, method, confidence
+                    SELECT {select_columns}
                     FROM parallel_pairs
                     WHERE {where_sql}
                     ORDER BY global_position
-                    LIMIT ? OFFSET ?
                     """,
-                    (*parameters, page_size, (effective_page - 1) * page_size),
+                    parameters,
                 ).fetchall()
-                auto_target_highlights = _infer_target_highlights(
-                    connection,
-                    query,
-                    where_sql=where_sql,
-                    parameters=parameters,
-                    total=total,
+                occurrences = _expand_occurrences(rows, query)
+                raw_total = len(occurrences)
+                thinned = occurrences[:: query.nth_entry]
+                if query.sort_positions:
+                    thinned.sort(key=lambda item: _occurrence_sort_key(item, query))
+                total = len(thinned)
+                num_pages = max(1, math.ceil(total / page_size))
+                effective_page = min(page, num_pages)
+                start = (effective_page - 1) * page_size
+                page_occurrences = thinned[start : start + page_size]
+                auto_target_highlights = (
+                    _infer_target_highlights(
+                        connection,
+                        query,
+                        where_sql=where_sql,
+                        parameters=parameters,
+                        total=len(rows),
+                    )
+                    if query.infer_target_highlights
+                    else ()
                 )
         except sqlite3.DatabaseError as exc:
-            raise ParallelIndexCorrupt("平行语料索引损坏，请重新加工该语料库。") from exc
+            raise ParallelIndexCorrupt("平行语料索引读取失败。") from exc
 
         hits = tuple(
             _row_to_hit(
-                row,
+                occurrence.row,
                 query,
                 auto_target_highlights=auto_target_highlights,
+                occurrence_ordinal=occurrence.occurrence_ordinal,
+                anchor_span=occurrence.span,
             )
-            for row in rows
+            for occurrence in page_occurrences
         )
         return ParallelSearchResult(
             query=query,
             hits=hits,
             total=total,
+            raw_total=raw_total,
             page=effective_page,
             page_size=page_size,
             num_pages=num_pages,
@@ -217,10 +287,12 @@ class ParallelSearchEngine:
         query = ParallelQuery(alignment_unit=alignment_unit)
         try:
             with closing(self._connect()) as connection:
+                select_columns = _parallel_select_columns(
+                    _parallel_columns(connection)
+                )
                 rows = connection.execute(
-                    """
-                    SELECT global_position, pair_id, pair_ordinal, zh_text, en_text,
-                           alignment_unit, method, confidence
+                    f"""
+                    SELECT {select_columns}
                     FROM parallel_pairs
                     WHERE alignment_unit = ?
                     ORDER BY global_position
@@ -229,40 +301,70 @@ class ParallelSearchEngine:
                     (alignment_unit, limit),
                 ).fetchall()
         except sqlite3.DatabaseError as exc:
-            raise ParallelIndexCorrupt("平行语料索引损坏，请重新加工该语料库。") from exc
+            raise ParallelIndexCorrupt("平行语料索引读取失败。") from exc
         return tuple(_row_to_hit(row, query) for row in rows)
 
     def iter_export_rows(self, query: ParallelQuery) -> Iterator[tuple[object, ...]]:
         query.validate()
-        where_sql, parameters = _build_filter(query)
         try:
             with closing(self._connect()) as connection:
-                cursor = connection.execute(
+                columns = _parallel_columns(connection)
+                where_sql, parameters = _build_filter(
+                    query,
+                    has_token_spans={
+                        "zh_token_spans",
+                        "en_token_spans",
+                    }.issubset(columns),
+                )
+                select_columns = _parallel_select_columns(columns)
+                rows = connection.execute(
                     f"""
-                    SELECT global_position, pair_ordinal, zh_text, en_text,
-                           alignment_unit, method, confidence
+                    SELECT {select_columns}
                     FROM parallel_pairs
                     WHERE {where_sql}
                     ORDER BY global_position
                     """,
                     parameters,
-                )
-                while rows := cursor.fetchmany(500):
-                    yield from rows
+                ).fetchall()
+                occurrences = _expand_occurrences(rows, query)[:: query.nth_entry]
+                if query.sort_positions:
+                    occurrences.sort(
+                        key=lambda item: _occurrence_sort_key(item, query)
+                    )
+                for occurrence in occurrences:
+                    row = occurrence.row
+                    yield (
+                        row[0],
+                        row[2],
+                        occurrence.occurrence_ordinal,
+                        row[8],
+                        row[9],
+                        row[3],
+                        row[4],
+                        row[5],
+                        row[6],
+                        row[7],
+                    )
         except sqlite3.DatabaseError as exc:
-            raise ParallelIndexCorrupt("平行语料索引损坏，请重新加工该语料库。") from exc
+            raise ParallelIndexCorrupt("平行语料索引读取失败。") from exc
 
     def _connect(self) -> sqlite3.Connection:
         if not self.index_path.is_file():
-            raise ParallelIndexUnavailable("平行语料索引不存在，请先加工该语料库。")
+            raise ParallelIndexUnavailable("平行语料索引不存在。")
         try:
             connection = sqlite3.connect(f"file:{self.index_path.as_posix()}?mode=ro", uri=True)
+            connection.create_function(
+                "whole_word_match",
+                5,
+                _whole_word_match,
+                deterministic=True,
+            )
             table_exists = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='parallel_pairs'"
             ).fetchone()
             if table_exists is None:
                 connection.close()
-                raise ParallelIndexUnavailable("当前索引版本不含平行检索表，请重新加工该语料库。")
+                raise ParallelIndexUnavailable("当前索引结构不支持平行检索。")
             return connection
         except ParallelIndexUnavailable:
             raise
@@ -274,7 +376,11 @@ def normalize_condition(value: str) -> str:
     return " ".join(value.split())
 
 
-def _build_filter(query: ParallelQuery) -> tuple[str, tuple[str, ...]]:
+def _build_filter(
+    query: ParallelQuery,
+    *,
+    has_token_spans: bool,
+) -> tuple[str, tuple[object, ...]]:
     clauses = ["alignment_unit = ?"]
     parameters = [query.alignment_unit]
     positive: dict[str, list[str]] = {
@@ -287,14 +393,172 @@ def _build_filter(query: ParallelQuery) -> tuple[str, tuple[str, ...]]:
         "en": query.en_not_contains,
     }
     for side in SEARCH_SIDES:
-        column = f"{side}_normalized"
+        normalized_column = f"{side}_normalized"
+        raw_column = f"{side}_text"
+        token_spans_column = f"{side}_token_spans" if has_token_spans else "'[]'"
         for value in _unique_nonempty(positive[side]):
-            clauses.append(f"instr({column}, ?) > 0")
-            parameters.append(value.casefold())
+            if query.whole_words:
+                clauses.append(
+                    f"whole_word_match({raw_column}, ?, ?, ?, {token_spans_column}) = 1"
+                )
+                parameters.extend((value, int(query.case_sensitive), side))
+            elif query.case_sensitive:
+                clauses.append(f"instr({raw_column}, ?) > 0")
+                parameters.append(value)
+            else:
+                clauses.append(f"instr({normalized_column}, ?) > 0")
+                parameters.append(value.casefold())
         if negative[side]:
-            clauses.append(f"instr({column}, ?) = 0")
-            parameters.append(negative[side].casefold())
+            if query.whole_words:
+                clauses.append(
+                    f"whole_word_match({raw_column}, ?, ?, ?, {token_spans_column}) = 0"
+                )
+                parameters.extend((negative[side], int(query.case_sensitive), side))
+            elif query.case_sensitive:
+                clauses.append(f"instr({raw_column}, ?) = 0")
+                parameters.append(negative[side])
+            else:
+                clauses.append(f"instr({normalized_column}, ?) = 0")
+                parameters.append(negative[side].casefold())
     return " AND ".join(clauses), tuple(parameters)
+
+
+def _whole_word_match(
+    text: str | None,
+    value: str | None,
+    case_sensitive: int,
+    language: str,
+    serialized_token_spans: str,
+) -> int:
+    """Match token boundaries without treating every Han character as one word."""
+    if not text or not value:
+        return 0
+    return int(
+        bool(
+            _term_spans(
+                text,
+                value,
+                case_sensitive=bool(case_sensitive),
+                whole_words=True,
+                language=language,
+                token_spans=_decode_token_spans(serialized_token_spans),
+            )
+        )
+    )
+
+
+def _expand_occurrences(
+    rows: list[tuple[object, ...]],
+    query: ParallelQuery,
+) -> list[_MatchedOccurrence]:
+    anchor_side, anchor_term = _anchor_condition(query)
+    expanded: list[_MatchedOccurrence] = []
+    for row in rows:
+        if not anchor_term:
+            expanded.append(_MatchedOccurrence(row=row, occurrence_ordinal=1, span=None))
+            continue
+        text = str(row[3] if anchor_side == "zh" else row[4])
+        spans = _term_spans(
+            text,
+            anchor_term,
+            case_sensitive=query.case_sensitive,
+            whole_words=query.whole_words,
+            language=anchor_side,
+            token_spans=_decode_token_spans(
+                str(row[10] if anchor_side == "zh" else row[11])
+            ),
+        )
+        for ordinal, span in enumerate(spans, start=1):
+            expanded.append(
+                _MatchedOccurrence(
+                    row=row,
+                    occurrence_ordinal=ordinal,
+                    span=span,
+                )
+            )
+    return expanded
+
+
+def _anchor_condition(query: ParallelQuery) -> tuple[str, str]:
+    if query.q:
+        return query.search_side, query.q
+    preferred = query.zh_contains if query.search_side == "zh" else query.en_contains
+    if preferred:
+        return query.search_side, preferred
+    if query.zh_contains:
+        return "zh", query.zh_contains
+    if query.en_contains:
+        return "en", query.en_contains
+    return query.search_side, ""
+
+
+def _occurrence_sort_key(
+    occurrence: _MatchedOccurrence,
+    query: ParallelQuery,
+) -> tuple[object, ...]:
+    anchor_side, _ = _anchor_condition(query)
+    text = str(occurrence.row[3] if anchor_side == "zh" else occurrence.row[4])
+    token_spans = _decode_token_spans(
+        str(occurrence.row[10] if anchor_side == "zh" else occurrence.row[11])
+    )
+    context = _sort_context(
+        text,
+        occurrence.span,
+        anchor_side,
+        token_spans=token_spans,
+    )
+    values = tuple(context.get(position, "").casefold() for position in query.sort_positions)
+    return (*values, int(occurrence.row[0]), occurrence.occurrence_ordinal)
+
+
+def _sort_context(
+    text: str,
+    span: tuple[int, int] | None,
+    language: str,
+    *,
+    token_spans: tuple[tuple[str, int, int], ...] = (),
+) -> dict[str, str]:
+    if span is None:
+        return {"CEN": ""}
+    start, end = span
+    tokens = token_spans or tuple(
+        (match.group(0), match.start(), match.end())
+        for match in token_matches(text, language)
+    )
+    left = [surface for surface, _, token_end in tokens if token_end <= start]
+    right = [surface for surface, token_start, _ in tokens if token_start >= end]
+    values = {"CEN": text[start:end]}
+    for distance in range(1, 6):
+        values[f"L{distance}"] = left[-distance] if len(left) >= distance else ""
+        values[f"R{distance}"] = right[distance - 1] if len(right) >= distance else ""
+    return values
+
+
+def _context_slice(
+    text: str,
+    span: tuple[int, int],
+    *,
+    language: str,
+    context_size: int,
+    token_spans: tuple[tuple[str, int, int], ...] = (),
+) -> tuple[str, tuple[int, int]]:
+    start, end = span
+    tokens = token_spans or tuple(
+        (match.group(0), match.start(), match.end())
+        for match in token_matches(text, language)
+    )
+    left = [token for token in tokens if token[2] <= start]
+    right = [token for token in tokens if token[1] >= end]
+    slice_start = left[-context_size][1] if len(left) >= context_size else 0
+    slice_end = right[context_size - 1][2] if len(right) >= context_size else len(text)
+    prefix = "…" if slice_start else ""
+    suffix = "…" if slice_end < len(text) else ""
+    clipped = f"{prefix}{text[slice_start:slice_end]}{suffix}"
+    adjusted = (
+        len(prefix) + start - slice_start,
+        len(prefix) + end - slice_start,
+    )
+    return clipped, adjusted
 
 
 def _row_to_hit(
@@ -302,6 +566,8 @@ def _row_to_hit(
     query: ParallelQuery,
     *,
     auto_target_highlights: tuple[str, ...] = (),
+    occurrence_ordinal: int = 1,
+    anchor_span: tuple[int, int] | None = None,
 ) -> ParallelHit:
     zh_text = str(row[3])
     en_text = str(row[4])
@@ -311,35 +577,234 @@ def _row_to_hit(
         en_highlights = _merge_highlights(en_highlights, auto_target_highlights)
     else:
         zh_highlights = _merge_highlights(zh_highlights, auto_target_highlights)
+    anchor_side, _ = _anchor_condition(query)
+    display_anchor_span = anchor_span
+    if anchor_span is not None and anchor_side == "zh":
+        zh_text, display_anchor_span = _context_slice(
+            zh_text,
+            anchor_span,
+            language="zh",
+            context_size=query.context_size,
+            token_spans=_decode_token_spans(str(row[10])),
+        )
+    elif anchor_span is not None and anchor_side == "en":
+        en_text, display_anchor_span = _context_slice(
+            en_text,
+            anchor_span,
+            language="en",
+            context_size=query.context_size,
+            token_spans=_decode_token_spans(str(row[11])),
+        )
+    zh_fragments = (
+        _highlight_explicit_span(zh_text, display_anchor_span)
+        if display_anchor_span is not None and anchor_side == "zh"
+        else highlight_fragments(
+            zh_text,
+            zh_highlights,
+            case_sensitive=query.case_sensitive,
+            whole_words=query.whole_words,
+            language="zh",
+            token_spans=_decode_token_spans(str(row[10])),
+        )
+    )
+    en_fragments = (
+        _highlight_explicit_span(en_text, display_anchor_span)
+        if display_anchor_span is not None and anchor_side == "en"
+        else highlight_fragments(
+            en_text,
+            en_highlights,
+            case_sensitive=query.case_sensitive,
+            whole_words=query.whole_words,
+            language="en",
+            token_spans=_decode_token_spans(str(row[11])),
+        )
+    )
     return ParallelHit(
         global_position=int(row[0]),
         pair_id=str(row[1]),
         pair_ordinal=int(row[2]),
         zh_text=zh_text,
         en_text=en_text,
-        zh_fragments=highlight_fragments(zh_text, zh_highlights),
-        en_fragments=highlight_fragments(en_text, en_highlights),
+        zh_fragments=zh_fragments,
+        en_fragments=en_fragments,
         alignment_unit=str(row[5]),
         method=str(row[6]),
         confidence=float(row[7]),
+        zh_filename=str(row[8]),
+        en_filename=str(row[9]),
+        occurrence_ordinal=occurrence_ordinal,
     )
 
 
-def highlight_fragments(text: str, terms: tuple[str, ...]) -> tuple[HighlightFragment, ...]:
+def highlight_fragments(
+    text: str,
+    terms: tuple[str, ...],
+    *,
+    case_sensitive: bool = False,
+    whole_words: bool = False,
+    language: str = "en",
+    token_spans: tuple[tuple[str, int, int], ...] = (),
+) -> tuple[HighlightFragment, ...]:
     ordered = sorted((term for term in terms if term), key=len, reverse=True)
     if not ordered:
         return (HighlightFragment(text=text, matched=False),)
-    pattern = re.compile("|".join(re.escape(term) for term in ordered), flags=re.IGNORECASE)
+    candidates: list[tuple[int, int]] = []
+    for term in ordered:
+        candidates.extend(
+            _term_spans(
+                text,
+                term,
+                case_sensitive=case_sensitive,
+                whole_words=whole_words,
+                language=language,
+                token_spans=token_spans,
+            )
+        )
+    candidates.sort(key=lambda span: (span[0], -(span[1] - span[0])))
+    spans: list[tuple[int, int]] = []
+    for start, end in candidates:
+        if spans and start < spans[-1][1]:
+            continue
+        spans.append((start, end))
     fragments: list[HighlightFragment] = []
     position = 0
-    for match in pattern.finditer(text):
-        if match.start() > position:
-            fragments.append(HighlightFragment(text[position : match.start()], False))
-        fragments.append(HighlightFragment(match.group(0), True))
-        position = match.end()
+    for start, end in spans:
+        if start > position:
+            fragments.append(HighlightFragment(text[position:start], False))
+        fragments.append(HighlightFragment(text[start:end], True))
+        position = end
     if position < len(text):
         fragments.append(HighlightFragment(text[position:], False))
     return tuple(fragments) or (HighlightFragment(text=text, matched=False),)
+
+
+def _highlight_explicit_span(
+    text: str,
+    span: tuple[int, int],
+) -> tuple[HighlightFragment, ...]:
+    start, end = span
+    fragments: list[HighlightFragment] = []
+    if start:
+        fragments.append(HighlightFragment(text[:start], False))
+    fragments.append(HighlightFragment(text[start:end], True))
+    if end < len(text):
+        fragments.append(HighlightFragment(text[end:], False))
+    return tuple(fragments)
+
+
+def _term_spans(
+    text: str,
+    value: str,
+    *,
+    case_sensitive: bool,
+    whole_words: bool,
+    language: str,
+    token_spans: tuple[tuple[str, int, int], ...] = (),
+) -> tuple[tuple[int, int], ...]:
+    spans = _literal_spans(text, value, case_sensitive=case_sensitive)
+    if not whole_words or not spans:
+        return spans
+    if token_spans:
+        starts = {start for _, start, _ in token_spans}
+        ends = {end for _, _, end in token_spans}
+        return tuple((start, end) for start, end in spans if start in starts and end in ends)
+    if language == "zh":
+        fallback_spans = tuple(
+            (match.start(), match.end()) for match in token_matches(text, "zh")
+        )
+        starts = {start for start, _ in fallback_spans}
+        ends = {end for _, end in fallback_spans}
+        return tuple((start, end) for start, end in spans if start in starts and end in ends)
+    return tuple(
+        (start, end)
+        for start, end in spans
+        if _is_word_boundary(text, start, end)
+    )
+
+
+def _literal_spans(
+    text: str,
+    value: str,
+    *,
+    case_sensitive: bool,
+) -> tuple[tuple[int, int], ...]:
+    if not value:
+        return ()
+    if case_sensitive:
+        haystack = text
+        needle = value
+        offsets = tuple(range(len(text)))
+    else:
+        folded: list[str] = []
+        offset_list: list[int] = []
+        for index, character in enumerate(text):
+            replacement = character.casefold()
+            folded.append(replacement)
+            offset_list.extend([index] * len(replacement))
+        haystack = "".join(folded)
+        needle = value.casefold()
+        offsets = tuple(offset_list)
+    if not needle or not offsets:
+        return ()
+    spans: list[tuple[int, int]] = []
+    position = 0
+    while (found := haystack.find(needle, position)) >= 0:
+        folded_end = found + len(needle) - 1
+        if folded_end < len(offsets):
+            spans.append((offsets[found], offsets[folded_end] + 1))
+        position = found + max(1, len(needle))
+    return tuple(dict.fromkeys(spans))
+
+
+def _is_word_boundary(text: str, start: int, end: int) -> bool:
+    before = text[start - 1] if start else ""
+    after = text[end] if end < len(text) else ""
+    return (not before or not _is_unicode_letter(before)) and (
+        not after or not _is_unicode_letter(after)
+    )
+
+
+def _is_unicode_letter(value: str) -> bool:
+    return value.isalpha()
+
+
+def _parallel_columns(connection: sqlite3.Connection) -> set[str]:
+    return {
+        str(row[1])
+        for row in connection.execute("PRAGMA table_info(parallel_pairs)").fetchall()
+    }
+
+
+def _parallel_select_columns(columns: set[str]) -> str:
+    source_columns = (
+        "zh_filename, en_filename"
+        if {"zh_filename", "en_filename"}.issubset(columns)
+        else "'' AS zh_filename, '' AS en_filename"
+    )
+    token_columns = (
+        "zh_token_spans, en_token_spans"
+        if {"zh_token_spans", "en_token_spans"}.issubset(columns)
+        else "'[]' AS zh_token_spans, '[]' AS en_token_spans"
+    )
+    return (
+        "global_position, pair_id, pair_ordinal, zh_text, en_text, "
+        f"alignment_unit, method, confidence, {source_columns}, {token_columns}"
+    )
+
+
+def _decode_token_spans(value: str) -> tuple[tuple[str, int, int], ...]:
+    if not value or value == "[]":
+        return ()
+    try:
+        payload = json.loads(value)
+        spans = tuple(
+            (str(surface), int(start), int(end))
+            for surface, start, end in payload
+            if 0 <= int(start) <= int(end)
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return ()
+    return spans
 
 
 def _unique_nonempty(values: list[str]) -> tuple[str, ...]:
@@ -351,7 +816,7 @@ def _infer_target_highlights(
     query: ParallelQuery,
     *,
     where_sql: str,
-    parameters: tuple[str, ...],
+    parameters: tuple[object, ...],
     total: int,
 ) -> tuple[str, ...]:
     """Infer likely target-side equivalents from pair-level corpus co-occurrence.

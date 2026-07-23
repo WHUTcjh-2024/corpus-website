@@ -1,0 +1,77 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{% if form.errors %}{% translate "Error:" %} {% endif %}管理后台登录 | 在线语料库平台{% endblock %}
+{% block extrastyle %}{{ block.super }}{{ form.media }}{% endblock %}
+{% block bodyclass %}{{ block.super }} login admin-login{% endblock %}
+{% block usertools %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+
+{% block content %}
+<section class="admin-login-page">
+  <div class="admin-auth-shell">
+    <div class="admin-auth-brand">
+      <div class="admin-auth-logo">
+        <img src="{% static 'img/translation-center-wordmark-black.png' %}" alt="武汉理工大学外国语学院" width="656" height="80">
+      </div>
+      <h1>管理后台</h1>
+      <p>统一管理用户审核、语料资源、加工任务、导出审计与反馈工单。</p>
+      <div class="admin-auth-tags">
+        <span>权限分级</span>
+        <span>审计追踪</span>
+        <span>数据治理</span>
+      </div>
+    </div>
+
+    <div class="admin-auth-form">
+      <span class="admin-eyebrow">Admin Sign In</span>
+      <h2>管理员登录</h2>
+      <p>请使用具备 staff 权限的账号访问后台。</p>
+
+      {% if form.errors and not form.non_field_errors %}
+        <p class="errornote">{% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}</p>
+      {% endif %}
+      {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+          <p class="errornote">{{ error }}</p>
+        {% endfor %}
+      {% endif %}
+      {% if user.is_authenticated %}
+        <p class="errornote">
+          {% blocktranslate trimmed %}
+            You are authenticated as {{ username }}, but are not authorized to
+            access this page. Would you like to login to a different account?
+          {% endblocktranslate %}
+        </p>
+      {% endif %}
+
+      <form action="{{ app_path }}" method="post" id="login-form">
+        {% csrf_token %}
+        <div class="form-row">
+          {{ form.username.errors }}
+          {{ form.username.label_tag }}
+          {{ form.username }}
+        </div>
+        <div class="form-row">
+          {{ form.password.errors }}
+          {{ form.password.label_tag }}
+          {{ form.password }}
+          <input type="hidden" name="next" value="{{ next }}">
+        </div>
+        {% url 'admin_password_reset' as password_reset_url %}
+        {% if password_reset_url %}
+          <div class="password-reset-link">
+            <a href="{{ password_reset_url }}">{% translate 'Forgotten your login credentials?' %}</a>
+          </div>
+        {% endif %}
+        <div class="submit-row">
+          <input type="submit" value="登录后台">
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

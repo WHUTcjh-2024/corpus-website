@@ -19,6 +19,7 @@ from .base import BaseImporter
 
 _ZH_TAGGED = re.compile(r"^(?P<word>.+)/(?P<pos>[A-Za-z][A-Za-z0-9_-]*)$")
 _EN_TAGGED = re.compile(r"^(?P<word>.+)_(?P<pos>[A-Z0-9$-]+)$")
+_STRUCTURE_TAG = re.compile(r"<[^>]*>")
 
 
 class TaggedCorpusImporter(BaseImporter):
@@ -51,6 +52,11 @@ class TaggedCorpusImporter(BaseImporter):
         pattern = _ZH_TAGGED if source.language == "zh" else _EN_TAGGED
         for paragraph_ordinal, block in enumerate(split_paragraphs(text), start=1):
             for line in (line.strip() for line in block.splitlines() if line.strip()):
+                # Teacher corpora often combine POS tokens with harmless
+                # XML-like <head>/<p>/<s> structure.  Remove the structural
+                # markup before parsing so it never becomes part of a word
+                # such as ``<head>Commemorate``.
+                line = _STRUCTURE_TAG.sub(" ", line).strip()
                 parsed_tokens = []
                 skipped = []
                 for raw_token in line.split():

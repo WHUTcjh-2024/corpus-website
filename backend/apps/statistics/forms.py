@@ -33,6 +33,22 @@ class LanguageForm(forms.Form):
 
 
 class WordListForm(LanguageForm):
+    min_frequency = forms.IntegerField(
+        label="最小频次",
+        min_value=1,
+        max_value=1_000_000,
+        initial=1,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    min_range = forms.IntegerField(
+        label="最小文档数",
+        min_value=1,
+        max_value=1_000_000,
+        initial=1,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
     filter = forms.CharField(
         label="词项过滤",
         max_length=100,
@@ -52,7 +68,7 @@ class WordListForm(LanguageForm):
     )
     sort_by = forms.ChoiceField(
         label="排序",
-        choices=(("frequency", "Frequency"), ("term", "Word")),
+        choices=(("frequency", "Frequency"), ("range", "Range"), ("term", "Word")),
         initial="frequency",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -69,6 +85,12 @@ class WordListForm(LanguageForm):
     def clean_filter(self) -> str:
         return " ".join(self.cleaned_data.get("filter", "").split())
 
+    def clean_min_frequency(self) -> int:
+        return self.cleaned_data.get("min_frequency") or 1
+
+    def clean_min_range(self) -> int:
+        return self.cleaned_data.get("min_range") or 1
+
     def clean_pos(self) -> str:
         return self.cleaned_data.get("pos", "").strip()
 
@@ -84,7 +106,7 @@ class WordListForm(LanguageForm):
 
 class NgramForm(LanguageForm):
     n = forms.ChoiceField(
-        label="Cluster size",
+        label="N-Gram size",
         choices=tuple((str(value), str(value)) for value in range(2, 6)),
         initial="2",
         required=False,
@@ -98,8 +120,16 @@ class NgramForm(LanguageForm):
         required=False,
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
+    min_range = forms.IntegerField(
+        label="最小文档数",
+        min_value=1,
+        max_value=1_000_000,
+        initial=1,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
     filter = forms.CharField(
-        label="Cluster 过滤",
+        label="N-Gram 过滤",
         max_length=100,
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
@@ -108,6 +138,13 @@ class NgramForm(LanguageForm):
         label="包含标点",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    sort_by = forms.ChoiceField(
+        label="排序",
+        choices=(("frequency", "Frequency"), ("range", "Range"), ("term", "N-Gram")),
+        initial="frequency",
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
     )
     page_size = forms.ChoiceField(
         label="每页",
@@ -124,8 +161,14 @@ class NgramForm(LanguageForm):
     def clean_min_frequency(self) -> int:
         return self.cleaned_data.get("min_frequency") or 2
 
+    def clean_min_range(self) -> int:
+        return self.cleaned_data.get("min_range") or 1
+
     def clean_filter(self) -> str:
         return " ".join(self.cleaned_data.get("filter", "").split())
+
+    def clean_sort_by(self) -> str:
+        return self.cleaned_data.get("sort_by") or "frequency"
 
     def clean_page_size(self) -> int:
         return int(self.cleaned_data.get("page_size") or 50)
@@ -323,6 +366,14 @@ class CollocateForm(LanguageForm):
         required=False,
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
+    min_range = forms.IntegerField(
+        label="最小文档数",
+        min_value=1,
+        max_value=1_000_000,
+        initial=1,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
     pos = forms.CharField(
         label="Collocate POS",
         max_length=30,
@@ -341,6 +392,9 @@ class CollocateForm(LanguageForm):
             ("mi", "MI"),
             ("t_score", "T-score"),
             ("frequency", "Frequency"),
+            ("left_frequency", "Frequency (L)"),
+            ("right_frequency", "Frequency (R)"),
+            ("range", "Range"),
             ("term", "Word"),
         ),
         initial="log_dice",
@@ -384,6 +438,9 @@ class CollocateForm(LanguageForm):
 
     def clean_min_frequency(self) -> int:
         return self.cleaned_data.get("min_frequency") or 2
+
+    def clean_min_range(self) -> int:
+        return self.cleaned_data.get("min_range") or 1
 
     def clean_pos(self) -> str:
         return self.cleaned_data.get("pos", "").strip()

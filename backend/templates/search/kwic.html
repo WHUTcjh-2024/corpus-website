@@ -1,53 +1,131 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 
 {% block title %}KWIC - {{ corpus.name }}{% endblock %}
 
-{% block content %}
-<div class="page-header">
-  <div><p class="page-eyebrow">KWIC Concordance</p><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">普通 KWIC 与安全 CQP 子集共享同一索引、分页和 L/R 排序，上下文限制在命中句内。</p></div>
-  <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'statistics:word_list' corpus.pk %}">统计分析</a><a class="btn btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">语料说明</a></div>
+{% block dashboard_content %}
+<section class="kwic-page">
+{% include "components/breadcrumb.html" with current_label="KWIC 检索" %}
+<div class="page-header kwic-page-header">
+  <div>
+    <p class="page-eyebrow">KWIC Concordance</p>
+    <h1 class="page-title">{{ corpus.name }}</h1>
+    <p class="page-description">连续 Token 流检索 · Words / Case / Regex / 通配符 · 三级 KWIC 排序</p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-outline-secondary" href="{% url 'statistics:word_list' corpus.pk %}">统计分析</a>
+    <a class="btn btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">语料说明</a>
+  </div>
 </div>
 
-<form method="get" class="filter-card">
+{% include "components/watermark.html" %}
+
+<form method="get" class="filter-card query-workbench" data-submit-shortcut>
   {% for error in form.non_field_errors %}<div class="alert alert-danger py-2" role="alert">{{ error }}</div>{% endfor %}
-  <div class="row g-3 align-items-end">
-    <div class="col-12 col-xl-4"><label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>{{ form.q }}{% for error in form.q.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>
+  <div class="row g-2 align-items-end">
+    <div class="col-12 col-xl-5">
+      <label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>
+      <div class="query-input-shell">
+        {{ form.q }}
+        <span class="kbd-hint">Ctrl Enter</span>
+      </div>
+      {% for error in form.q.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+    </div>
     <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.query_mode.id_for_label }}">{{ form.query_mode.label }}</label>{{ form.query_mode }}</div>
     <div class="col-6 col-md-3 col-xl-1"><label class="form-label" for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>{{ form.language }}</div>
     <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.pos.id_for_label }}">{{ form.pos.label }}</label>{{ form.pos }}{% for error in form.pos.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}</div>
     <div class="col-6 col-md-3 col-xl-1"><label class="form-label" for="{{ form.context.id_for_label }}">{{ form.context.label }}</label>{{ form.context }}</div>
-    <div class="col-6 col-md-3 col-xl-1"><label class="form-label" for="{{ form.sort_by.id_for_label }}">{{ form.sort_by.label }}</label>{{ form.sort_by }}</div>
     <div class="col-6 col-md-3 col-xl-1"><label class="form-label" for="{{ form.page_size.id_for_label }}">{{ form.page_size.label }}</label>{{ form.page_size }}</div>
-    <div class="col-12 d-flex justify-content-between align-items-center gap-3">
-      <details class="small"><summary class="text-primary fw-semibold">CQP 子集语法示例</summary><div class="mt-2 text-secondary">精确词/短语：<code>development</code>、<code>"high quality"</code>；通配符：<code>develop*</code>、<code>?ocus</code>；函数：<code>starts_with(develop)</code>、<code>ends_with(ment)</code>、<code>contains(velo)</code>；属性：<code>[word="development"]</code>、<code>[pos="NN1"]</code>、<code>[lemma="develop"]</code>。空格连接的条件必须在同一句中连续出现。</div></details>
-      <button class="btn btn-primary px-5" type="submit">检索</button>
+  </div>
+
+  <div class="query-workbench__footer">
+    <details class="query-advanced">
+      <summary>高级查询与排序</summary>
+      <div class="row g-2 mt-1 align-items-end">
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sort_by.id_for_label }}">{{ form.sort_by.label }}</label>{{ form.sort_by }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sort_2.id_for_label }}">{{ form.sort_2.label }}</label>{{ form.sort_2 }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sort_3.id_for_label }}">{{ form.sort_3.label }}</label>{{ form.sort_3 }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sort_order.id_for_label }}">{{ form.sort_order.label }}</label>{{ form.sort_order }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.whole_words.id_for_label }}">{{ form.whole_words.label }}</label>{{ form.whole_words }}</div>
+      <div class="col-6 col-md-3 col-xl-2">
+        <div class="form-check mt-4">{{ form.case_sensitive }} <label class="form-check-label" for="{{ form.case_sensitive.id_for_label }}">{{ form.case_sensitive.label }}</label></div>
+        <div class="form-check">{{ form.regex }} <label class="form-check-label" for="{{ form.regex.id_for_label }}">{{ form.regex.label }}</label></div>
+      </div>
+      <div class="col-12 col-xl-2">
+        <label class="form-label">查询语法提示</label>
+        <div class="query-tags">
+          <span class="query-tag">Regex：逐 Token</span>
+          <span class="query-tag">CQP 子集语法示例：[lemma] / [pos]</span>
+        </div>
+      </div>
+      </div>
+    </details>
+    <div class="query-workbench__actions">
+      <button class="btn btn-outline-secondary" type="button" data-reset-form>重置</button>
+      <button class="btn btn-primary" type="submit">检索</button>
     </div>
   </div>
 </form>
 
-{% if search_error %}<div class="alert alert-warning" role="alert">{{ search_error }}</div>{% endif %}
+{% include "components/index_repair_notice.html" %}
+{% if search_error and not index_repair %}<div class="alert alert-warning" role="alert">{{ search_error }}</div>{% endif %}
 
 {% if result %}
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <div class="stats-summary mb-0"><span>共 <strong>{{ result.total }}</strong> 条命中</span><span>{{ query_mode_label }}</span><span>{{ language_label }}</span><span>第 {{ result.page }} / {{ result.num_pages }} 页</span></div>
-    {% if can_export %}<form method="post" action="{% url 'exports:create_kwic' corpus.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="query_string" value="{{ export_query_string }}"><button class="btn btn-sm btn-outline-primary" type="submit">后台导出 TSV</button></form>{% else %}<span class="small text-secondary">教师/演示语料仅限在线检索</span>{% endif %}
+  <div class="result-overview" aria-label="检索结果摘要">
+    <div class="result-overview__primary">
+      <span class="result-count" aria-hidden="true"><strong>{{ result.total }}</strong><small>条命中</small></span>
+      <span class="visually-hidden">共 <strong>{{ result.total }}</strong> 条命中</span>
+      <span class="result-divider" aria-hidden="true"></span>
+      <div class="result-overview__metrics">
+        <span class="result-metric"><span>模式</span><strong>{{ query_mode_label }}</strong></span>
+        <span class="result-metric"><span>语言</span><strong>{{ language_label }}</strong></span>
+        <span class="result-metric"><span>排序</span><strong>{{ result.sort_keys|join:" → "|default:"语料顺序" }}</strong></span>
+        <span class="result-metric"><span>页码</span><strong>{{ result.page }}/{{ result.num_pages }}</strong></span>
+      </div>
+    </div>
+    <div class="result-overview__actions">
+      <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle-compact="#kwicResults" data-label-default="极简模式" data-label-active="显示排序证据" aria-pressed="false">极简模式</button>
+      {% if can_export %}
+        <form method="post" action="{% url 'exports:create_kwic' corpus.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="query_string" value="{{ export_query_string }}"><button class="btn btn-sm btn-outline-primary" type="submit">导出 TSV</button></form>
+      {% else %}
+        <button class="btn btn-sm btn-outline-secondary disabled-explain" type="button" disabled data-bs-toggle="tooltip" data-bs-title="教师授权语料仅支持在线检索，不支持批量导出">导出不可用</button>
+      {% endif %}
+    </div>
   </div>
 
-  <div class="table-shell table-responsive">
-    <table class="table table-hover kwic-table">
-      <thead><tr><th class="text-end" style="width:31%">左文</th><th class="text-center" style="width:16%">命中词</th><th style="width:31%">右文</th><th style="width:22%">来源</th></tr></thead>
+  <div class="kwic-result-shell table-responsive" id="kwicResults">
+    <table class="table table-hover kwic-table" aria-label="KWIC 检索结果">
+      <thead>
+        <tr>
+          <th class="text-end kwic-col-context">左语境</th>
+          <th class="text-center kwic-col-keyword">检索项</th>
+          <th class="kwic-col-context">右语境</th>
+          <th class="kwic-col-source">来源</th>
+        </tr>
+      </thead>
       <tbody>
         {% for hit in result.hits %}
           <tr>
-            <td class="text-end"><div>{{ hit.left }}</div><div class="table-meta">L3 {{ hit.l3|default:"∅" }} · L2 {{ hit.l2|default:"∅" }} · L1 {{ hit.l1|default:"∅" }}</div></td>
+            <td class="kwic-left-context">
+              <div class="kwic-context-line">{{ hit.left }}</div>
+              <div class="kwic-sort-strip" aria-label="左侧排序证据"><span title="L3 {{ hit.l3|default:'∅' }}"><b>L3</b>{{ hit.l3|default:"∅" }}</span><span title="L2 {{ hit.l2|default:'∅' }}"><b>L2</b>{{ hit.l2|default:"∅" }}</span><span title="L1 {{ hit.l1|default:'∅' }}"><b>L1</b>{{ hit.l1|default:"∅" }}</span></div>
+            </td>
             <td class="text-center kwic-keyword"><mark class="px-1">{{ hit.keyword }}</mark></td>
-            <td><div>{{ hit.right }}</div><div class="table-meta">R1 {{ hit.r1|default:"∅" }} · R2 {{ hit.r2|default:"∅" }} · R3 {{ hit.r3|default:"∅" }}</div></td>
-            <td><div>{{ hit.source_filename|default:"未知文件" }}</div><div class="table-meta">段 {{ hit.paragraph_ordinal }} · 句 {{ hit.sentence_ordinal }}</div></td>
+            <td class="kwic-right-context">
+              <div class="kwic-context-line">{{ hit.right }}</div>
+              <div class="kwic-sort-strip" aria-label="右侧排序证据"><span title="R1 {{ hit.r1|default:'∅' }}"><b>R1</b>{{ hit.r1|default:"∅" }}</span><span title="R2 {{ hit.r2|default:'∅' }}"><b>R2</b>{{ hit.r2|default:"∅" }}</span><span title="R3 {{ hit.r3|default:'∅' }}"><b>R3</b>{{ hit.r3|default:"∅" }}</span></div>
+            </td>
+            <td class="kwic-source">
+              <div class="kwic-source__name" title="{{ hit.source_filename|default:'未知文件' }}">{{ hit.source_filename|default:"未知文件" }}</div>
+              <div class="kwic-source__meta"><span>段 {{ hit.paragraph_ordinal }}</span><span>句 {{ hit.sentence_ordinal }}</span><span>Row {{ hit.row_id }}</span></div>
+            </td>
           </tr>
-        {% empty %}<tr><td colspan="4" class="empty-state">没有找到匹配结果。</td></tr>{% endfor %}
+        {% empty %}<tr><td colspan="4">{% include "components/empty_state.html" with title="没有匹配结果" description="请调整检索词、语言或查询模式后重试。" %}</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
   {% include "components/pagination.html" with page_obj=result query_string=query_string %}
+{% else %}
+  {% include "components/empty_state.html" with title="尚未检索" description="输入查询词后按 Ctrl + Enter 或点击开始检索。" %}
 {% endif %}
+</section>
 {% endblock %}

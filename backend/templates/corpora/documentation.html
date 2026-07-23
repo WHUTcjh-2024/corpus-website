@@ -1,8 +1,8 @@
-{% extends "base.html" %}
+{% extends "layouts/dashboard_layout.html" %}
 
 {% block title %}{{ corpus.name }} - Corpus Documentation{% endblock %}
 
-{% block content %}
+{% block dashboard_content %}
 <div class="page-header">
   <div><p class="page-eyebrow">Corpus Documentation</p><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">{{ corpus.description|default:"暂无语料说明" }}</p></div>
   <div class="page-actions">
