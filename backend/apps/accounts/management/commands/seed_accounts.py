@@ -13,6 +13,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser) -> None:
         parser.add_argument(
+            "--admin-username",
+            default=os.getenv("SEED_ADMIN_USERNAME", "chen"),
+            help="管理员用户名，也可使用 SEED_ADMIN_USERNAME。",
+        )
+        parser.add_argument(
             "--test-password",
             default=os.getenv("SEED_TEST_USER_PASSWORD"),
             help="test_user 密码，也可使用 SEED_TEST_USER_PASSWORD。",
@@ -23,7 +28,7 @@ class Command(BaseCommand):
             help="admin 密码，也可使用 SEED_ADMIN_PASSWORD。",
         )
         parser.add_argument("--test-email", default="test_user@example.invalid")
-        parser.add_argument("--admin-email", default="admin@example.invalid")
+        parser.add_argument("--admin-email", default="chen@example.invalid")
 
     def handle(self, *args, **options) -> None:
         if not options["test_password"] or not options["admin_password"]:
@@ -39,11 +44,11 @@ class Command(BaseCommand):
             full_name="测试用户",
         )
         admin_user, admin_created = ensure_seed_account(
-            username="admin",
+            username=options["admin_username"],
             email=options["admin_email"],
             password=options["admin_password"],
             role=UserRole.ADMIN,
-            full_name="系统管理员",
+            full_name="陈管理员",
             is_admin=True,
         )
 

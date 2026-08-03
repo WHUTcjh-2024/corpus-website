@@ -8,7 +8,7 @@ from collections import Counter
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 from apps.processing.text import token_matches
 
@@ -68,6 +68,8 @@ class ParallelQuery:
     en_contains: str = ""
     zh_not_contains: str = ""
     en_not_contains: str = ""
+    filename_contains: str = ""
+    min_confidence: float = 0.0
     alignment_unit: str = "sentence"
     whole_words: bool = False
     case_sensitive: bool = False
@@ -87,6 +89,8 @@ class ParallelQuery:
             raise ValueError("nth_entry must be between 1 and 1000.")
         if not 5 <= self.context_size <= 100:
             raise ValueError("context_size must be between 5 and 100.")
+        if not 0.0 <= self.min_confidence <= 1.0:
+            raise ValueError("min_confidence must be between 0 and 1.")
         if any(value not in SORT_POSITIONS for value in self.sort_positions):
             raise ValueError("sort positions must be CEN, L1-L5, R1-R5, or blank.")
         values = (
@@ -95,6 +99,7 @@ class ParallelQuery:
             self.en_contains,
             self.zh_not_contains,
             self.en_not_contains,
+            self.filename_contains,
         )
         if not self.q and not self.zh_contains and not self.en_contains:
             raise ValueError("至少填写一个主检索词或包含条件。")
@@ -158,6 +163,11 @@ class ParallelHit:
             "provided_paragraph_order": "人工段落顺序",
             "provided_structure_id": "人工结构编号",
             "provided_structure_order": "人工结构顺序",
+            "automatic_length_dp_1_1": "自动长度对齐 1:1",
+            "automatic_length_dp_1_2": "自动长度对齐 1:2",
+            "automatic_length_dp_2_1": "自动长度对齐 2:1",
+            "automatic_length_dp_1_0": "自动对齐缺失英文",
+            "automatic_length_dp_0_1": "自动对齐缺失中文",
         }.get(self.method, self.method)
 
     @property
@@ -224,32 +234,52 @@ class ParallelSearchEngine:
                     }.issubset(columns),
                 )
                 select_columns = _parallel_select_columns(columns)
-                rows = connection.execute(
-                    f"""
+                row_sql = f"""
                     SELECT {select_columns}
                     FROM parallel_pairs
                     WHERE {where_sql}
                     ORDER BY global_position
-                    """,
-                    parameters,
-                ).fetchall()
-                occurrences = _expand_occurrences(rows, query)
-                raw_total = len(occurrences)
-                thinned = occurrences[:: query.nth_entry]
+                    """
                 if query.sort_positions:
+                    rows = connection.execute(row_sql, parameters).fetchall()
+                    occurrences = _expand_occurrences(rows, query)
+                    raw_total = len(occurrences)
+                    thinned = occurrences[:: query.nth_entry]
                     thinned.sort(key=lambda item: _occurrence_sort_key(item, query))
-                total = len(thinned)
-                num_pages = max(1, math.ceil(total / page_size))
-                effective_page = min(page, num_pages)
-                start = (effective_page - 1) * page_size
-                page_occurrences = thinned[start : start + page_size]
+                    total = len(thinned)
+                    num_pages = max(1, math.ceil(total / page_size))
+                    effective_page = min(page, num_pages)
+                    start = (effective_page - 1) * page_size
+                    page_occurrences = thinned[start : start + page_size]
+                    row_total = len(rows)
+                else:
+                    page_occurrences, raw_total, total = _stream_occurrence_page(
+                        connection.execute(row_sql, parameters),
+                        query,
+                        page=page,
+                        page_size=page_size,
+                    )
+                    num_pages = max(1, math.ceil(total / page_size))
+                    effective_page = min(page, num_pages)
+                    if effective_page != page:
+                        page_occurrences, _, _ = _stream_occurrence_page(
+                            connection.execute(row_sql, parameters),
+                            query,
+                            page=effective_page,
+                            page_size=page_size,
+                        )
+                    count_row = connection.execute(
+                        f"SELECT COUNT(*) FROM parallel_pairs WHERE {where_sql}",
+                        parameters,
+                    ).fetchone()
+                    row_total = int(count_row[0]) if count_row else 0
                 auto_target_highlights = (
                     _infer_target_highlights(
                         connection,
                         query,
                         where_sql=where_sql,
                         parameters=parameters,
-                        total=len(rows),
+                        total=row_total,
                     )
                     if query.infer_target_highlights
                     else ()
@@ -317,7 +347,7 @@ class ParallelSearchEngine:
                     }.issubset(columns),
                 )
                 select_columns = _parallel_select_columns(columns)
-                rows = connection.execute(
+                row_cursor = connection.execute(
                     f"""
                     SELECT {select_columns}
                     FROM parallel_pairs
@@ -325,26 +355,22 @@ class ParallelSearchEngine:
                     ORDER BY global_position
                     """,
                     parameters,
-                ).fetchall()
-                occurrences = _expand_occurrences(rows, query)[:: query.nth_entry]
+                )
                 if query.sort_positions:
+                    occurrences = _expand_occurrences(row_cursor.fetchall(), query)[
+                        :: query.nth_entry
+                    ]
                     occurrences.sort(
                         key=lambda item: _occurrence_sort_key(item, query)
                     )
-                for occurrence in occurrences:
-                    row = occurrence.row
-                    yield (
-                        row[0],
-                        row[2],
-                        occurrence.occurrence_ordinal,
-                        row[8],
-                        row[9],
-                        row[3],
-                        row[4],
-                        row[5],
-                        row[6],
-                        row[7],
-                    )
+                    yield from _export_occurrences(occurrences)
+                else:
+                    raw_index = 0
+                    for row in row_cursor:
+                        for occurrence in _expand_occurrences([row], query):
+                            if raw_index % query.nth_entry == 0:
+                                yield from _export_occurrences((occurrence,))
+                            raw_index += 1
         except sqlite3.DatabaseError as exc:
             raise ParallelIndexCorrupt("平行语料索引读取失败。") from exc
 
@@ -383,6 +409,15 @@ def _build_filter(
 ) -> tuple[str, tuple[object, ...]]:
     clauses = ["alignment_unit = ?"]
     parameters = [query.alignment_unit]
+    if query.filename_contains:
+        clauses.append(
+            "(instr(lower(zh_filename), lower(?)) > 0 "
+            "OR instr(lower(en_filename), lower(?)) > 0)"
+        )
+        parameters.extend((query.filename_contains, query.filename_contains))
+    if query.min_confidence:
+        clauses.append("confidence >= ?")
+        parameters.append(query.min_confidence)
     positive: dict[str, list[str]] = {
         "zh": [query.zh_contains],
         "en": [query.en_contains],
@@ -477,6 +512,48 @@ def _expand_occurrences(
                 )
             )
     return expanded
+
+
+def _stream_occurrence_page(
+    rows: Iterator[tuple[object, ...]],
+    query: ParallelQuery,
+    *,
+    page: int,
+    page_size: int,
+) -> tuple[list[_MatchedOccurrence], int, int]:
+    start = (page - 1) * page_size
+    selected: list[_MatchedOccurrence] = []
+    raw_total = 0
+    total = 0
+    for row in rows:
+        for occurrence in _expand_occurrences([row], query):
+            include = raw_total % query.nth_entry == 0
+            raw_total += 1
+            if not include:
+                continue
+            if start <= total < start + page_size:
+                selected.append(occurrence)
+            total += 1
+    return selected, raw_total, total
+
+
+def _export_occurrences(
+    occurrences: Iterable[_MatchedOccurrence],
+) -> Iterator[tuple[object, ...]]:
+    for occurrence in occurrences:
+        row = occurrence.row
+        yield (
+            row[0],
+            row[2],
+            occurrence.occurrence_ordinal,
+            row[8],
+            row[9],
+            row[3],
+            row[4],
+            row[5],
+            row[6],
+            row[7],
+        )
 
 
 def _anchor_condition(query: ParallelQuery) -> tuple[str, str]:

@@ -46,17 +46,35 @@
       <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sort_3.id_for_label }}">{{ form.sort_3.label }}</label>{{ form.sort_3 }}</div>
       <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sort_order.id_for_label }}">{{ form.sort_order.label }}</label>{{ form.sort_order }}</div>
       <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.whole_words.id_for_label }}">{{ form.whole_words.label }}</label>{{ form.whole_words }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.results_set.id_for_label }}">{{ form.results_set.label }}</label>{{ form.results_set }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.sample_seed.id_for_label }}">{{ form.sample_seed.label }}</label>{{ form.sample_seed }}</div>
       <div class="col-6 col-md-3 col-xl-2">
         <div class="form-check mt-4">{{ form.case_sensitive }} <label class="form-check-label" for="{{ form.case_sensitive.id_for_label }}">{{ form.case_sensitive.label }}</label></div>
         <div class="form-check">{{ form.regex }} <label class="form-check-label" for="{{ form.regex.id_for_label }}">{{ form.regex.label }}</label></div>
+        <div class="form-check">{{ form.hide_keyword }} <label class="form-check-label" for="{{ form.hide_keyword.id_for_label }}">{{ form.hide_keyword.label }}</label></div>
       </div>
       <div class="col-12 col-xl-2">
         <label class="form-label">查询语法提示</label>
         <div class="query-tags">
           <span class="query-tag">Regex：逐 Token</span>
           <span class="query-tag">CQP 子集语法示例：[lemma] / [pos]</span>
+          <span class="query-tag">开放槽位：[] 匹配一个 Token</span>
         </div>
       </div>
+      <div class="col-12 col-xl-6">
+        <label class="form-label" for="{{ form.query_list.id_for_label }}">{{ form.query_list.label }}</label>
+        {{ form.query_list }}
+        {% for error in form.query_list.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+      </div>
+      <div class="col-12 col-xl-6">
+        <label class="form-label" for="{{ form.context_queries.id_for_label }}">{{ form.context_queries.label }}</label>
+        {{ form.context_queries }}
+        {% for error in form.context_queries.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+      </div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.context_logic.id_for_label }}">{{ form.context_logic.label }}</label>{{ form.context_logic }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.context_from.id_for_label }}">{{ form.context_from.label }}</label>{{ form.context_from }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><label class="form-label" for="{{ form.context_to.id_for_label }}">{{ form.context_to.label }}</label>{{ form.context_to }}</div>
+      <div class="col-6 col-md-3 col-xl-2"><div class="form-check mt-4">{{ form.exclude_context }} <label class="form-check-label" for="{{ form.exclude_context.id_for_label }}">{{ form.exclude_context.label }}</label></div></div>
       </div>
     </details>
     <div class="query-workbench__actions">
@@ -72,7 +90,7 @@
 {% if result %}
   <div class="result-overview" aria-label="检索结果摘要">
     <div class="result-overview__primary">
-      <span class="result-count" aria-hidden="true"><strong>{{ result.total }}</strong><small>条命中</small></span>
+      <span class="result-count" aria-hidden="true"><strong>{{ result.total }}</strong><small>{% if result.sample_size %}/ {{ result.available_total }} 随机命中{% else %}条命中{% endif %}</small></span>
       <span class="visually-hidden">共 <strong>{{ result.total }}</strong> 条命中</span>
       <span class="result-divider" aria-hidden="true"></span>
       <div class="result-overview__metrics">
@@ -84,6 +102,7 @@
     </div>
     <div class="result-overview__actions">
       <button class="btn btn-sm btn-outline-secondary" type="button" data-toggle-compact="#kwicResults" data-label-default="极简模式" data-label-active="显示排序证据" aria-pressed="false">极简模式</button>
+      <a class="btn btn-sm btn-outline-secondary" href="?{{ query_string }}" target="_blank" rel="noopener">克隆结果</a>
       {% if can_export %}
         <form method="post" action="{% url 'exports:create_kwic' corpus.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="query_string" value="{{ export_query_string }}"><button class="btn btn-sm btn-outline-primary" type="submit">导出 TSV</button></form>
       {% else %}
@@ -100,6 +119,7 @@
           <th class="text-center kwic-col-keyword">检索项</th>
           <th class="kwic-col-context">右语境</th>
           <th class="kwic-col-source">来源</th>
+          <th class="text-end">KPF</th>
         </tr>
       </thead>
       <tbody>
@@ -109,21 +129,22 @@
               <div class="kwic-context-line">{{ hit.left }}</div>
               <div class="kwic-sort-strip" aria-label="左侧排序证据"><span title="L3 {{ hit.l3|default:'∅' }}"><b>L3</b>{{ hit.l3|default:"∅" }}</span><span title="L2 {{ hit.l2|default:'∅' }}"><b>L2</b>{{ hit.l2|default:"∅" }}</span><span title="L1 {{ hit.l1|default:'∅' }}"><b>L1</b>{{ hit.l1|default:"∅" }}</span></div>
             </td>
-            <td class="text-center kwic-keyword"><mark class="px-1">{{ hit.keyword }}</mark></td>
+            <td class="text-center kwic-keyword"><mark class="px-1">{% if form.cleaned_data.hide_keyword %}•••{% else %}{{ hit.keyword }}{% endif %}</mark></td>
             <td class="kwic-right-context">
               <div class="kwic-context-line">{{ hit.right }}</div>
               <div class="kwic-sort-strip" aria-label="右侧排序证据"><span title="R1 {{ hit.r1|default:'∅' }}"><b>R1</b>{{ hit.r1|default:"∅" }}</span><span title="R2 {{ hit.r2|default:'∅' }}"><b>R2</b>{{ hit.r2|default:"∅" }}</span><span title="R3 {{ hit.r3|default:'∅' }}"><b>R3</b>{{ hit.r3|default:"∅" }}</span></div>
             </td>
             <td class="kwic-source">
-              <div class="kwic-source__name" title="{{ hit.source_filename|default:'未知文件' }}">{{ hit.source_filename|default:"未知文件" }}</div>
+              <div class="kwic-source__name" title="{{ hit.source_filename|default:'未知文件' }}"><a href="{% url 'search:file_view' corpus.pk hit.document_id %}?language={{ hit.language }}&amp;row={{ hit.row_id }}{% if form.cleaned_data.query_mode != 'cqp' %}&amp;q={{ result.query|urlencode }}&amp;whole_words={% if result.whole_words %}1{% else %}0{% endif %}&amp;case_sensitive={% if result.case_sensitive %}1{% else %}0{% endif %}&amp;regex={% if result.regex %}1{% else %}0{% endif %}&amp;full_regex={% if result.full_regex %}1{% else %}0{% endif %}{% endif %}">{{ hit.source_filename|default:"未知文件" }}</a></div>
               <div class="kwic-source__meta"><span>段 {{ hit.paragraph_ordinal }}</span><span>句 {{ hit.sentence_ordinal }}</span><span>Row {{ hit.row_id }}</span></div>
             </td>
+            <td class="text-end">{{ hit.kpf_count }}</td>
           </tr>
         {% empty %}<tr><td colspan="4">{% include "components/empty_state.html" with title="没有匹配结果" description="请调整检索词、语言或查询模式后重试。" %}</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
-  {% include "components/pagination.html" with page_obj=result query_string=query_string %}
+  {% if not result.sample_size %}{% include "components/pagination.html" with page_obj=result query_string=query_string %}{% endif %}
 {% else %}
   {% include "components/empty_state.html" with title="尚未检索" description="输入查询词后按 Ctrl + Enter 或点击开始检索。" %}
 {% endif %}

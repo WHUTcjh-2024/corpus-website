@@ -13,6 +13,9 @@ data/manifests/*
 *.docx
 artifacts/
 backend/runserver.*.log
+backend/backend-startup.log
+frontend/vite-startup.log
+homepage-*.png
 
 # Python / Django
 __pycache__/

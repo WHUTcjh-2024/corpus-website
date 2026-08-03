@@ -13,6 +13,7 @@ from apps.processing.index_health import IndexRepairNotice, ensure_corpus_index_
 
 from .engine import StatisticsEngine, StatisticsIndexCorrupt, StatisticsIndexUnavailable
 from .forms import (
+    ClusterForm,
     CollocateForm,
     ConcordancePlotForm,
     KeywordForm,
@@ -44,12 +45,67 @@ def word_list(request: HttpRequest, corpus_id) -> HttpResponse:
                 include_punctuation=form.cleaned_data["include_punctuation"],
                 page=form.cleaned_data["page"],
                 page_size=form.cleaned_data["page_size"],
+                display_type=form.cleaned_data["display_type"],
+                case_sensitive=form.cleaned_data["case_sensitive"],
+                invert_order=form.cleaned_data["invert_order"],
+                stoplist=(
+                    form.cleaned_data["list_terms"]
+                    if form.cleaned_data["list_mode"] == "stop"
+                    else ()
+                ),
+                allowlist=(
+                    form.cleaned_data["list_terms"]
+                    if form.cleaned_data["list_mode"] == "allow"
+                    else ()
+                ),
             )
         except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
             error, index_repair = _runtime_index_failure(corpus)
+        except ValueError as exc:
+            form.add_error(None, str(exc))
     return _render(
         request,
         "statistics/word_list.html",
+        corpus,
+        form,
+        result,
+        error,
+        form_data,
+        index_repair,
+    )
+
+
+@approved_user_required
+def clusters(request: HttpRequest, corpus_id) -> HttpResponse:
+    corpus, denied = _authorized_corpus(request, corpus_id)
+    if denied:
+        return denied
+    languages = _available_languages(corpus)
+    form_data = _form_data(request, languages[0])
+    form = ClusterForm(form_data, available_languages=languages)
+    result = None
+    error, index_repair = _index_availability(corpus)
+    if not error and form.is_valid():
+        try:
+            result = _engine(corpus).clusters(
+                form.cleaned_data["q"],
+                language=form.cleaned_data["language"],
+                cluster_size=form.cleaned_data["cluster_size"],
+                query_position=form.cleaned_data["query_position"],
+                min_frequency=form.cleaned_data["min_frequency"],
+                min_range=form.cleaned_data["min_range"],
+                sort_by=form.cleaned_data["sort_by"],
+                include_punctuation=form.cleaned_data["include_punctuation"],
+                page=form.cleaned_data["page"],
+                page_size=form.cleaned_data["page_size"],
+            )
+        except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
+            error, index_repair = _runtime_index_failure(corpus)
+        except ValueError as exc:
+            form.add_error(None, str(exc))
+    return _render(
+        request,
+        "statistics/clusters.html",
         corpus,
         form,
         result,
@@ -79,11 +135,14 @@ def ngrams(request: HttpRequest, corpus_id) -> HttpResponse:
                 filter_text=form.cleaned_data["filter"],
                 sort_by=form.cleaned_data["sort_by"],
                 include_punctuation=form.cleaned_data["include_punctuation"],
+                open_slot=form.cleaned_data["open_slot"],
                 page=form.cleaned_data["page"],
                 page_size=form.cleaned_data["page_size"],
             )
         except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
             error, index_repair = _runtime_index_failure(corpus)
+        except ValueError as exc:
+            form.add_error(None, str(exc))
     return _render(
         request,
         "statistics/ngrams.html",
@@ -271,9 +330,16 @@ def concordance_plot(request: HttpRequest, corpus_id) -> HttpResponse:
             result = _engine(corpus).concordance_plot(
                 form.cleaned_data["q"],
                 language=form.cleaned_data["language"],
+                overlay_query=form.cleaned_data["overlay_q"],
+                sort_by=form.cleaned_data["sort_by"],
+                invert_order=form.cleaned_data["invert_order"],
+                show_zero_hits=form.cleaned_data["show_zero_hits"],
+                bin_count=form.cleaned_data["bin_count"],
             )
         except (StatisticsIndexUnavailable, StatisticsIndexCorrupt):
             error, index_repair = _runtime_index_failure(corpus)
+        except ValueError as exc:
+            form.add_error(None, str(exc))
     return _render(
         request,
         "statistics/concordance_plot.html",

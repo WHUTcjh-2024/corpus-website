@@ -2,6 +2,8 @@
 
 武汉理工大学外国语学院在线语料研究平台。项目提供语料上传与加工、KWIC、平行检索、统计分析、受控导出、账号审批和审计功能。
 
+AntConc 4.4.2 功能对齐和老师语料验收基线见 [docs/ANTCONC_442_PARITY.md](docs/ANTCONC_442_PARITY.md)。
+
 ## 技术结构
 
 ```text
@@ -66,3 +68,5 @@ cd backend
 - `FIXED_TEST_ACCOUNT_ENABLED=false`
 - PostgreSQL、Redis 和 Celery worker 可用
 - 上传扫描、导出限额、数据备份策略已配置
+
+完整上线、备份、恢复和监控步骤见 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)。

@@ -5,15 +5,16 @@
 {% block dashboard_content %}
 {% include "statistics/_header.html" %}
 <form method="get" class="filter-card"><div class="row g-3 align-items-end">
-  <div class="col-sm-6 col-xl-2"><label class="form-label" for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>{{ form.language }}</div>
+  <div class="col-sm-6 col-xl-1"><label class="form-label" for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>{{ form.language }}</div>
+  <div class="col-sm-6 col-xl-2"><label class="form-label" for="{{ form.display_type.id_for_label }}">{{ form.display_type.label }}</label>{{ form.display_type }}</div>
   <div class="col-sm-6 col-xl-2"><label class="form-label" for="{{ form.filter.id_for_label }}">{{ form.filter.label }}</label>{{ form.filter }}</div>
   <div class="col-sm-6 col-xl-1"><label class="form-label" for="{{ form.min_frequency.id_for_label }}">{{ form.min_frequency.label }}</label>{{ form.min_frequency }}</div>
   <div class="col-sm-6 col-xl-1"><label class="form-label" for="{{ form.min_range.id_for_label }}">{{ form.min_range.label }}</label>{{ form.min_range }}</div>
   <div class="col-sm-6 col-xl-2"><label class="form-label" for="{{ form.pos.id_for_label }}">{{ form.pos.label }}</label>{{ form.pos }}<div class="form-check mt-2">{{ form.include_punctuation }} <label class="form-check-label" for="{{ form.include_punctuation.id_for_label }}">{{ form.include_punctuation.label }}</label></div></div>
-  <div class="col-sm-6 col-xl-2"><label class="form-label" for="{{ form.sort_by.id_for_label }}">{{ form.sort_by.label }}</label>{{ form.sort_by }}</div>
+  <div class="col-sm-6 col-xl-2"><label class="form-label" for="{{ form.sort_by.id_for_label }}">{{ form.sort_by.label }}</label>{{ form.sort_by }}<div class="form-check mt-2">{{ form.invert_order }} <label class="form-check-label" for="{{ form.invert_order.id_for_label }}">{{ form.invert_order.label }}</label></div></div>
   <div class="col-sm-6 col-xl-1"><label class="form-label" for="{{ form.page_size.id_for_label }}">{{ form.page_size.label }}</label>{{ form.page_size }}</div>
   <div class="col-sm-6 col-xl-1 d-grid"><button class="btn btn-primary" type="submit">生成词表</button></div>
-</div></form>
+</div><details class="mt-3"><summary>大小写与 Stoplist / Allowlist</summary><div class="row g-3 mt-1"><div class="col-md-2"><div class="form-check mt-4">{{ form.case_sensitive }} <label class="form-check-label" for="{{ form.case_sensitive.id_for_label }}">{{ form.case_sensitive.label }}</label></div></div><div class="col-md-3"><label class="form-label" for="{{ form.list_mode.id_for_label }}">{{ form.list_mode.label }}</label>{{ form.list_mode }}</div><div class="col-md-7"><label class="form-label" for="{{ form.list_terms.id_for_label }}">{{ form.list_terms.label }}</label>{{ form.list_terms }}{% for error in form.list_terms.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div></div></details></form>
 {% if result %}
   <div class="stats-summary"><span>Tokens <strong>{{ result.total_tokens }}</strong></span><span>Types <strong>{{ result.total_types }}</strong></span><span>当前展示 {{ result.rows|length }} 条</span></div>
   <div class="row g-4">

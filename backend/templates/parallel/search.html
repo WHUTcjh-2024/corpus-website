@@ -8,7 +8,7 @@
   <div>
     <p class="page-eyebrow">Parallel Concordance</p>
     <h1 class="page-title">{{ corpus.name }}</h1>
-    <p class="page-description">中英双语对照检索，结果保持人工对齐顺序；适合译法比较、术语一致性和上下文复核。</p>
+    <p class="page-description">中英双语对照检索，保留源语料顺序并显示对齐方法与置信度；适合译法比较、术语一致性和上下文复核。</p>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">语料说明</a>
@@ -36,13 +36,15 @@
     <div class="col-sm-6 col-xl-2 d-grid"><button class="btn btn-primary" type="submit">查询句对</button></div>
   </div>
 
-  <details class="mt-3"{% if form.zh_contains.value or form.en_contains.value or form.zh_not_contains.value or form.en_not_contains.value %} open{% endif %}>
+  <details class="mt-3"{% if form.zh_contains.value or form.en_contains.value or form.zh_not_contains.value or form.en_not_contains.value or form.filename_contains.value %} open{% endif %}>
     <summary class="text-primary fw-semibold">双语条件</summary>
     <div class="row g-3 mt-0">
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.zh_contains.id_for_label }}">{{ form.zh_contains.label }}</label>{{ form.zh_contains }}</div>
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.en_contains.id_for_label }}">{{ form.en_contains.label }}</label>{{ form.en_contains }}</div>
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.zh_not_contains.id_for_label }}">{{ form.zh_not_contains.label }}</label>{{ form.zh_not_contains }}</div>
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.en_not_contains.id_for_label }}">{{ form.en_not_contains.label }}</label>{{ form.en_not_contains }}</div>
+      <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.filename_contains.id_for_label }}">{{ form.filename_contains.label }}</label>{{ form.filename_contains }}</div>
+      <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.min_confidence.id_for_label }}">{{ form.min_confidence.label }}</label>{{ form.min_confidence }}<div class="form-text">原始候选配对建议先用 0.65 抽检。</div></div>
       <div class="col-12"><div class="query-tags"><span class="query-tag">全部包含条件使用 AND</span><span class="query-tag">排除条件使用 NOT</span></div></div>
     </div>
   </details>
@@ -61,7 +63,7 @@
   </details>
 
   <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-    <div class="small text-secondary">保留人工句段对齐，不根据检索结果自动重排译文。</div>
+    <div class="small text-secondary">保留源语料顺序；自动候选段对不会标记为人工对齐。</div>
     <div class="d-flex flex-wrap gap-2">
       <button class="btn btn-outline-secondary" type="button" data-reset-form>重置</button>
       <button class="btn btn-outline-secondary" type="button" disabled title="保存查询将在后续历史模块接入">保存查询</button>

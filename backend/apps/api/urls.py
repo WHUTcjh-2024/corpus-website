@@ -9,6 +9,7 @@ urlpatterns = [
     path("csrf/", views.CsrfView.as_view(), name="csrf"),
     path("auth/login/", views.LoginView.as_view(), name="login"),
     path("session/", views.SessionView.as_view(), name="session"),
+    path("public-corpora/", views.PublicCorpusOverviewView.as_view(), name="public-corpora"),
     path("dashboard/", views.DashboardView.as_view(), name="dashboard"),
     path("corpora/", views.CorpusListView.as_view(), name="corpora-list"),
     path("corpora/<uuid:pk>/", views.CorpusDetailView.as_view(), name="corpora-detail"),

@@ -88,6 +88,7 @@ class KwicHit:
     r4: str
     r5: str
     row_id: int
+    kpf_count: int = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +107,11 @@ class KwicPage:
     case_sensitive: bool = False
     regex: bool = False
     full_regex: bool = False
+    available_total: int = 0
+    sample_size: int = 0
+    sample_seed: int = 0
+    advanced_queries: tuple[str, ...] = ()
+    context_queries: tuple[str, ...] = ()
 
     @property
     def num_pages(self) -> int:
@@ -118,6 +124,31 @@ class KwicPage:
     @property
     def has_next(self) -> bool:
         return self.page < self.num_pages
+
+
+@dataclass(frozen=True, slots=True)
+class FileViewSegment:
+    text: str
+    is_hit: bool
+    row_id: int | None = None
+    selected: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class FileView:
+    document_id: str
+    filename: str
+    language: str
+    before: str
+    keyword: str
+    after: str
+    row_id: int | None = None
+    segments: tuple[FileViewSegment, ...] = ()
+    hit_count: int = 0
+    token_count: int = 0
+    type_count: int = 0
+    selected_hit: int = 0
+    query: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +180,151 @@ class KwicSearchEngine:
         self.processed_dir = self.data_root / "processed" / self.corpus_id
         self.index_path = self.index_dir / "kwic_index.sqlite"
 
+    def file_view(
+        self,
+        *,
+        document_id: str,
+        language: str,
+        row_id: int | None = None,
+        query: str = "",
+        whole_words: bool = True,
+        case_sensitive: bool = False,
+        regex: bool = False,
+        full_regex: bool = False,
+    ) -> FileView:
+        """Return an indexed source document with an optional token anchor."""
+        if language not in {"zh", "en"}:
+            raise KwicQueryError("文件语言必须是中文或英文。")
+        self._require_artifacts()
+        try:
+            with closing(
+                sqlite3.connect(f"file:{self.index_path}?mode=ro", uri=True)
+            ) as connection:
+                self._require_index_schema(connection)
+                row = connection.execute(
+                    """
+                    SELECT d.filename, s.text
+                    FROM document_streams s
+                    JOIN documents d ON d.document_id = s.document_id
+                    WHERE s.document_id = ? AND s.language = ?
+                    """,
+                    (document_id, language),
+                ).fetchone()
+                if row is None:
+                    raise KwicQueryError("索引中不存在该来源文件。")
+                filename, text = str(row[0]), str(row[1])
+                token = None
+                if row_id is not None:
+                    token = connection.execute(
+                        """
+                        SELECT document_start, document_end, surface
+                        FROM tokens
+                        WHERE global_position = ?
+                          AND document_id = ?
+                          AND language = ?
+                        """,
+                        (row_id, document_id, language),
+                    ).fetchone()
+                statistics = connection.execute(
+                    """
+                    SELECT COUNT(*), COUNT(DISTINCT normalized)
+                    FROM tokens WHERE document_id = ? AND language = ?
+                    """,
+                    (document_id, language),
+                ).fetchone()
+                spans: list[tuple[int, int, int | None]] = []
+                query = query.strip() if full_regex else " ".join(query.split())
+                if query and full_regex:
+                    validate_full_regex(query, case_sensitive=case_sensitive)
+                    compiled = safe_regex.compile(
+                        query,
+                        safe_regex.VERSION1
+                        | (0 if case_sensitive else safe_regex.IGNORECASE),
+                    )
+                    for found in compiled.finditer(
+                        text,
+                        timeout=REGEX_TIMEOUT_SECONDS,
+                    ):
+                        if found.start() != found.end():
+                            spans.append((found.start(), found.end(), None))
+                elif query:
+                    _, matchers = compile_query(
+                        query,
+                        language=language,
+                        whole_words=whole_words,
+                        case_sensitive=case_sensitive,
+                        regex=regex,
+                    )
+                    _register_regex_function(connection)
+                    sql, term_parameters = self._match_sql(
+                        matchers,
+                        count=False,
+                        include_order=False,
+                        paginated=False,
+                    )
+                    rows = connection.execute(
+                        sql + " AND t0.document_id = ? ORDER BY t0.global_position",
+                        [language, *term_parameters, document_id],
+                    ).fetchall()
+                    spans.extend(
+                        (int(found[6]), int(found[7]), int(found[0]))
+                        for found in rows
+                    )
+                    _raise_if_regex_timed_out(connection)
+        except sqlite3.Error as exc:
+            raise KwicIndexCorrupt("File View 索引读取失败。") from exc
+        except TimeoutError as exc:
+            raise KwicQueryError("File View 全文正则执行超时。") from exc
+
+        if not spans and token is not None:
+            spans.append((int(token[0]), int(token[1]), row_id))
+        spans = sorted(
+            {
+                (max(start, 0), min(end, len(text)), hit_row_id)
+                for start, end, hit_row_id in spans
+                if start < end
+            },
+            key=lambda item: (item[0], item[1]),
+        )
+        segments: list[FileViewSegment] = []
+        cursor = 0
+        selected_hit = 0
+        accepted_spans: list[tuple[int, int, int | None]] = []
+        for start, end, hit_row_id in spans:
+            if start < cursor:
+                continue
+            if start > cursor:
+                segments.append(FileViewSegment(text[cursor:start], False))
+            selected = row_id is not None and hit_row_id == row_id
+            if selected:
+                selected_hit = len(accepted_spans) + 1
+            segments.append(FileViewSegment(text[start:end], True, hit_row_id, selected))
+            accepted_spans.append((start, end, hit_row_id))
+            cursor = end
+        if cursor < len(text):
+            segments.append(FileViewSegment(text[cursor:], False))
+        token_count, type_count = (int(value) for value in statistics)
+        if token is None:
+            before, keyword, after = text, "", ""
+        else:
+            start, end = max(int(token[0]), 0), min(int(token[1]), len(text))
+            before, keyword, after = text[:start], text[start:end], text[end:]
+        return FileView(
+            document_id,
+            filename,
+            language,
+            before,
+            keyword,
+            after,
+            row_id,
+            tuple(segments),
+            len(accepted_spans),
+            token_count,
+            type_count,
+            selected_hit,
+            query,
+        )
+
     def search(
         self,
         query: str,
@@ -165,11 +341,17 @@ class KwicSearchEngine:
         case_sensitive: bool = False,
         regex: bool = False,
         full_regex: bool = False,
+        sample_size: int = 0,
+        sample_seed: int = 0,
     ) -> KwicPage:
         query = query.strip() if full_regex else " ".join(query.split())
         if not query:
             raise KwicQueryError("查询词不能为空。")
         _validate_page_options(context_size, page, page_size)
+        if not 0 <= sample_size <= 100:
+            raise KwicQueryError("随机结果集大小必须在 0 到 100 之间。")
+        if not 0 <= sample_seed <= 2_147_483_647:
+            raise KwicQueryError("随机种子必须在 0 到 2147483647 之间。")
         normalized_sort_keys = normalize_sort_keys(sort_keys, fallback=sort_by)
         sort_order = normalize_sort_order(sort_order)
         if full_regex:
@@ -182,6 +364,8 @@ class KwicSearchEngine:
                 sort_keys=normalized_sort_keys,
                 sort_order=sort_order,
                 case_sensitive=case_sensitive,
+                sample_size=sample_size,
+                sample_seed=sample_seed,
             )
         language, matchers = compile_query(
             query,
@@ -210,18 +394,34 @@ class KwicSearchEngine:
                 )
                 total = self._count_matches(connection, language, matchers, pos=pos)
                 _raise_if_regex_timed_out(connection)
-                num_pages = max(1, math.ceil(total / page_size))
-                effective_page = min(page, num_pages)
-                matches = self._page_matches(
-                    connection,
-                    language,
-                    matchers,
-                    page=effective_page,
-                    page_size=page_size,
-                    sort_keys=normalized_sort_keys,
-                    sort_order=sort_order,
-                    pos=pos,
-                )
+                available_total = total
+                if sample_size:
+                    effective_page = 1
+                    matches = self._sample_matches(
+                        connection,
+                        language,
+                        matchers,
+                        sample_size=min(sample_size, total),
+                        sample_seed=sample_seed,
+                        sort_keys=normalized_sort_keys,
+                        sort_order=sort_order,
+                        pos=pos,
+                    )
+                    total = len(matches)
+                    page_size = max(1, total)
+                else:
+                    num_pages = max(1, math.ceil(total / page_size))
+                    effective_page = min(page, num_pages)
+                    matches = self._page_matches(
+                        connection,
+                        language,
+                        matchers,
+                        page=effective_page,
+                        page_size=page_size,
+                        sort_keys=normalized_sort_keys,
+                        sort_order=sort_order,
+                        pos=pos,
+                    )
                 _raise_if_regex_timed_out(connection)
                 context_tokens = self._context_tokens(
                     connection,
@@ -233,12 +433,31 @@ class KwicSearchEngine:
                     matches,
                     context_size=context_size,
                 )
+                if normalized_sort_keys and not sample_size:
+                    kpf_matches = self._all_matches(
+                        connection,
+                        language,
+                        matchers,
+                        pos=pos,
+                    )
+                    kpf_context = self._context_tokens(
+                        connection,
+                        kpf_matches,
+                        radius=5,
+                    )
+                else:
+                    kpf_matches = matches
+                    kpf_context = context_tokens
         except safe_regex.error as exc:
             raise KwicQueryError(f"正则表达式无效：{exc}") from exc
         except sqlite3.Error as exc:
             raise KwicIndexCorrupt("KWIC 索引读取失败。") from exc
 
         metadata = self._metadata_for(matches)
+        kpf_patterns = Counter(
+            _hit_pattern(match, normalized_sort_keys, kpf_context)
+            for match in kpf_matches
+        )
         hits = tuple(
             self._build_hit(
                 match,
@@ -246,6 +465,9 @@ class KwicSearchEngine:
                 metadata,
                 context_size,
                 source_snippets=source_snippets,
+                kpf_count=kpf_patterns[
+                    _hit_pattern(match, normalized_sort_keys, context_tokens)
+                ],
             )
             for match in matches
         )
@@ -263,6 +485,228 @@ class KwicSearchEngine:
             whole_words=whole_words,
             case_sensitive=case_sensitive,
             regex=regex,
+            available_total=available_total,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+        )
+
+    def search_advanced(
+        self,
+        query: str,
+        *,
+        query_list: Sequence[str] = (),
+        context_queries: Sequence[str] = (),
+        context_logic: str = "or",
+        context_from: int = -5,
+        context_to: int = 5,
+        exclude_context: bool = False,
+        language: str | None = None,
+        context_size: int = DEFAULT_CONTEXT_SIZE,
+        page: int = 1,
+        page_size: int = DEFAULT_PAGE_SIZE,
+        sort_keys: Sequence[str] | None = None,
+        sort_order: str = "value",
+        pos: str = "",
+        whole_words: bool = True,
+        case_sensitive: bool = False,
+        regex: bool = False,
+        sample_size: int = 0,
+        sample_seed: int = 0,
+    ) -> KwicPage:
+        queries = tuple(
+            dict.fromkeys(
+                normalized
+                for value in (query, *query_list)
+                if (normalized := " ".join(str(value).split()))
+            )
+        )
+        if not queries:
+            raise KwicQueryError("查询词或查询词列表不能为空。")
+        if len(queries) > 100:
+            raise KwicQueryError("查询词列表最多包含 100 项。")
+        context_values = tuple(
+            dict.fromkeys(
+                normalized
+                for value in context_queries
+                if (normalized := " ".join(str(value).split()))
+            )
+        )
+        if len(context_values) > 100:
+            raise KwicQueryError("语境词列表最多包含 100 项。")
+        if context_logic not in {"or", "and"}:
+            raise KwicQueryError("语境词逻辑必须是 OR 或 AND。")
+        if not -10 <= context_from <= 10 or not -10 <= context_to <= 10:
+            raise KwicQueryError("语境窗口必须位于 L10 到 R10。")
+        if context_from > context_to:
+            raise KwicQueryError("语境窗口起点不能大于终点。")
+        _validate_page_options(context_size, page, page_size)
+        if not 0 <= sample_size <= 100:
+            raise KwicQueryError("随机结果集大小必须在 0 到 100 之间。")
+        normalized_sort_keys = normalize_sort_keys(sort_keys)
+        sort_order = normalize_sort_order(sort_order)
+        pos = pos.strip()
+        detected_languages = {
+            compile_query(
+                value,
+                language=language,
+                whole_words=whole_words,
+                case_sensitive=case_sensitive,
+                regex=regex,
+            )[0]
+            for value in queries
+        }
+        if len(detected_languages) != 1:
+            raise KwicQueryError("查询词列表中的语言必须一致。")
+        selected_language = detected_languages.pop()
+        context_matchers: list[QueryToken] = []
+        for value in context_values:
+            context_language, matchers = compile_query(
+                value,
+                language=selected_language,
+                whole_words=whole_words,
+                case_sensitive=case_sensitive,
+                regex=regex,
+            )
+            if context_language != selected_language or len(matchers) != 1:
+                raise KwicQueryError("每个语境词必须是所选语言中的单个 Token。")
+            context_matchers.append(matchers[0])
+
+        self._require_artifacts()
+        try:
+            with closing(
+                sqlite3.connect(f"file:{self.index_path}?mode=ro", uri=True)
+            ) as connection:
+                self._require_index_schema(connection)
+                _register_regex_function(connection)
+                all_matches: dict[tuple[int, int], KwicMatch] = {}
+                for value in queries:
+                    _, matchers = compile_query(
+                        value,
+                        language=selected_language,
+                        whole_words=whole_words,
+                        case_sensitive=case_sensitive,
+                        regex=regex,
+                    )
+                    matchers = self._resolve_chinese_terms(
+                        connection,
+                        query=value,
+                        language=selected_language,
+                        matchers=matchers,
+                        whole_words=whole_words,
+                        case_sensitive=case_sensitive,
+                        regex=regex,
+                        pos=pos,
+                    )
+                    for match in self._all_matches(
+                        connection,
+                        selected_language,
+                        matchers,
+                        pos=pos,
+                    ):
+                        all_matches[(match.global_position, match.token_length)] = match
+                matches = list(all_matches.values())
+                if context_matchers:
+                    radius = max(abs(context_from), abs(context_to), 1)
+                    filtering_context = self._context_tokens(
+                        connection,
+                        matches,
+                        radius=radius,
+                    )
+                    matches = [
+                        match
+                        for match in matches
+                        if _matches_context_constraints(
+                            match,
+                            filtering_context,
+                            context_matchers,
+                            logic=context_logic,
+                            window_from=context_from,
+                            window_to=context_to,
+                            exclude=exclude_context,
+                        )
+                    ]
+                available_total = len(matches)
+                if sample_size:
+                    matches.sort(
+                        key=lambda item: (
+                            (item.global_position * 1103515245 + sample_seed) & 2147483647
+                        )
+                    )
+                    matches = matches[:sample_size]
+                sorting_context = self._context_tokens(connection, matches, radius=5)
+                filenames = dict(
+                    connection.execute("SELECT document_id, filename FROM documents").fetchall()
+                )
+                _sort_matches_in_memory(
+                    matches,
+                    normalized_sort_keys,
+                    sort_order,
+                    sorting_context,
+                    filenames,
+                )
+                kpf_patterns = Counter(
+                    _hit_pattern(match, normalized_sort_keys, sorting_context)
+                    for match in matches
+                )
+                total = len(matches)
+                if sample_size:
+                    effective_page = 1
+                    page_size = max(1, total)
+                    page_matches = matches
+                else:
+                    num_pages = max(1, math.ceil(total / page_size))
+                    effective_page = min(page, num_pages)
+                    start = (effective_page - 1) * page_size
+                    page_matches = matches[start : start + page_size]
+                context_tokens = self._context_tokens(
+                    connection,
+                    page_matches,
+                    radius=max(context_size, 5),
+                )
+                source_snippets = self._source_snippets(
+                    connection,
+                    page_matches,
+                    context_size=context_size,
+                )
+                _raise_if_regex_timed_out(connection)
+        except safe_regex.error as exc:
+            raise KwicQueryError(f"正则表达式无效：{exc}") from exc
+        except sqlite3.Error as exc:
+            raise KwicIndexCorrupt("高级 KWIC 索引读取失败。") from exc
+
+        metadata = self._metadata_for(page_matches)
+        hits = tuple(
+            self._build_hit(
+                match,
+                context_tokens,
+                metadata,
+                context_size,
+                source_snippets=source_snippets,
+                kpf_count=kpf_patterns[
+                    _hit_pattern(match, normalized_sort_keys, context_tokens)
+                ],
+            )
+            for match in page_matches
+        )
+        return KwicPage(
+            query=query,
+            hits=hits,
+            total=total,
+            page=effective_page,
+            page_size=page_size,
+            context_size=context_size,
+            sort_by=normalized_sort_keys[0] if normalized_sort_keys else "",
+            sort_keys=normalized_sort_keys,
+            sort_order=sort_order,
+            pos=pos,
+            whole_words=whole_words,
+            case_sensitive=case_sensitive,
+            regex=regex,
+            available_total=available_total,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
+            advanced_queries=queries,
+            context_queries=context_values,
         )
 
     def _search_full_regex(
@@ -276,6 +720,8 @@ class KwicSearchEngine:
         sort_keys: tuple[str, ...],
         sort_order: str,
         case_sensitive: bool,
+        sample_size: int,
+        sample_seed: int,
     ) -> KwicPage:
         language = language or (
             "zh" if any("\u4e00" <= character <= "\u9fff" for character in query) else "en"
@@ -350,46 +796,37 @@ class KwicSearchEngine:
                         "SELECT document_id, filename FROM documents"
                     ).fetchall()
                 )
-                sorting_context = (
-                    self._context_tokens(connection, matches, radius=5)
-                    if sort_keys
-                    else {}
-                )
-                pattern_frequencies: dict[tuple[Any, ...], int] = {}
-                if sort_order == "frequency" and sort_keys:
-                    pattern_frequencies = Counter(
-                        _python_sort_pattern(
-                            item,
-                            sort_keys=sort_keys,
-                            context_tokens=sorting_context,
-                            filenames=filenames,
+                available_total = len(matches)
+                if sample_size:
+                    matches.sort(
+                        key=lambda item: (
+                            (item.global_position * 1103515245 + sample_seed)
+                            & 2147483647
                         )
-                        for item in matches
                     )
-                matches.sort(
-                    key=lambda item: (
-                        -pattern_frequencies.get(
-                            _python_sort_pattern(
-                                item,
-                                sort_keys=sort_keys,
-                                context_tokens=sorting_context,
-                                filenames=filenames,
-                            ),
-                            0,
-                        ),
-                        *_python_sort_key(
-                            item,
-                            sort_keys=sort_keys,
-                            context_tokens=sorting_context,
-                            filenames=filenames,
-                        ),
-                    )
+                    matches = matches[:sample_size]
+                sorting_context = self._context_tokens(connection, matches, radius=5)
+                _sort_matches_in_memory(
+                    matches,
+                    sort_keys,
+                    sort_order,
+                    sorting_context,
+                    filenames,
                 )
-                total = len(matches)
-                num_pages = max(1, math.ceil(total / page_size))
-                effective_page = min(page, num_pages)
-                start = (effective_page - 1) * page_size
-                page_matches = matches[start : start + page_size]
+                kpf_patterns = Counter(
+                    _hit_pattern(match, sort_keys, sorting_context)
+                    for match in matches
+                )
+                total = len(matches) if sample_size else available_total
+                if sample_size:
+                    effective_page = 1
+                    page_size = max(1, total)
+                    page_matches = matches
+                else:
+                    num_pages = max(1, math.ceil(total / page_size))
+                    effective_page = min(page, num_pages)
+                    start = (effective_page - 1) * page_size
+                    page_matches = matches[start : start + page_size]
                 context_tokens = self._context_tokens(
                     connection,
                     page_matches,
@@ -413,6 +850,7 @@ class KwicSearchEngine:
                 metadata,
                 context_size,
                 source_snippets=source_snippets,
+                kpf_count=kpf_patterns[_hit_pattern(match, sort_keys, context_tokens)],
             )
             for match in page_matches
         )
@@ -431,6 +869,9 @@ class KwicSearchEngine:
             case_sensitive=case_sensitive,
             regex=True,
             full_regex=True,
+            available_total=available_total,
+            sample_size=sample_size,
+            sample_seed=sample_seed,
         )
 
     def _resolve_chinese_terms(
@@ -504,6 +945,8 @@ class KwicSearchEngine:
         sort_keys: tuple[str, ...] = (),
         sort_order: str = "value",
         pos: str = "",
+        include_order: bool = True,
+        paginated: bool = True,
     ) -> tuple[str, list[Any]]:
         aliases = [f"t{index}" for index in range(len(matchers))]
         select = "COUNT(*)" if count else (
@@ -538,11 +981,12 @@ class KwicSearchEngine:
             predicates.append("t0.pos = ?")
             parameters.append(pos)
         sql = f"SELECT {select} FROM tokens t0 {joins} WHERE {' AND '.join(predicates)}"
-        if not count:
+        if not count and include_order:
             if order_expressions:
                 sql += " ORDER BY " + ", ".join([*order_expressions, "t0.global_position"])
             else:
                 sql += " ORDER BY t0.global_position"
+        if not count and paginated:
             sql += " LIMIT ? OFFSET ?"
         return sql, parameters
 
@@ -596,6 +1040,114 @@ class KwicSearchEngine:
             )
             for row in rows
         ]
+
+    def _all_matches(
+        self,
+        connection: sqlite3.Connection,
+        language: str,
+        matchers: tuple[QueryToken, ...],
+        *,
+        pos: str,
+    ) -> list[KwicMatch]:
+        sql, term_params = self._match_sql(
+            matchers,
+            count=False,
+            pos=pos,
+            paginated=False,
+        )
+        rows = connection.execute(sql, [language, *term_params]).fetchall()
+        term_count = len(matchers)
+        return [
+            KwicMatch(
+                global_position=int(row[0]),
+                stream_position=int(row[1]),
+                sentence_id=str(row[2]),
+                document_id=str(row[3]),
+                sentence_position=int(row[4]),
+                language=str(row[5]),
+                document_start=int(row[6]),
+                document_end=int(row[7]),
+                keyword_surfaces=tuple(str(value) for value in row[8 : 8 + term_count]),
+            )
+            for row in rows
+        ]
+
+    def _sample_matches(
+        self,
+        connection: sqlite3.Connection,
+        language: str,
+        matchers: tuple[QueryToken, ...],
+        *,
+        sample_size: int,
+        sample_seed: int,
+        sort_keys: tuple[str, ...],
+        sort_order: str,
+        pos: str,
+    ) -> list[KwicMatch]:
+        sql, term_params = self._match_sql(
+            matchers,
+            count=False,
+            pos=pos,
+            include_order=False,
+            paginated=False,
+        )
+        rows = connection.execute(
+            sql
+            + " ORDER BY (((t0.global_position * 1103515245) + ?) & 2147483647) "
+            + "LIMIT ?",
+            [language, *term_params, sample_seed, sample_size],
+        ).fetchall()
+        term_count = len(matchers)
+        matches = [
+            KwicMatch(
+                global_position=int(row[0]),
+                stream_position=int(row[1]),
+                sentence_id=str(row[2]),
+                document_id=str(row[3]),
+                sentence_position=int(row[4]),
+                language=str(row[5]),
+                document_start=int(row[6]),
+                document_end=int(row[7]),
+                keyword_surfaces=tuple(str(value) for value in row[8 : 8 + term_count]),
+            )
+            for row in rows
+        ]
+        if not sort_keys:
+            return matches
+        context = self._context_tokens(connection, matches, radius=5)
+        filenames = dict(
+            connection.execute("SELECT document_id, filename FROM documents").fetchall()
+        )
+        patterns = Counter(
+            _python_sort_pattern(
+                item,
+                sort_keys=sort_keys,
+                context_tokens=context,
+                filenames=filenames,
+            )
+            for item in matches
+        )
+        matches.sort(
+            key=lambda item: (
+                -patterns[
+                    _python_sort_pattern(
+                        item,
+                        sort_keys=sort_keys,
+                        context_tokens=context,
+                        filenames=filenames,
+                    )
+                ]
+                if sort_order == "frequency"
+                else 0,
+                *_python_sort_key(
+                    item,
+                    sort_keys=sort_keys,
+                    context_tokens=context,
+                    filenames=filenames,
+                ),
+            )
+        )
+        return matches
 
     @staticmethod
     def _context_tokens(
@@ -696,6 +1248,7 @@ class KwicSearchEngine:
         context_size: int,
         *,
         source_snippets: dict[int, tuple[str, str, str]] | None = None,
+        kpf_count: int = 1,
     ) -> KwicHit:
         keyword_length = match.token_length
 
@@ -749,6 +1302,7 @@ class KwicSearchEngine:
             r4=token_at(keyword_length + 3),
             r5=token_at(keyword_length + 4),
             row_id=match.global_position,
+            kpf_count=kpf_count,
         )
 
 
@@ -1082,6 +1636,123 @@ def _python_sort_pattern(
             value = token_at(sort_offset(key, match.token_length)).casefold()
         values.append(value)
     return tuple(values)
+
+
+def _hit_pattern(
+    match: KwicMatch,
+    sort_keys: tuple[str, ...],
+    context_tokens: dict[tuple[str, str, int], str],
+) -> tuple[Any, ...]:
+    if not sort_keys:
+        return (match.global_position,)
+
+    def token_at(offset: int) -> str:
+        return context_tokens.get(
+            (match.document_id, match.language, match.stream_position + offset),
+            "",
+        ).casefold()
+
+    pattern: list[Any] = []
+    for key in sort_keys:
+        if key in {"FILE", "FILE_ID"}:
+            value: Any = match.document_id
+        elif key == "ROW_ID":
+            value = match.global_position
+        elif key == "C":
+            value = (match.keyword_text or " ".join(match.keyword_surfaces)).casefold()
+        else:
+            value = token_at(sort_offset(key, match.token_length))
+        pattern.append(value)
+    return tuple(pattern)
+
+
+def _sort_matches_in_memory(
+    matches: list[KwicMatch],
+    sort_keys: tuple[str, ...],
+    sort_order: str,
+    context_tokens: dict[tuple[str, str, int], str],
+    filenames: dict[str, str],
+) -> None:
+    patterns = Counter(
+        _python_sort_pattern(
+            item,
+            sort_keys=sort_keys,
+            context_tokens=context_tokens,
+            filenames=filenames,
+        )
+        for item in matches
+    )
+    matches.sort(
+        key=lambda item: (
+            -patterns[
+                _python_sort_pattern(
+                    item,
+                    sort_keys=sort_keys,
+                    context_tokens=context_tokens,
+                    filenames=filenames,
+                )
+            ]
+            if sort_order == "frequency" and sort_keys
+            else 0,
+            *_python_sort_key(
+                item,
+                sort_keys=sort_keys,
+                context_tokens=context_tokens,
+                filenames=filenames,
+            ),
+        )
+    )
+
+
+def _matches_context_constraints(
+    match: KwicMatch,
+    context_tokens: dict[tuple[str, str, int], str],
+    matchers: Sequence[QueryToken],
+    *,
+    logic: str,
+    window_from: int,
+    window_to: int,
+    exclude: bool,
+) -> bool:
+    values: list[str] = []
+    for position in range(window_from, window_to + 1):
+        if position == 0:
+            continue
+        offset = position if position < 0 else match.token_length + position - 1
+        value = context_tokens.get(
+            (match.document_id, match.language, match.stream_position + offset),
+            "",
+        )
+        if value:
+            values.append(value)
+    outcomes = [any(_matcher_accepts(matcher, value) for value in values) for matcher in matchers]
+    accepted = all(outcomes) if logic == "and" else any(outcomes)
+    return not accepted if exclude else accepted
+
+
+def _matcher_accepts(matcher: QueryToken, value: str) -> bool:
+    candidate = value if matcher.case_sensitive else value.casefold()
+    expected = matcher.value if matcher.case_sensitive else matcher.value.casefold()
+    if matcher.operator == "exact":
+        return candidate == expected
+    if matcher.operator == "contains":
+        return expected in candidate
+    if matcher.operator == "regex":
+        compiled = safe_regex.compile(
+            matcher.value,
+            safe_regex.VERSION1
+            | (0 if matcher.case_sensitive else safe_regex.IGNORECASE),
+        )
+        try:
+            found = (
+                compiled.fullmatch(value, timeout=REGEX_TIMEOUT_SECONDS)
+                if matcher.full_match
+                else compiled.search(value, timeout=REGEX_TIMEOUT_SECONDS)
+            )
+        except TimeoutError as exc:
+            raise KwicQueryError("语境词正则表达式执行超时。") from exc
+        return found is not None
+    raise ValueError("unsupported context matcher")
 
 
 def _validate_page_options(context_size: int, page: int, page_size: int) -> None:

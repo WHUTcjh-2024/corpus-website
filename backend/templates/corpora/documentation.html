@@ -65,7 +65,7 @@
 
 {% if alignment_preview or alignment_preview_error %}
 <section class="platform-card mt-4">
-  <header class="platform-card__header"><div><h2>人工对齐预览</h2><div class="table-meta mt-1">按源文件既有顺序展示，平台不重新自动对齐</div></div><a class="btn btn-sm btn-outline-primary" href="{% url 'parallel:search' corpus.pk %}">打开 ParaConc</a></header>
+  <header class="platform-card__header"><div><h2>{% if corpus.corpus_type == "paired_raw_zh_en" %}候选段落映射预览{% else %}人工结构对齐预览{% endif %}</h2><div class="table-meta mt-1">{% if corpus.corpus_type == "paired_raw_zh_en" %}由段落长度自动推断，请结合置信度抽检{% else %}按源文件编号与既有顺序展示{% endif %}</div></div><a class="btn btn-sm btn-outline-primary" href="{% url 'parallel:search' corpus.pk %}">打开 ParaConc</a></header>
   <div class="platform-card__body p-0">
     {% if alignment_preview_error %}<div class="alert alert-warning m-3">{{ alignment_preview_error }}</div>{% else %}
       <div class="table-responsive"><table class="table"><thead><tr><th style="width:5rem">Pair</th><th>中文原文</th><th>English translation</th></tr></thead><tbody>{% for pair in alignment_preview %}<tr><th>#{{ pair.pair_ordinal }}</th><td>{{ pair.zh_text }}</td><td>{{ pair.en_text }}</td></tr>{% endfor %}</tbody></table></div>

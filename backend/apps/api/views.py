@@ -14,7 +14,13 @@ from rest_framework.views import APIView
 
 from apps.accounts.forms import ApprovedUserAuthenticationForm
 from apps.accounts.permissions import get_user_profile, workspace_access_scope
-from apps.corpora.models import Corpus, CorpusStatus
+from apps.corpora.models import (
+    Corpus,
+    CorpusDocumentation,
+    CorpusLanguage,
+    CorpusSourceType,
+    CorpusStatus,
+)
 from apps.corpora.services import (
     can_create_personal_corpus,
     can_upload_personal_corpus,
@@ -73,6 +79,42 @@ class SessionView(APIView):
                 "access_scope": str(access_scope),
                 "user": UserSerializer(user).data if user.is_authenticated else None,
                 "profile": UserProfileSerializer(profile).data if profile else None,
+            }
+        )
+
+
+class PublicCorpusOverviewView(APIView):
+    """Expose only processed demo samples for the public homepage."""
+
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get(self, request):
+        corpora = list(
+            Corpus.objects.filter(
+                source_type=CorpusSourceType.DEMO,
+                status=CorpusStatus.READY,
+            )
+            .select_related("documentation")
+            .order_by("corpus_type", "name")[:6]
+        )
+        totals = CorpusDocumentation.objects.filter(corpus__in=corpora).aggregate(
+            document_count=Sum("document_count"),
+            sentence_count=Sum("sentence_count"),
+            token_count=Sum("token_count"),
+        )
+        return Response(
+            {
+                "metrics": {
+                    "corpus_count": len(corpora),
+                    "bilingual_corpus_count": sum(
+                        corpus.language == CorpusLanguage.ZH_EN for corpus in corpora
+                    ),
+                    "document_count": totals["document_count"] or 0,
+                    "sentence_count": totals["sentence_count"] or 0,
+                    "token_count": totals["token_count"] or 0,
+                },
+                "corpora": CorpusSerializer(corpora, many=True).data,
             }
         )
 

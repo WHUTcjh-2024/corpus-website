@@ -53,7 +53,7 @@ class CorpusUploadForm(forms.Form):
         label="语料类型",
         choices=(
             (MODE_MONOLINGUAL, "单语原始 TXT（AntConc）"),
-            (MODE_PAIRED_RAW, "中英段落人工对齐 TXT（ParaConc）"),
+            (MODE_PAIRED_RAW, "中英原文候选配对 TXT（自动段落映射）"),
             (MODE_PAIRED_TAGGED, "中英编号/POS 人工对齐 TXT（ParaConc + AntConc）"),
         ),
         initial=MODE_MONOLINGUAL,

@@ -21,3 +21,34 @@ export type SessionPayload = {
     status_label: string;
   };
 };
+
+export type PublicCorpus = {
+  id: string;
+  name: string;
+  corpus_type: string;
+  corpus_type_label: string;
+  language: string;
+  language_label: string;
+  access_level_label: string;
+  status_label: string;
+  description: string;
+  documentation: null | {
+    file_count: number;
+    document_count: number;
+    paragraph_count: number;
+    sentence_count: number;
+    token_count: number;
+    type_count: number;
+  };
+};
+
+export type PublicCorpusOverview = {
+  metrics: {
+    corpus_count: number;
+    bilingual_corpus_count: number;
+    document_count: number;
+    sentence_count: number;
+    token_count: number;
+  };
+  corpora: PublicCorpus[];
+};

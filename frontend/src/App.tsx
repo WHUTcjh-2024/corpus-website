@@ -1,22 +1,16 @@
 import {
   ArrowUpRight,
-  BarChart3,
   CheckCircle2,
-  Clock3,
-  Download,
-  ListFilter,
   LockKeyhole,
   LogIn,
   Mail,
-  Search,
-  Shuffle,
   UserPlus,
   X,
 } from "lucide-react";
 import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 
-import { fetchSession } from "./api/client";
-import type { SessionPayload } from "./api/types";
+import { fetchPublicCorpusOverview, fetchSession } from "./api/client";
+import type { PublicCorpus, PublicCorpusOverview, SessionPayload } from "./api/types";
 
 const navItems = [
   { label: "首页", href: "/", requiresAuth: false },
@@ -28,29 +22,37 @@ const navItems = [
   { label: "帮助中心", href: "#platform-guide", requiresAuth: false },
 ];
 
-const resources = [
-  { icon: "平", label: "平行语料", value: "128", meta: "双语对齐资源", tone: "blue" },
-  { icon: "单", label: "单语语料", value: "96", meta: "多语种研究文本", tone: "green" },
-  { icon: "用", label: "用户语料", value: "43", meta: "个人研究空间", tone: "violet" },
-  { icon: "容", label: "资源容量", value: "328.7 GB", meta: "安全存储总量", tone: "orange" },
-];
+const EMPTY_PUBLIC_CORPUS_OVERVIEW: PublicCorpusOverview = {
+  metrics: {
+    corpus_count: 0,
+    bilingual_corpus_count: 0,
+    document_count: 0,
+    sentence_count: 0,
+    token_count: 0,
+  },
+  corpora: [],
+};
 
-const tools = [
-  { Icon: Search, title: "KWIC 检索", desc: "关键词上下文检索", href: "/corpora/?tool=kwic", tone: "blue" },
-  { Icon: Shuffle, title: "对齐检索", desc: "中英平行语料对照", href: "/corpora/?tool=parallel", tone: "cyan" },
-  { Icon: ListFilter, title: "复杂查询", desc: "多条件组合检索", href: "/corpora/", tone: "violet" },
-  { Icon: BarChart3, title: "统计分析", desc: "词频、搭配与趋势", href: "/corpora/?tool=statistics", tone: "green" },
-  { Icon: Clock3, title: "可视化图表", desc: "多维分析结果呈现", href: "/corpora/?tool=statistics", tone: "orange" },
-  { Icon: Download, title: "导出结果", desc: "保存检索分析结果", href: "/exports/", tone: "slate" },
-];
+const CORPUS_TYPE_ORDER: Record<string, number> = {
+  paired_raw_zh_en: 0,
+  paired_tagged_zh_en: 1,
+  raw_zh: 2,
+  raw_en: 3,
+};
 
-const news = [
-  { title: "系统维护通知（2025-07-15）", date: "07-14", tag: "公告" },
-  { title: "新增语料资源：学术论文语料库", date: "07-12", tag: "资源" },
-  { title: "用户指南更新：复杂检索使用说明", date: "07-10", tag: "指南" },
-  { title: "平台功能优化升级完成", date: "07-08", tag: "更新" },
-  { title: "暑期使用高峰期资源调度说明", date: "07-06", tag: "通知" },
-];
+function publicCorpusTitle(corpus: PublicCorpus) {
+  const parts = corpus.name.split("·").filter(Boolean);
+  return parts[0] === "老师语料" ? parts.slice(2).join("·") : corpus.name;
+}
+
+function publicCorpusMode(corpus: PublicCorpus) {
+  const parts = corpus.name.split("·").filter(Boolean);
+  return parts[0] === "老师语料" ? parts[1] ?? corpus.corpus_type_label : corpus.corpus_type_label;
+}
+
+function formatCount(value: number) {
+  return new Intl.NumberFormat("zh-CN").format(value);
+}
 
 function safeInternalDestination(value: string | null | undefined) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -62,6 +64,9 @@ function safeInternalDestination(value: string | null | undefined) {
 function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [publicCorpusOverview, setPublicCorpusOverview] = useState(EMPTY_PUBLIC_CORPUS_OVERVIEW);
+  const [publicCorpusLoading, setPublicCorpusLoading] = useState(true);
+  const [publicCorpusError, setPublicCorpusError] = useState(false);
   const [loginMessage, setLoginMessage] = useState("");
   const [loginPrompt, setLoginPrompt] = useState("");
   const [pendingDestination, setPendingDestination] = useState<string | null>(null);
@@ -71,6 +76,16 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const loginSectionRef = useRef<HTMLDivElement>(null);
   const usernameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchPublicCorpusOverview()
+      .then((payload) => {
+        setPublicCorpusOverview(payload);
+        setPublicCorpusError(false);
+      })
+      .catch(() => setPublicCorpusError(true))
+      .finally(() => setPublicCorpusLoading(false));
+  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -375,85 +390,98 @@ function App() {
         </section>
 
         <section className="campus-panel-grid" aria-label="平台概览">
-          <article className="campus-card campus-card--resources">
-            <header className="campus-card__header">
+          <div className="campus-corpus-showcase">
+            <header className="campus-corpus-showcase__header">
               <div>
-                <span>Corpus Library</span>
-                <h2>语料资源</h2>
+                <span className="campus-corpus-showcase__eyebrow">PROJECT CORPUS / RESEARCH COLLECTION</span>
+                <h2>老师项目语料库</h2>
+                <p>马克思主义中国化经典文献汉英平行语料库建设及其综合研究</p>
               </div>
-              <a
-                className="campus-card__action"
-                href="/corpora/"
-                onClick={(event) => void handleProtectedNavigation(event, "语料资源", "/corpora/")}
-              >
-                查看全部
-                <ArrowUpRight aria-hidden="true" size={15} />
-              </a>
+              <div className="campus-corpus-showcase__header-meta">
+                <strong>22BYY022</strong>
+                <span>公开目录</span>
+              </div>
             </header>
-            <dl className="campus-resource-grid">
-              {resources.map((item) => (
-                <div className="campus-resource-item" data-tone={item.tone} key={item.label}>
-                  <dt><span>{item.icon}</span>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                  <small>{item.meta}</small>
+
+            <div className="campus-corpus-showcase__overview">
+              <div className="campus-corpus-showcase__statement">
+                <span className="campus-corpus-showcase__index">01</span>
+                <span className="campus-corpus-showcase__label">COLLECTION NOTE</span>
+                <h3>把经典文献的汉英表达，转化为可观察、可比较、可复核的研究材料。</h3>
+                <p>本区域向专家与公众展示已登记、已加工的公开样本，完整教师资源继续按访问等级保护。</p>
+                <div className="campus-corpus-showcase__tags">
+                  <span>经典文献</span><span>汉英平行</span><span>只读样本</span><span>已完成加工</span>
                 </div>
-              ))}
-            </dl>
-          </article>
-
-          <article className="campus-card campus-card--tools">
-            <header className="campus-card__header">
-              <div>
-                <span>Research Toolkit</span>
-                <h2>平台功能</h2>
               </div>
-              <em>6 项研究工具</em>
-            </header>
-            <div className="campus-tool-grid">
-              {tools.map(({ Icon, title, desc, href, tone }) => (
-                <a
-                  data-tone={tone}
-                  href={href}
-                  key={title}
-                  onClick={(event) => void handleProtectedNavigation(event, title, href)}
-                >
-                  <span className="campus-tool-icon">
-                    <Icon size={22} strokeWidth={2} />
-                  </span>
-                  <span className="campus-tool-copy">
-                    <b>{title}</b>
-                    <small>{desc}</small>
-                  </span>
-                  <ArrowUpRight className="campus-tool-arrow" aria-hidden="true" size={16} />
-                </a>
-              ))}
+              <div className="campus-corpus-showcase__snapshot">
+                <div className="campus-corpus-showcase__label">COLLECTION SNAPSHOT</div>
+                <div className="campus-corpus-showcase__stat-grid">
+                  <div><strong>{publicCorpusLoading ? "—" : formatCount(publicCorpusOverview.metrics.corpus_count)}</strong><span>公开样本</span></div>
+                  <div><strong>{publicCorpusLoading ? "—" : formatCount(publicCorpusOverview.metrics.bilingual_corpus_count)}</strong><span>汉英双语</span></div>
+                  <div><strong>{publicCorpusLoading ? "—" : formatCount(publicCorpusOverview.metrics.document_count)}</strong><span>登记文档</span></div>
+                  <div><strong>{publicCorpusLoading ? "—" : formatCount(publicCorpusOverview.metrics.sentence_count)}</strong><span>句级单元</span></div>
+                  <div className="is-wide"><strong>{publicCorpusLoading ? "—" : formatCount(publicCorpusOverview.metrics.token_count)}</strong><span>Tokens</span></div>
+                </div>
+                <div className="campus-corpus-showcase__snapshot-note">统计基于当前公开样本目录，随语料加工状态更新。</div>
+              </div>
             </div>
-          </article>
 
-          <article className="campus-card campus-card--news">
-            <header className="campus-card__header">
-              <div>
-                <span>Latest Updates</span>
-                <h2>平台动态</h2>
+            <div className="campus-corpus-showcase__body">
+              <div className="campus-corpus-catalogue">
+                <div className="campus-corpus-catalogue__head">
+                  <span>公开语料目录</span>
+                  <span>{publicCorpusLoading ? "读取中" : `${publicCorpusOverview.corpora.length} 组样本`}</span>
+                </div>
+                {publicCorpusError ? (
+                  <div className="campus-corpus-showcase__empty">公开目录暂时无法读取，请刷新页面重试。</div>
+                ) : publicCorpusLoading ? (
+                  <div className="campus-corpus-showcase__empty">正在读取老师项目语料库…</div>
+                ) : (
+                  [...publicCorpusOverview.corpora]
+                    .sort((left, right) => (CORPUS_TYPE_ORDER[left.corpus_type] ?? 99) - (CORPUS_TYPE_ORDER[right.corpus_type] ?? 99))
+                    .map((corpus, index) => {
+                      const documentation = corpus.documentation;
+                      return (
+                        <article className="campus-corpus-record" key={corpus.id}>
+                          <span className="campus-corpus-record__index">{String(index + 1).padStart(2, "0")}</span>
+                          <div className="campus-corpus-record__title">
+                            <span>{publicCorpusMode(corpus)} · {corpus.language_label}</span>
+                            <h3>{publicCorpusTitle(corpus)}</h3>
+                            <small>{corpus.corpus_type_label} · 老师提供样本</small>
+                          </div>
+                          <div className="campus-corpus-record__metrics">
+                            <span><strong>{documentation ? formatCount(documentation.document_count) : "—"}</strong><small>文档</small></span>
+                            <span><strong>{documentation ? formatCount(documentation.sentence_count) : "—"}</strong><small>句</small></span>
+                            <span><strong>{documentation ? formatCount(documentation.token_count) : "—"}</strong><small>tokens</small></span>
+                            <span><strong>{documentation ? formatCount(documentation.type_count) : "—"}</strong><small>types</small></span>
+                          </div>
+                          <span className="campus-corpus-record__status"><span />可用</span>
+                        </article>
+                      );
+                    })
+                )}
               </div>
-              <a className="campus-card__action" href="#platform-guide">
-                更多动态
-                <ArrowUpRight aria-hidden="true" size={15} />
-              </a>
-            </header>
-            <ul>
-              {news.map((item) => (
-                <li key={item.title}>
-                  <span className="campus-news-marker" aria-hidden="true" />
-                  <div>
-                    <span className="campus-news-tag">{item.tag}</span>
-                    <a href="/">{item.title}</a>
-                  </div>
-                  <time>{item.date}</time>
-                </li>
-              ))}
-            </ul>
-          </article>
+
+              <aside className="campus-corpus-showcase__aside">
+                <span className="campus-corpus-showcase__label">PROJECT NOTES</span>
+                <h3>语料库使用说明</h3>
+                <p>公开页面呈现项目对象、样本构成和加工规模；登录后可进入与账号等级对应的检索和分析空间。</p>
+                <dl>
+                  <div><dt>数据来源</dt><dd>老师提供 · 只读登记</dd></div>
+                  <div><dt>加工状态</dt><dd>已完成文本处理</dd></div>
+                  <div><dt>开放边界</dt><dd>公开样本 · 分级资源</dd></div>
+                </dl>
+                <a href="/corpora/" onClick={(event) => void handleProtectedNavigation(event, "项目语料库", "/corpora/")}>
+                  进入研究库 <ArrowUpRight aria-hidden="true" size={15} />
+                </a>
+              </aside>
+            </div>
+
+            <footer className="campus-corpus-showcase__footer">
+              <span><span className="campus-corpus-showcase__footer-dot" />公开样本只读展示，不替代正式授权资源</span>
+              <span>数据范围：当前已完成加工的老师项目样本</span>
+            </footer>
+          </div>
         </section>
 
         <footer className="campus-footer" id="platform-guide">

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -211,7 +212,7 @@ def create_uploaded_parallel_corpus(
     zh_file: UploadedFile,
     en_file: UploadedFile,
 ) -> tuple[Corpus, "ProcessingTask"]:
-    """Persist an authoritative human-aligned bilingual TXT pair."""
+    """Persist a bilingual raw candidate pair or a verified tagged pair."""
     if corpus_type not in {CorpusType.PAIRED_RAW_ZH_EN, CorpusType.PAIRED_TAGGED_ZH_EN}:
         raise ValidationError("不支持的双语上传类型。")
     if data.language != CorpusLanguage.ZH_EN:
@@ -470,14 +471,26 @@ def register_manifest_corpus(
     )
     if record is None:
         raise LookupError(f"Manifest record not found: {file_id}")
+    selected_records = _manifest_corpus_records(record, records)
+    _validate_manifest_records(selected_records)
     detected_type = str(record.get("detected_type", CorpusType.UNKNOWN))
     if detected_type not in CorpusType.values:
         detected_type = CorpusType.UNKNOWN
-    language = _normalize_language(str(record.get("detected_language", "unknown")))
+    is_pair = detected_type in {
+        CorpusType.PAIRED_RAW_ZH_EN,
+        CorpusType.PAIRED_TAGGED_ZH_EN,
+    }
+    language = (
+        CorpusLanguage.ZH_EN
+        if is_pair
+        else _normalize_language(str(record.get("detected_language", "unknown")))
+    )
     corpus_name = name or str(record.get("title_guess") or record.get("filename") or file_id)
+    registration_id = _manifest_registration_id(selected_records)
+    relative_paths = [str(item.get("original_path", "")) for item in selected_records]
 
     corpus, created = Corpus.objects.update_or_create(
-        manifest_file_id=file_id,
+        manifest_file_id=registration_id,
         defaults={
             "name": corpus_name,
             "source_type": source_type,
@@ -487,31 +500,45 @@ def register_manifest_corpus(
             "access_level": access_level,
             "status": CorpusStatus.CREATED,
             "stage": "manifest_registered",
-            "description": str(record.get("notes", "")),
-            "manifest_relative_path": str(record.get("original_path", "")),
-            "manifest_size_bytes": _non_negative_int(record.get("size_bytes")),
-            "manifest_encoding": str(record.get("encoding", "")),
+            "description": "; ".join(
+                str(item.get("notes", "")) for item in selected_records if item.get("notes")
+            ),
+            "manifest_relative_path": " | ".join(relative_paths),
+            "manifest_size_bytes": sum(
+                _non_negative_int(item.get("size_bytes")) for item in selected_records
+            ),
+            "manifest_encoding": ";".join(
+                sorted({str(item.get("encoding", "")) for item in selected_records})
+            ),
         },
     )
     CorpusDocumentation.objects.get_or_create(corpus=corpus)
     inbox_root = Path(str(payload.get("inbox_root", "")))
     if not inbox_root.is_absolute():
         inbox_root = (manifest_file.parent / inbox_root).resolve()
-    source_path = (inbox_root / str(record.get("original_path", ""))).resolve()
-    CorpusFile.objects.update_or_create(
-        corpus=corpus,
-        manifest_file_id=file_id,
-        defaults={
-            "original_filename": str(record.get("filename") or source_path.name),
-            "stored_path": str(source_path),
-            "detected_type": detected_type,
-            "language": language,
-            "size_bytes": _non_negative_int(record.get("size_bytes")),
-            "encoding": str(record.get("encoding", "")),
-            "status": CorpusFileStatus.PENDING,
-            "error_message": "",
-        },
-    )
+    inbox_root = inbox_root.resolve()
+    for selected in selected_records:
+        selected_id = str(selected.get("file_id", ""))
+        source_path = (inbox_root / str(selected.get("original_path", ""))).resolve()
+        if not source_path.is_relative_to(inbox_root):
+            raise ValueError(f"Manifest source escapes inbox root: {source_path}")
+        file_language = _normalize_language(
+            str(selected.get("detected_language", "unknown"))
+        )
+        CorpusFile.objects.update_or_create(
+            corpus=corpus,
+            manifest_file_id=selected_id,
+            defaults={
+                "original_filename": str(selected.get("filename") or source_path.name),
+                "stored_path": str(source_path),
+                "detected_type": detected_type,
+                "language": file_language,
+                "size_bytes": _non_negative_int(selected.get("size_bytes")),
+                "encoding": str(selected.get("encoding", "")),
+                "status": CorpusFileStatus.PENDING,
+                "error_message": "",
+            },
+        )
     CorpusDocumentation.objects.filter(corpus=corpus).update(file_count=corpus.files.count())
     return corpus, created
 
@@ -552,6 +579,50 @@ def _normalize_language(value: str) -> str:
     if value in {"bilingual", "zh-en", "en-zh"}:
         return CorpusLanguage.ZH_EN
     return CorpusLanguage.UNKNOWN
+
+
+def _manifest_corpus_records(
+    record: dict[str, Any], records: list[Any]
+) -> list[dict[str, Any]]:
+    detected_type = str(record.get("detected_type", ""))
+    if detected_type not in {
+        CorpusType.PAIRED_RAW_ZH_EN,
+        CorpusType.PAIRED_TAGGED_ZH_EN,
+    }:
+        return [record]
+    pair_id = str(record.get("probable_pair_id", "")).strip()
+    if not pair_id:
+        raise ValueError("Paired manifest record has no probable_pair_id.")
+    paired = [
+        item
+        for item in records
+        if isinstance(item, dict)
+        and str(item.get("probable_pair_id", "")) == pair_id
+        and str(item.get("detected_type", "")) == detected_type
+    ]
+    languages = {str(item.get("detected_language", "")) for item in paired}
+    if len(paired) != 2 or languages != {CorpusLanguage.ZH, CorpusLanguage.EN}:
+        raise ValueError(
+            f"Manifest pair {pair_id} must contain exactly one zh and one en record."
+        )
+    return sorted(paired, key=lambda item: str(item.get("detected_language", "")), reverse=True)
+
+
+def _manifest_registration_id(records: list[dict[str, Any]]) -> str:
+    if len(records) == 1:
+        return str(records[0].get("file_id", ""))
+    source = "\x1f".join(sorted(str(item.get("file_id", "")) for item in records))
+    return f"pair-{hashlib.sha256(source.encode('utf-8')).hexdigest()[:59]}"
+
+
+def _validate_manifest_records(records: list[dict[str, Any]]) -> None:
+    quarantined = [
+        str(item.get("filename") or item.get("original_path") or "unknown")
+        for item in records
+        if str(item.get("status", "")) == "quarantined"
+    ]
+    if quarantined:
+        raise ValueError("不能登记已隔离的源文件：" + ", ".join(quarantined))
 
 
 def _non_negative_int(value: Any) -> int:

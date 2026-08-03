@@ -111,6 +111,66 @@ class KwicSearchForm(forms.Form):
         required=False,
         widget=forms.HiddenInput(),
     )
+    results_set = forms.ChoiceField(
+        label="Results Set",
+        choices=(("0", "全部命中"), ("25", "随机 25"), ("50", "随机 50"), ("100", "随机 100")),
+        initial="0",
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    sample_seed = forms.IntegerField(
+        label="随机种子",
+        min_value=0,
+        max_value=2_147_483_647,
+        initial=0,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    hide_keyword = forms.BooleanField(
+        label="隐藏检索项（教学）",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+    query_list = forms.CharField(
+        label="Search Query List",
+        max_length=10000,
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "每行一个备选查询"}),
+    )
+    context_queries = forms.CharField(
+        label="Context Query List",
+        max_length=10000,
+        required=False,
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "每行一个单 Token 语境词"}),
+    )
+    context_logic = forms.ChoiceField(
+        label="Context logic",
+        choices=(("or", "OR"), ("and", "AND")),
+        initial="or",
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    context_from = forms.IntegerField(
+        label="From（L 为负数）",
+        min_value=-10,
+        max_value=10,
+        initial=-5,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    context_to = forms.IntegerField(
+        label="To（R 为正数）",
+        min_value=-10,
+        max_value=10,
+        initial=5,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control"}),
+    )
+    exclude_context = forms.BooleanField(
+        label="Not in context",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
 
     def __init__(
         self,
@@ -157,6 +217,17 @@ class KwicSearchForm(forms.Form):
         cleaned = super().clean()
         query = cleaned.get("q", "")
         query_mode = cleaned.get("query_mode")
+        query_list = cleaned.get("query_list", ())
+        context_queries = cleaned.get("context_queries", ())
+        if (query_list or context_queries) and query_mode != "simple":
+            raise forms.ValidationError(
+                "查询词列表和语境搜索当前只能与普通 KWIC 模式组合使用。",
+                code="incompatible_advanced_search",
+            )
+        if not query and not query_list and self.is_bound:
+            self.add_error("q", "请提供主查询词或 Search Query List。")
+        if cleaned.get("context_from", -5) > cleaned.get("context_to", 5):
+            self.add_error("context_to", "语境窗口终点不能小于起点。")
         if query_mode == "cqp" and (
             cleaned.get("case_sensitive") or cleaned.get("regex")
         ):
@@ -208,3 +279,39 @@ class KwicSearchForm(forms.Form):
 
     def clean_page(self) -> int:
         return self.cleaned_data.get("page") or 1
+
+    def clean_results_set(self) -> int:
+        return int(self.cleaned_data.get("results_set") or 0)
+
+    def clean_sample_seed(self) -> int:
+        return self.cleaned_data.get("sample_seed") or 0
+
+    def clean_query_list(self) -> tuple[str, ...]:
+        return self._clean_query_lines("query_list")
+
+    def clean_context_queries(self) -> tuple[str, ...]:
+        return self._clean_query_lines("context_queries")
+
+    def clean_context_logic(self) -> str:
+        return self.cleaned_data.get("context_logic") or "or"
+
+    def clean_context_from(self) -> int:
+        value = self.cleaned_data.get("context_from")
+        return -5 if value is None else value
+
+    def clean_context_to(self) -> int:
+        value = self.cleaned_data.get("context_to")
+        return 5 if value is None else value
+
+    def _clean_query_lines(self, field_name: str) -> tuple[str, ...]:
+        value = self.cleaned_data.get(field_name, "")
+        lines = tuple(
+            dict.fromkeys(
+                normalized
+                for line in value.splitlines()
+                if (normalized := " ".join(line.split()))
+            )
+        )
+        if len(lines) > 100:
+            raise forms.ValidationError("列表最多包含 100 项。", code="too_many_queries")
+        return lines

@@ -1,0 +1,26 @@
+{% extends "layouts/dashboard_layout.html" %}
+{% block title %}Clusters - {{ corpus.name }}{% endblock %}
+{% block dashboard_content %}
+{% include "statistics/_header.html" %}
+<form method="get" class="filter-card">
+  {% if form.non_field_errors %}<div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>{% endif %}
+  <div class="row g-3 align-items-end">
+    <div class="col-lg-3"><label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>{{ form.q }}</div>
+    <div class="col-sm-6 col-lg-1"><label class="form-label" for="{{ form.language.id_for_label }}">{{ form.language.label }}</label>{{ form.language }}</div>
+    <div class="col-sm-6 col-lg-1"><label class="form-label" for="{{ form.cluster_size.id_for_label }}">{{ form.cluster_size.label }}</label>{{ form.cluster_size }}</div>
+    <div class="col-sm-6 col-lg-1"><label class="form-label" for="{{ form.query_position.id_for_label }}">{{ form.query_position.label }}</label>{{ form.query_position }}</div>
+    <div class="col-sm-6 col-lg-1"><label class="form-label" for="{{ form.min_frequency.id_for_label }}">{{ form.min_frequency.label }}</label>{{ form.min_frequency }}</div>
+    <div class="col-sm-6 col-lg-1"><label class="form-label" for="{{ form.min_range.id_for_label }}">{{ form.min_range.label }}</label>{{ form.min_range }}</div>
+    <div class="col-sm-6 col-lg-2"><label class="form-label" for="{{ form.sort_by.id_for_label }}">{{ form.sort_by.label }}</label>{{ form.sort_by }}<div class="form-check mt-2">{{ form.include_punctuation }} <label class="form-check-label" for="{{ form.include_punctuation.id_for_label }}">{{ form.include_punctuation.label }}</label></div></div>
+    <div class="col-sm-6 col-lg-1"><label class="form-label" for="{{ form.page_size.id_for_label }}">{{ form.page_size.label }}</label>{{ form.page_size }}</div>
+    <div class="col-sm-6 col-lg-1 d-grid"><button class="btn btn-primary" type="submit">生成</button></div>
+  </div>
+</form>
+{% if result %}
+  <div class="stats-summary"><span>Cluster Types <strong>{{ result.total_types }}</strong></span><span>Cluster Tokens <strong>{{ result.total_tokens }}</strong></span><span>Size <strong>{{ result.cluster_size }}</strong></span></div>
+  <div class="table-shell table-responsive"><table class="table table-hover"><thead><tr><th>Rank</th><th>Cluster</th><th class="text-end">Frequency</th><th class="text-end">Range</th><th class="text-end">Per million</th><th class="text-end">Transition P</th></tr></thead><tbody>
+  {% for row in result.rows %}<tr><td>{{ row.rank }}</td><td><a class="table-link" href="{% url 'search:kwic' corpus.pk %}?q={{ row.cluster|urlencode }}">{{ row.cluster }}</a></td><td class="text-end">{{ row.frequency }}</td><td class="text-end">{{ row.document_range }}</td><td class="text-end">{{ row.per_million|floatformat:3 }}</td><td class="text-end">{{ row.transition_probability|floatformat:4 }}</td></tr>{% empty %}<tr><td colspan="6" class="empty-state">没有达到条件的词簇。</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% include "statistics/_pagination.html" %}
+{% endif %}
+{% endblock %}

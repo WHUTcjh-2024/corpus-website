@@ -4,6 +4,7 @@
 </div>
 <nav class="nav tool-tabs" aria-label="统计分析工具">
   <a class="nav-link{% if request.resolver_match.url_name == 'word_list' %} active{% endif %}" href="{% url 'statistics:word_list' corpus.pk %}">Word List</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'clusters' %} active{% endif %}" href="{% url 'statistics:clusters' corpus.pk %}">Clusters</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'ngrams' %} active{% endif %}" href="{% url 'statistics:ngrams' corpus.pk %}">N-Gram</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'collocates' %} active{% endif %}" href="{% url 'statistics:collocates' corpus.pk %}">Collocates</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'keywords' %} active{% endif %}" href="{% url 'statistics:keywords' corpus.pk %}">Keywords</a>

@@ -72,6 +72,23 @@ class ParallelSearchForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
     )
+    filename_contains = forms.CharField(
+        label="来源文件包含",
+        max_length=200,
+        required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "作者、时期或文件名片段"}
+        ),
+    )
+    min_confidence = forms.DecimalField(
+        label="最低对齐置信度",
+        min_value=0,
+        max_value=1,
+        decimal_places=2,
+        initial=0,
+        required=False,
+        widget=forms.NumberInput(attrs={"class": "form-control", "step": "0.05"}),
+    )
     whole_words = forms.BooleanField(
         label="完整词匹配（优先使用源语料词界）",
         required=False,
@@ -160,6 +177,7 @@ class ParallelSearchForm(forms.Form):
             "en_contains",
             "zh_not_contains",
             "en_not_contains",
+            "filename_contains",
         ):
             cleaned[name] = normalize_condition(cleaned.get(name, ""))
         if not self.errors:
@@ -197,6 +215,8 @@ class ParallelSearchForm(forms.Form):
             en_contains=values.get("en_contains", ""),
             zh_not_contains=values.get("zh_not_contains", ""),
             en_not_contains=values.get("en_not_contains", ""),
+            filename_contains=values.get("filename_contains", ""),
+            min_confidence=float(values.get("min_confidence") or 0),
             alignment_unit=values.get("alignment_unit") or self.default_alignment_unit,
             whole_words=bool(values.get("whole_words", False)),
             case_sensitive=bool(values.get("case_sensitive", False)),

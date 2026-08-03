@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 
 import jieba
+import regex
 
 from apps.corpus_intake.classifiers import decode_text
 
@@ -12,8 +13,10 @@ from .contracts import SourceFile
 
 _ZH_SENTENCE_BOUNDARY = re.compile(r"(?<=[。！？!?])\s*")
 _EN_SENTENCE_BOUNDARY = re.compile(r"(?<=[.!?])(?:[\"'”’)]*)\s+")
-_ZH_SEARCHABLE = re.compile(r"[\u4e00-\u9fffA-Za-z0-9]")
-_EN_TOKEN = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?|\d+(?:\.\d+)?")
+_EN_TOKEN = regex.compile(
+    r"\p{L}+(?:['’\-]\p{L}+)*|\p{N}+(?:[.,]\p{N}+)*|[^\p{L}\p{N}\s]",
+    regex.VERSION1,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +68,7 @@ def token_matches(text: str, language: str):
     if language == "zh":
         for word, start, end in jieba.tokenize(text, mode="default"):
             compact = word.strip()
-            if compact and _ZH_SEARCHABLE.search(compact):
+            if compact:
                 yield TokenSpan(compact, start, end)
         return
     yield from _EN_TOKEN.finditer(text)

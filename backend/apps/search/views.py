@@ -27,7 +27,12 @@ def kwic_search(request: HttpRequest, corpus_id) -> HttpResponse:
     result = None
     index_repair = ensure_corpus_index_ready(corpus)
     search_error = index_repair.message if index_repair else ""
-    if not search_error and form.is_bound and form.is_valid() and form.cleaned_data["q"]:
+    if (
+        not search_error
+        and form.is_bound
+        and form.is_valid()
+        and (form.cleaned_data["q"] or form.cleaned_data["query_list"])
+    ):
         engine_class = (
             ComplexQueryEngine
             if form.cleaned_data["query_mode"] == "cqp"
@@ -48,9 +53,13 @@ def kwic_search(request: HttpRequest, corpus_id) -> HttpResponse:
                 ),
                 "sort_order": form.cleaned_data["sort_order"] or "value",
                 "pos": form.cleaned_data["pos"],
+                "sample_size": form.cleaned_data["results_set"],
+                "sample_seed": form.cleaned_data["sample_seed"],
             }
             if form.cleaned_data["query_mode"] == "cqp":
                 search_options["language"] = form.cleaned_data["language"]
+                search_options.pop("sample_size", None)
+                search_options.pop("sample_seed", None)
             else:
                 search_options.update(
                     {
@@ -61,7 +70,25 @@ def kwic_search(request: HttpRequest, corpus_id) -> HttpResponse:
                         "full_regex": form.cleaned_data["query_mode"] == "full_regex",
                     }
                 )
-            result = engine.search(**search_options)
+            use_advanced = bool(
+                form.cleaned_data["query_list"] or form.cleaned_data["context_queries"]
+            )
+            if use_advanced:
+                search_options.pop("sort_by", None)
+                search_options.pop("full_regex", None)
+                search_options.update(
+                    {
+                        "query_list": form.cleaned_data["query_list"],
+                        "context_queries": form.cleaned_data["context_queries"],
+                        "context_logic": form.cleaned_data["context_logic"],
+                        "context_from": form.cleaned_data["context_from"],
+                        "context_to": form.cleaned_data["context_to"],
+                        "exclude_context": form.cleaned_data["exclude_context"],
+                    }
+                )
+                result = engine.search_advanced(**search_options)
+            else:
+                result = engine.search(**search_options)
             record_audit_event(
                 AuditEventType.KWIC_SEARCH,
                 request=request,
@@ -111,6 +138,51 @@ def kwic_search(request: HttpRequest, corpus_id) -> HttpResponse:
             "export_query_string": query_parameters.urlencode(),
         },
         status=202 if index_repair and index_repair.is_active else (409 if search_error else 200),
+    )
+
+
+@approved_user_required
+def file_view(request: HttpRequest, corpus_id, document_id: str) -> HttpResponse:
+    corpus = get_object_or_404(Corpus, pk=corpus_id)
+    if not visible_corpora_for(request.user).filter(pk=corpus.pk).exists():
+        return HttpResponseForbidden("无权查看该语料文件。")
+    language = request.GET.get("language", "")
+    query = request.GET.get("q", "")
+    whole_words = request.GET.get("whole_words", "1") != "0"
+    case_sensitive = request.GET.get("case_sensitive", "0") == "1"
+    regex = request.GET.get("regex", "0") == "1"
+    full_regex = request.GET.get("full_regex", "0") == "1"
+    row_value = request.GET.get("row", "")
+    try:
+        row_id = int(row_value) if row_value else None
+        if row_id is not None and row_id < 1:
+            raise ValueError
+    except ValueError:
+        return HttpResponse("无效的 Row ID。", status=400)
+    engine = KwicSearchEngine(data_root=settings.DATA_ROOT, corpus_id=str(corpus.pk))
+    try:
+        result = engine.file_view(
+            document_id=document_id,
+            language=language,
+            row_id=row_id,
+            query=query,
+            whole_words=whole_words,
+            case_sensitive=case_sensitive,
+            regex=regex,
+            full_regex=full_regex,
+        )
+    except KwicQueryError as exc:
+        return HttpResponse(str(exc), status=404)
+    except (KwicIndexUnavailable, KwicIndexCorrupt):
+        repair = ensure_corpus_index_ready(corpus, force=True)
+        return HttpResponse(
+            repair.message if repair else "File View 索引暂时不可用。",
+            status=202 if repair and repair.is_active else 409,
+        )
+    return render(
+        request,
+        "search/file_view.html",
+        {"corpus": corpus, "result": result},
     )
 
 

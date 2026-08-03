@@ -7,4 +7,9 @@ app_name = "search"
 
 urlpatterns = [
     path("<uuid:corpus_id>/kwic/", views.kwic_search, name="kwic"),
+    path(
+        "<uuid:corpus_id>/file/<str:document_id>/",
+        views.file_view,
+        name="file_view",
+    ),
 ]

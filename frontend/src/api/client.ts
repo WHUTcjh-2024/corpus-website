@@ -1,4 +1,4 @@
-import type { SessionPayload } from "./types";
+import type { PublicCorpusOverview, SessionPayload } from "./types";
 
 async function requestJson<T>(path: string): Promise<T> {
   const response = await fetch(path, {
@@ -15,4 +15,8 @@ async function requestJson<T>(path: string): Promise<T> {
 
 export function fetchSession() {
   return requestJson<SessionPayload>("/api/session/");
+}
+
+export function fetchPublicCorpusOverview() {
+  return requestJson<PublicCorpusOverview>("/api/public-corpora/");
 }

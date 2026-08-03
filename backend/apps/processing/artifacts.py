@@ -39,7 +39,7 @@ class ArtifactWriter:
         self.index_output = self.data_root / "indexes" / corpus_id
         self._handles: dict[str, TextIO] = {}
         self._sqlite: sqlite3.Connection | None = None
-        self._frequency: Counter[str] = Counter()
+        self._frequency: Counter[tuple[str, str]] = Counter()
         self._global_position = 0
         self._stream_positions: defaultdict[tuple[str, str], int] = defaultdict(int)
         self._token_document_offsets: dict[str, tuple[int, int]] = {}
@@ -244,7 +244,7 @@ class ArtifactWriter:
         documentation = {
             "schema_version": SCHEMA_VERSION,
             **self.counts,
-            "segmentation_tool": "regex-baseline-v1",
+            "segmentation_tool": _segmentation_tool(importer_name),
             "importer": importer_name,
         }
         report = {
@@ -278,7 +278,7 @@ class ArtifactWriter:
         self._global_position += 1
         stream_key = (token.document_id, token.language)
         self._stream_positions[stream_key] += 1
-        self._frequency[token.normalized] += 1
+        self._frequency[(token.language, token.normalized)] += 1
         if self._sqlite is None:
             raise RuntimeError("ArtifactWriter is not open.")
         self._sqlite.execute(
@@ -518,8 +518,11 @@ class ArtifactWriter:
 
     def _write_index_artifacts(self) -> None:
         frequency = [
-            {"token": token, "frequency": count}
-            for token, count in sorted(self._frequency.items(), key=lambda item: (-item[1], item[0]))
+            {"language": language, "token": token, "frequency": count}
+            for (language, token), count in sorted(
+                self._frequency.items(),
+                key=lambda item: (-item[1], item[0][0], item[0][1]),
+            )
         ]
         self._write_json(
             self.index_staging / "token_position_index",
@@ -642,3 +645,9 @@ def _is_punctuation(value: str) -> bool:
     return bool(value) and all(
         unicodedata.category(character).startswith(("P", "S")) for character in value
     )
+
+
+def _segmentation_tool(importer_name: str) -> str:
+    if "tagged" in importer_name:
+        return "source-provided-pos-v1"
+    return "zh:jieba-0.42.1;en:unicode-regex-v1"

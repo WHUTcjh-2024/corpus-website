@@ -30,7 +30,7 @@ services:
   web:
     build:
       context: ./backend
-    command: sh -c "python manage.py ensure_test_account && python manage.py runserver 0.0.0.0:8000"
+    command: sh -c "python manage.py migrate --noinput && python manage.py ensure_test_account && python manage.py runserver 0.0.0.0:8000"
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "2.2"
 RECORD_NAMESPACE = uuid.UUID("f304f9dd-a234-4d25-9e56-4eea2aeb6028")
 
 
@@ -24,6 +24,7 @@ class SourceFile:
     language: str
     encoding: str = ""
     size_bytes: int = 0
+    actual_type: str = ""
 
 
 @dataclass(frozen=True, slots=True)

@@ -155,10 +155,12 @@ def _bare_filters(value: str, language: str) -> list[TokenFilter]:
 
 
 def _bracket_filter(value: str) -> TokenFilter:
+    if re.fullmatch(r"\[\s*\]", value):
+        return TokenFilter(QueryAttribute.WORD, MatchOperator.ANY, "")
     match = _BRACKET_PATTERN.fullmatch(value)
     if not match:
         raise QuerySyntaxError(
-            '属性条件格式应为 [word="value"]、[lemma="value"] 或 [pos="value"]。'
+            '属性条件格式应为 []、[word="value"]、[lemma="value"] 或 [pos="value"]。'
         )
     attribute = QueryAttribute(match.group(1).lower())
     raw_value = match.group(2).strip()

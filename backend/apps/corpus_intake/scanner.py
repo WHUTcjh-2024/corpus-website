@@ -113,6 +113,11 @@ def _to_record(root: Path, path: Path, classification: ClassificationResult) -> 
         title_guess=classification.title_guess,
         date_guess=classification.date_guess,
         notes=";".join(classification.notes),
+        status=(
+            "quarantined"
+            if classification.detected_type == "unknown" or path.stat().st_size == 0
+            else "pending_review"
+        ),
     )
 
 

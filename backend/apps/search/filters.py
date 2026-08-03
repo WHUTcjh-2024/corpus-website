@@ -13,6 +13,7 @@ class QueryAttribute(StrEnum):
 
 
 class MatchOperator(StrEnum):
+    ANY = "any"
     EXACT = "exact"
     WILDCARD = "wildcard"
     STARTS_WITH = "starts_with"
@@ -27,6 +28,8 @@ class TokenFilter:
     value: str
 
     def describe(self) -> str:
+        if self.operator == MatchOperator.ANY:
+            return "any-token"
         if self.operator == MatchOperator.EXACT:
             return f'{self.attribute}="{self.value}"'
         return f"{self.attribute}.{self.operator}({self.value})"
@@ -39,6 +42,8 @@ def compile_token_filter(
     language: str,
 ) -> tuple[str, list[str]]:
     """Compile one validated filter into parameterized SQLite SQL."""
+    if token_filter.operator == MatchOperator.ANY:
+        return "1 = 1", []
     expression = _attribute_expression(token_filter.attribute, alias, language)
     value = _normalized_value(token_filter, language)
     if token_filter.operator == MatchOperator.EXACT:

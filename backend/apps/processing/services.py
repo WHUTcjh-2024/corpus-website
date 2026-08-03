@@ -15,7 +15,9 @@ from apps.corpora.models import (
     CorpusFileStatus,
     CorpusSourceType,
     CorpusStatus,
+    CorpusType,
 )
+from apps.corpus_intake.classifiers import classify_path
 
 from .artifacts import ArtifactWriter
 from .contracts import SourceFile
@@ -209,6 +211,14 @@ def _to_source_file(corpus: Corpus, corpus_file: CorpusFile) -> SourceFile:
         raise ProcessingError(f"Source file does not exist: {path}")
     if path.suffix.lower() not in {".txt", ".tsv"}:
         raise ProcessingError(f"Unsupported source suffix: {path.suffix}")
+    classification = classify_path(path)
+    _validate_source_classification(
+        corpus_type=corpus.corpus_type,
+        filename=corpus_file.original_filename,
+        declared_language=corpus_file.language,
+        actual_type=classification.detected_type,
+        actual_language=classification.detected_language,
+    )
     return SourceFile(
         id=str(corpus_file.pk),
         filename=corpus_file.original_filename,
@@ -217,6 +227,7 @@ def _to_source_file(corpus: Corpus, corpus_file: CorpusFile) -> SourceFile:
         language=corpus_file.language,
         encoding=corpus_file.encoding,
         size_bytes=corpus_file.size_bytes,
+        actual_type=classification.detected_type,
     )
 
 
@@ -238,6 +249,7 @@ def _source_metadata(corpus_file: CorpusFile, source: SourceFile) -> dict[str, A
         "corpus_file_id": str(corpus_file.pk),
         "filename": source.filename,
         "detected_type": source.detected_type,
+        "actual_type": source.actual_type,
         "language": source.language,
         "encoding": source.encoding,
         "size_bytes": source.path.stat().st_size,
@@ -259,7 +271,44 @@ def _segmentation_tool(importer_name: str, language: str) -> str:
             return "zh:source-provided-pos-v1;en:source-provided-pos-v1"
         return f"{language}:source-provided-pos-v1"
     if language == "zh_en":
-        return "zh:jieba-0.42.1;en:regex-baseline-v1"
+        return "zh:jieba-0.42.1;en:unicode-regex-v1"
     if language == "zh":
         return "zh:jieba-0.42.1"
-    return "en:regex-baseline-v1"
+    return "en:unicode-regex-v1"
+
+
+_EXPECTED_ACTUAL_TYPES: dict[str, set[str]] = {
+    CorpusType.RAW_ZH: {"raw_zh"},
+    CorpusType.RAW_EN: {"raw_en"},
+    CorpusType.ALIGNED_TSV: {"aligned_tsv"},
+    CorpusType.PAIRED_RAW_ZH_EN: {"raw_zh", "raw_en"},
+    CorpusType.PAIRED_TAGGED_ZH_EN: {"tagged_zh", "tagged_en", "xml_like"},
+    CorpusType.TAGGED_ZH: {"tagged_zh"},
+    CorpusType.TAGGED_EN: {"tagged_en"},
+    CorpusType.XML_LIKE: {"xml_like"},
+}
+
+
+def _validate_source_classification(
+    *,
+    corpus_type: str,
+    filename: str,
+    declared_language: str,
+    actual_type: str,
+    actual_language: str,
+) -> None:
+    expected = _EXPECTED_ACTUAL_TYPES.get(corpus_type)
+    if expected is None:
+        raise ProcessingError(f"不支持的语料类型：{corpus_type}")
+    if actual_type not in expected:
+        expected_display = ", ".join(sorted(expected))
+        raise ProcessingError(
+            f"文件格式与语料类型不一致：{filename} 实际检测为 {actual_type}，"
+            f"{corpus_type} 只接受 {expected_display}。请修正分类后重新加工。"
+        )
+    if declared_language in {"zh", "en"} and actual_language in {"zh", "en"}:
+        if declared_language != actual_language:
+            raise ProcessingError(
+                f"文件语言与登记信息不一致：{filename} 登记为 {declared_language}，"
+                f"实际检测为 {actual_language}。"
+            )
