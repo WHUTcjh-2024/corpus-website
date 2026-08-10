@@ -11,6 +11,7 @@ data/manifests/*
 
 # Generated artifacts
 *.docx
+!docs/在线语料库平台_模块化开发文档与Codex引导词.docx
 artifacts/
 backend/runserver.*.log
 backend/backend-startup.log
@@ -22,6 +23,9 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 .venv/
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Local environments and secrets
 .env
