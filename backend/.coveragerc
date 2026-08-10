@@ -1,0 +1,14 @@
+[run]
+branch = True
+source = apps
+omit =
+    apps/*/migrations/*
+    apps/*/tests/*
+
+[report]
+exclude_also =
+    if TYPE_CHECKING:
+    raise NotImplementedError
+show_missing = True
+skip_empty = True
+fail_under = 50

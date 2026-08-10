@@ -1,9 +1,25 @@
-import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
 
 export default defineConfig(({ command }) => ({
   base: command === "build" ? "/static/frontend/" : "/",
   plugins: [react()],
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json-summary"],
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: ["src/main.tsx", "src/api/types.ts", "src/test/**", "src/**/*.test.{ts,tsx}"],
+      thresholds: {
+        branches: 70,
+        functions: 80,
+        lines: 80,
+        statements: 80,
+      },
+    },
+  },
   build: {
     outDir: "../backend/static/frontend",
     emptyOutDir: true,
