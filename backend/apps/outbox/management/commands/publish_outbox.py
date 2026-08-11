@@ -32,11 +32,16 @@ class Command(BaseCommand):
         while True:
             try:
                 summary = publish_pending_events(limit=options["limit"])
-                if summary.published or summary.retry_scheduled:
+                if (
+                    summary.published
+                    or summary.retry_scheduled
+                    or summary.dead_lettered
+                ):
                     self.stdout.write(
-                        "published={published} retry_scheduled={retry_scheduled} skipped={skipped}".format(
+                        "published={published} retry_scheduled={retry_scheduled} dead_lettered={dead_lettered} skipped={skipped}".format(
                             published=summary.published,
                             retry_scheduled=summary.retry_scheduled,
+                            dead_lettered=summary.dead_lettered,
                             skipped=summary.skipped,
                         )
                     )

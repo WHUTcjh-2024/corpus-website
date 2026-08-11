@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from django.conf import settings
 from django.db import connection
-from django.http import HttpRequest, JsonResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
 from redis import Redis
+
+from apps.outbox.metrics import collect_outbox_metrics, render_prometheus_metrics
 
 
 def home(request: HttpRequest):
@@ -29,6 +31,17 @@ def readyz(request: HttpRequest) -> JsonResponse:
     }
     status_code = 200 if all(checks.values()) else 503
     return JsonResponse({"status": "ready" if status_code == 200 else "not_ready", "checks": checks}, status=status_code)
+
+
+def metrics(request: HttpRequest) -> HttpResponse:
+    """Expose operational metrics only to a configured metrics collector."""
+    token = settings.METRICS_BEARER_TOKEN
+    if not token or request.headers.get("Authorization") != f"Bearer {token}":
+        return HttpResponseNotFound()
+    return HttpResponse(
+        render_prometheus_metrics(collect_outbox_metrics()),
+        content_type="text/plain; version=0.0.4; charset=utf-8",
+    )
 
 
 def _database_ready() -> bool:

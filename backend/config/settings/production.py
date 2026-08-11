@@ -18,6 +18,9 @@ if UPLOAD_SCANNER_BACKEND == "apps.corpora.scanners.DisabledUploadScanner":  # n
         "UPLOAD_SCANNER_BACKEND must use an active malware scanner in production."
     )
 
+if not METRICS_BEARER_TOKEN:  # noqa: F405
+    raise ImproperlyConfigured("METRICS_BEARER_TOKEN must be set in production.")
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)  # noqa: F405
 SESSION_COOKIE_SECURE = True

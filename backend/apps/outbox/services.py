@@ -27,6 +27,7 @@ class PublishResult:
 class PublishSummary:
     published: int = 0
     retry_scheduled: int = 0
+    dead_lettered: int = 0
     skipped: int = 0
 
 
@@ -35,6 +36,12 @@ class ClaimedEvent:
     id: str
     task_name: str
     payload: dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class ReplaySummary:
+    replayed: int = 0
+    skipped: int = 0
 
 
 def enqueue_task(
@@ -76,18 +83,21 @@ def publish_pending_events(*, limit: int = 100) -> PublishSummary:
         .order_by("available_at", "created_at")
         .values_list("pk", flat=True)[:limit]
     )
-    published = retry_scheduled = skipped = 0
+    published = retry_scheduled = dead_lettered = skipped = 0
     for event_id in event_ids:
         result = publish_event(event_id)
         if result.outcome == "published":
             published += 1
         elif result.outcome == "retry_scheduled":
             retry_scheduled += 1
+        elif result.outcome == "dead_lettered":
+            dead_lettered += 1
         else:
             skipped += 1
     return PublishSummary(
         published=published,
         retry_scheduled=retry_scheduled,
+        dead_lettered=dead_lettered,
         skipped=skipped,
     )
 
@@ -100,6 +110,23 @@ def purge_published_events() -> int:
         published_at__lt=cutoff,
     ).delete()
     return deleted
+
+
+def replay_dead_letter_events(*, event_ids=None, limit: int = 100) -> ReplaySummary:
+    """Return selected dead-letter events to the durable pending queue."""
+    if limit < 1:
+        return ReplaySummary()
+
+    queryset = OutboxEvent.objects.filter(status=OutboxEventStatus.DEAD_LETTER)
+    if event_ids is not None:
+        queryset = queryset.filter(pk__in=event_ids)
+    selected_event_ids = list(
+        queryset.order_by("dead_lettered_at", "created_at").values_list("pk", flat=True)[:limit]
+    )
+    replayed = sum(
+        1 for event_id in selected_event_ids if _requeue_dead_letter(event_id)
+    )
+    return ReplaySummary(replayed=replayed, skipped=len(selected_event_ids) - replayed)
 
 
 def publish_event(event_id) -> PublishResult:
@@ -117,9 +144,9 @@ def publish_event(event_id) -> PublishResult:
             task_id=claimed.id,
         )
     except Exception as exc:  # Broker and network errors must remain recoverable.
-        _release_for_retry(event_id, str(exc))
+        outcome = _release_for_retry(event_id, str(exc))
         logger.warning("Outbox event %s publish failed: %s", event_id, exc)
-        return PublishResult(event_id=str(event_id), outcome="retry_scheduled")
+        return PublishResult(event_id=str(event_id), outcome=outcome)
 
     _mark_published(event_id)
     return PublishResult(event_id=str(event_id), outcome="published")
@@ -158,14 +185,34 @@ def _claim_event(event_id) -> ClaimedEvent | None:
 
 
 @transaction.atomic
-def _release_for_retry(event_id, message: str) -> None:
+def _release_for_retry(event_id, message: str) -> str:
     event = OutboxEvent.objects.select_for_update().get(pk=event_id)
     if event.status != OutboxEventStatus.PUBLISHING:
-        return
-    event.status = OutboxEventStatus.PENDING
-    event.available_at = timezone.now() + timedelta(seconds=_retry_delay(event.attempt_count))
+        return "skipped"
+    now = timezone.now()
     event.locked_until = None
     event.last_error = message[:4000]
+    if event.attempt_count >= settings.OUTBOX_MAX_ATTEMPTS:
+        event.status = OutboxEventStatus.DEAD_LETTER
+        event.dead_lettered_at = now
+        event.save(
+            update_fields=[
+                "status",
+                "locked_until",
+                "last_error",
+                "dead_lettered_at",
+                "updated_at",
+            ]
+        )
+        logger.error(
+            "Outbox event %s moved to dead letter after %s attempts",
+            event_id,
+            event.attempt_count,
+        )
+        return "dead_lettered"
+
+    event.status = OutboxEventStatus.PENDING
+    event.available_at = now + timedelta(seconds=_retry_delay(event.attempt_count))
     event.save(
         update_fields=[
             "status",
@@ -175,6 +222,7 @@ def _release_for_retry(event_id, message: str) -> None:
             "updated_at",
         ]
     )
+    return "retry_scheduled"
 
 
 @transaction.atomic
@@ -196,6 +244,32 @@ def _mark_published(event_id) -> None:
             "updated_at",
         ]
     )
+
+
+@transaction.atomic
+def _requeue_dead_letter(event_id) -> bool:
+    event = OutboxEvent.objects.select_for_update().filter(pk=event_id).first()
+    if event is None or event.status != OutboxEventStatus.DEAD_LETTER:
+        return False
+
+    event.status = OutboxEventStatus.PENDING
+    event.available_at = timezone.now()
+    event.locked_until = None
+    event.last_error = ""
+    event.dead_lettered_at = None
+    event.replay_count += 1
+    event.save(
+        update_fields=[
+            "status",
+            "available_at",
+            "locked_until",
+            "last_error",
+            "dead_lettered_at",
+            "replay_count",
+            "updated_at",
+        ]
+    )
+    return True
 
 
 def _dispatchable(now) -> Q:

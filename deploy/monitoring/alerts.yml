@@ -1,0 +1,24 @@
+groups:
+  - name: corpus-platform-outbox
+    rules:
+      - alert: CorpusOutboxDeadLettered
+        expr: corpus_outbox_events{status="dead_letter"} > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Dead-letter outbox events require investigation.
+      - alert: CorpusOutboxPublishDelay
+        expr: corpus_outbox_oldest_pending_age_seconds > 300
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: The oldest pending outbox event is delayed by more than five minutes.
+      - alert: CorpusOutboxBacklogGrowing
+        expr: deriv(corpus_outbox_events{status="pending"}[15m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: The pending outbox backlog is growing.

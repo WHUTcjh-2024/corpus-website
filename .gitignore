@@ -32,6 +32,8 @@ coverage/
 .env
 .env.local
 .env.prod
+deploy/secrets/*
+!deploy/secrets/.gitkeep
 
 # Editor / OS
 .DS_Store

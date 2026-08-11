@@ -11,6 +11,9 @@ class OutboxEventStatus(models.TextChoices):
     PUBLISHED = "published", "已投递"
 
 
+    DEAD_LETTER = "dead_letter", "Dead letter"
+
+
 class OutboxTaskName(models.TextChoices):
     PROCESS_CORPUS = "processing.process_corpus", "加工语料"
     BUILD_EXPORT = "exports.build_export", "生成导出"
@@ -38,6 +41,9 @@ class OutboxEvent(models.Model):
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
+    dead_lettered_at = models.DateTimeField(null=True, blank=True)
+    replay_count = models.PositiveIntegerField(default=0)
+
     class Meta:
         ordering = ["available_at", "created_at"]
         verbose_name = "事务外盒事件"
@@ -46,6 +52,7 @@ class OutboxEvent(models.Model):
             models.Index(fields=["status", "available_at"], name="outbox_pending_idx"),
             models.Index(fields=["status", "locked_until"], name="outbox_lease_idx"),
             models.Index(fields=["status", "published_at"], name="outbox_cleanup_idx"),
+            models.Index(fields=["status", "dead_lettered_at"], name="outbox_dead_letter_idx"),
         ]
 
     def __str__(self) -> str:
