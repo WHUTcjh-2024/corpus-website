@@ -16,6 +16,7 @@ from apps.corpora.models import (
 from apps.exports.models import ExportJob, ExportJobStatus, ExportKind
 from apps.exports.services import RetryableExportError, create_export_job
 from apps.exports.tasks import build_export_task
+from apps.outbox.models import OutboxEvent, OutboxTaskName
 
 
 class ExportWorkflowIntegrationTests(TestCase):
@@ -61,6 +62,13 @@ class ExportWorkflowIntegrationTests(TestCase):
 
         self.assertEqual(first.pk, duplicate.pk)
         self.assertEqual(ExportJob.objects.count(), 1)
+        self.assertEqual(
+            OutboxEvent.objects.filter(
+                deduplication_key=f"export:{first.pk}",
+                task_name=OutboxTaskName.BUILD_EXPORT,
+            ).count(),
+            1,
+        )
 
         with self.assertRaises(ValidationError):
             create_export_job(

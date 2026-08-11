@@ -68,6 +68,25 @@ services:
       - ./data:/app/data
     restart: unless-stopped
 
+  outbox:
+    build:
+      context: ./backend
+    command: python manage.py publish_outbox --loop --interval ${OUTBOX_PUBLISH_INTERVAL_SECONDS:-5} --cleanup-interval ${OUTBOX_CLEANUP_INTERVAL_SECONDS:-3600}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
+      DATA_ROOT: ${DATA_ROOT:-/app/data}
+      UPLOAD_SCANNER_BACKEND: ${UPLOAD_SCANNER_BACKEND:?UPLOAD_SCANNER_BACKEND is required}
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
   nginx:
     image: nginx:1.27-alpine
     depends_on:

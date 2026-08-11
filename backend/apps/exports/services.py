@@ -25,6 +25,8 @@ from apps.corpora.models import (
     CorpusStatus,
     CorpusType,
 )
+from apps.outbox.models import OutboxTaskName
+from apps.outbox.services import enqueue_task, publish_event_after_commit
 from apps.parallel.engine import ParallelQuery, ParallelSearchEngine
 from apps.parallel.forms import ParallelSearchForm
 from apps.search.forms import KwicSearchForm
@@ -99,6 +101,13 @@ def create_export_job(
     except IntegrityError as exc:
         raise ValidationError("当前账号已有等待或执行中的导出任务。") from exc
 
+    enqueue_task(
+        task_name=OutboxTaskName.BUILD_EXPORT,
+        aggregate_id=job.pk,
+        payload={"job_id": str(job.pk)},
+        deduplication_key=f"export:{job.pk}",
+    )
+
     record_audit_event(
         AuditEventType.EXPORT_CREATED,
         request=request,
@@ -110,13 +119,15 @@ def create_export_job(
 
 
 def dispatch_export_job(job: ExportJob):
-    from .tasks import build_export_task
-
-    try:
-        return build_export_task.delay(str(job.pk))
-    except Exception as exc:
-        _mark_failed(job.pk, f"Celery dispatch failed: {exc}")
-        raise ExportError(f"Celery dispatch failed: {exc}") from exc
+    """Attempt prompt delivery; a failed publish remains durable in the outbox."""
+    # Backfill durable events for jobs that existed before the outbox rollout.
+    event = enqueue_task(
+        task_name=OutboxTaskName.BUILD_EXPORT,
+        aggregate_id=job.pk,
+        payload={"job_id": str(job.pk)},
+        deduplication_key=f"export:{job.pk}",
+    )
+    return publish_event_after_commit(event.pk)
 
 
 def process_export_job(job_id) -> dict[str, Any]:

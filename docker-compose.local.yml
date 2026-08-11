@@ -105,5 +105,23 @@ services:
       redis:
         condition: service_healthy
 
+  outbox:
+    build:
+      context: ./backend
+    command: python manage.py publish_outbox --loop --interval ${OUTBOX_PUBLISH_INTERVAL_SECONDS:-5} --cleanup-interval ${OUTBOX_CLEANUP_INTERVAL_SECONDS:-3600}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
+      DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:

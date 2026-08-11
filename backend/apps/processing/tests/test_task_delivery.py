@@ -18,8 +18,13 @@ from apps.corpora.models import (
 )
 from apps.processing.exceptions import RetryableProcessingError
 from apps.processing.models import ProcessingTask, ProcessingTaskStatus
-from apps.processing.services import process_task
+from apps.processing.services import (
+    create_processing_task,
+    dispatch_processing_task,
+    process_task,
+)
 from apps.processing.tasks import process_corpus_task
+from apps.outbox.models import OutboxEvent, OutboxEventStatus, OutboxTaskName
 
 
 class ProcessingTaskDeliveryIntegrationTests(TestCase):
@@ -117,3 +122,21 @@ class ProcessingTaskDeliveryIntegrationTests(TestCase):
         self.assertEqual(self.task.status, ProcessingTaskStatus.PENDING)
         self.assertEqual(self.task.progress, 0)
         self.assertEqual(self.corpus.status, CorpusStatus.PENDING_PROCESSING)
+
+    def test_broker_failure_does_not_fail_the_committed_processing_task(self):
+        self.task.delete()
+        task = create_processing_task(corpus=self.corpus, requested_by=self.user)
+        event = OutboxEvent.objects.get(deduplication_key=f"processing:{task.pk}")
+
+        with patch(
+            "apps.outbox.services.current_app.send_task",
+            side_effect=ConnectionError("broker down"),
+        ), self.captureOnCommitCallbacks(execute=True):
+            result = dispatch_processing_task(task)
+
+        self.assertEqual(result.outcome, "scheduled")
+        task.refresh_from_db()
+        event.refresh_from_db()
+        self.assertEqual(task.status, ProcessingTaskStatus.PENDING)
+        self.assertEqual(event.status, OutboxEventStatus.PENDING)
+        self.assertEqual(event.task_name, OutboxTaskName.PROCESS_CORPUS)

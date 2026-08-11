@@ -18,6 +18,8 @@ from apps.corpora.models import (
     CorpusType,
 )
 from apps.corpus_intake.classifiers import classify_path
+from apps.outbox.models import OutboxTaskName
+from apps.outbox.services import enqueue_task, publish_event_after_commit
 
 from .artifacts import ArtifactWriter
 from .contracts import SourceFile
@@ -49,17 +51,26 @@ def create_processing_task(*, corpus: Corpus, requested_by=None) -> ProcessingTa
     corpus.status = CorpusStatus.PENDING_PROCESSING
     corpus.stage = "queued"
     corpus.save(update_fields=["status", "stage", "updated_at"])
+    enqueue_task(
+        task_name=OutboxTaskName.PROCESS_CORPUS,
+        aggregate_id=task.pk,
+        payload={"task_id": str(task.pk)},
+        deduplication_key=f"processing:{task.pk}",
+    )
     return task
 
 
 def dispatch_processing_task(task: ProcessingTask):
-    from .tasks import process_corpus_task
-
-    try:
-        return process_corpus_task.delay(str(task.pk))
-    except Exception as exc:
-        _mark_failed(task.pk, task.corpus_id, f"Celery dispatch failed: {exc}")
-        raise ProcessingError(f"Celery dispatch failed: {exc}") from exc
+    """Attempt prompt delivery; the outbox publisher guarantees later recovery."""
+    # Also backfill a durable event for pending tasks created before the
+    # outbox migration, so deploying this change cannot strand old work.
+    event = enqueue_task(
+        task_name=OutboxTaskName.PROCESS_CORPUS,
+        aggregate_id=task.pk,
+        payload={"task_id": str(task.pk)},
+        deduplication_key=f"processing:{task.pk}",
+    )
+    return publish_event_after_commit(event.pk)
 
 
 def process_task(task_id) -> dict[str, Any]:

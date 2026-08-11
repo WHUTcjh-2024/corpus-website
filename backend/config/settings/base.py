@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     "apps.parallel",
     "apps.statistics",
     "apps.exports",
+    "apps.outbox",
     "apps.audit",
     "apps.feedback",
 ]
@@ -187,6 +188,15 @@ CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 30 * 60
+
+# The outbox publisher runs independently from Celery so a broker outage
+# cannot lose a task that has already committed to PostgreSQL.
+OUTBOX_LEASE_SECONDS = int(os.getenv("OUTBOX_LEASE_SECONDS", "30"))
+OUTBOX_RETRY_INITIAL_SECONDS = int(os.getenv("OUTBOX_RETRY_INITIAL_SECONDS", "5"))
+OUTBOX_RETRY_MAX_SECONDS = int(os.getenv("OUTBOX_RETRY_MAX_SECONDS", "300"))
+OUTBOX_PUBLISHED_RETENTION_DAYS = int(
+    os.getenv("OUTBOX_PUBLISHED_RETENTION_DAYS", "7")
+)
 
 LOGGING = {
     "version": 1,

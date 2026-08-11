@@ -18,7 +18,7 @@
    docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py validate_corpus_indexes
    ```
 
-Nginx 对外提供 HTTP；TLS 应在校级网关或独立反向代理终止，并传入 `X-Forwarded-Proto`。Web 启动时自动执行数据库迁移和静态文件收集。
+Nginx 对外提供 HTTP；TLS 应在校级网关或独立反向代理终止，并传入 `X-Forwarded-Proto`。Web 启动时自动执行数据库迁移和静态文件收集。`outbox` 服务独立扫描 PostgreSQL 中待投递的任务事件；即使 Celery Broker 临时不可用，已经提交的加工和导出任务也会在 Broker 恢复后补投。请保持该服务常驻，并监控其待投递数量、重试次数和最早事件等待时间。
 
 ## 备份
 
