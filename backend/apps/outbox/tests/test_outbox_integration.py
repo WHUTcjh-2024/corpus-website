@@ -1,10 +1,12 @@
 import os
 from datetime import timedelta
+from io import StringIO
 from unittest import skipUnless
 from unittest.mock import patch
 from uuid import uuid4
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.core.management import call_command
 from django.utils import timezone
 
 from apps.outbox.models import OutboxEvent, OutboxEventStatus, OutboxTaskName
@@ -13,6 +15,7 @@ from apps.outbox.services import (
     publish_event,
     publish_pending_events,
     purge_published_events,
+    replay_dead_letter_events,
 )
 
 
@@ -67,6 +70,51 @@ class OutboxIntegrationTests(TestCase):
         self.assertEqual(event.attempt_count, 1)
         self.assertGreater(event.available_at, timezone.now())
         self.assertEqual(event.last_error, "broker down")
+
+    @override_settings(OUTBOX_MAX_ATTEMPTS=1)
+    @patch("apps.outbox.services.current_app.send_task", side_effect=ConnectionError("broker down"))
+    def test_terminal_broker_failure_moves_event_to_dead_letter(self, _send_task):
+        event = self.create_event()
+
+        result = publish_event(event.pk)
+
+        self.assertEqual(result.outcome, "dead_lettered")
+        event.refresh_from_db()
+        self.assertEqual(event.status, OutboxEventStatus.DEAD_LETTER)
+        self.assertEqual(event.attempt_count, 1)
+        self.assertIsNotNone(event.dead_lettered_at)
+
+    def test_dead_letter_replay_returns_event_to_pending(self):
+        event = self.create_event()
+        OutboxEvent.objects.filter(pk=event.pk).update(
+            status=OutboxEventStatus.DEAD_LETTER,
+            dead_lettered_at=timezone.now(),
+            attempt_count=12,
+            last_error="broker unavailable",
+        )
+
+        summary = replay_dead_letter_events(event_ids=[event.pk])
+
+        self.assertEqual(summary.replayed, 1)
+        event.refresh_from_db()
+        self.assertEqual(event.status, OutboxEventStatus.PENDING)
+        self.assertEqual(event.replay_count, 1)
+        self.assertIsNone(event.dead_lettered_at)
+        self.assertEqual(event.last_error, "")
+
+    def test_replay_command_requires_and_replays_explicit_event_id(self):
+        event = self.create_event()
+        OutboxEvent.objects.filter(pk=event.pk).update(
+            status=OutboxEventStatus.DEAD_LETTER,
+            dead_lettered_at=timezone.now(),
+        )
+
+        output = StringIO()
+        call_command("replay_outbox", "--event-id", str(event.pk), stdout=output)
+
+        self.assertEqual(output.getvalue(), "replayed=1 skipped=0\n")
+        event.refresh_from_db()
+        self.assertEqual(event.status, OutboxEventStatus.PENDING)
 
     @patch("apps.outbox.services.current_app.send_task")
     def test_expired_publish_lease_is_recovered(self, send_task):

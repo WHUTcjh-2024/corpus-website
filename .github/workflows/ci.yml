@@ -65,8 +65,23 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Validate Django configuration
         run: python manage.py check
+      - name: Validate production security configuration
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.production
+          DJANGO_SECRET_KEY: ci-production-secret-9f4a8c2d7e1b6g3h5j0k4m8n2p6r
+          DJANGO_ALLOWED_HOSTS: ci.example.test
+          DJANGO_CSRF_TRUSTED_ORIGINS: https://ci.example.test
+          UPLOAD_SCANNER_BACKEND: apps.corpora.scanners.ClamAVUploadScanner
+          METRICS_BEARER_TOKEN: ci-metrics-token-9f4a8c2d7e1b6g3h5j0k4m8n
+        run: python manage.py check --deploy --fail-level WARNING
       - name: Check migration drift
         run: python manage.py makemigrations --check --dry-run
+      - name: Compile Python modules
+        run: python -m compileall -q apps config
+      - name: Lint Python
+        run: python -m ruff check .
+      - name: Audit Python dependencies
+        run: python -m pip_audit -r requirements.txt
       - name: Run tests with coverage
         run: python -m coverage run manage.py test -v 2
       - name: Enforce coverage threshold
@@ -94,3 +109,14 @@ jobs:
         run: npm run test:coverage
       - name: Build production assets
         run: npm run build
+
+  deployment:
+    name: Deployment configuration gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate local Compose configuration
+        run: docker compose --env-file .env.local.example -f docker-compose.local.yml config --quiet
+      - name: Validate production Compose configuration
+        run: docker compose --env-file .env.prod.example -f docker-compose.prod.yml config --quiet

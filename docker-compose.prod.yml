@@ -14,6 +14,13 @@ services:
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      CELERY_VISIBILITY_TIMEOUT_SECONDS: ${CELERY_VISIBILITY_TIMEOUT_SECONDS:-3600}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-12}
+      OUTBOX_LEASE_SECONDS: ${OUTBOX_LEASE_SECONDS:-30}
+      OUTBOX_RETRY_INITIAL_SECONDS: ${OUTBOX_RETRY_INITIAL_SECONDS:-5}
+      OUTBOX_RETRY_MAX_SECONDS: ${OUTBOX_RETRY_MAX_SECONDS:-300}
+      OUTBOX_PUBLISHED_RETENTION_DAYS: ${OUTBOX_PUBLISHED_RETENTION_DAYS:-7}
       DATA_ROOT: ${DATA_ROOT:-/app/data}
       USER_UPLOAD_MAX_FILE_BYTES: ${USER_UPLOAD_MAX_FILE_BYTES:-31457280}
       USER_UPLOAD_TOTAL_BYTES: ${USER_UPLOAD_TOTAL_BYTES:-31457280}
@@ -51,6 +58,8 @@ services:
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      CELERY_VISIBILITY_TIMEOUT_SECONDS: ${CELERY_VISIBILITY_TIMEOUT_SECONDS:-3600}
       DATA_ROOT: ${DATA_ROOT:-/app/data}
       USER_UPLOAD_MAX_FILE_BYTES: ${USER_UPLOAD_MAX_FILE_BYTES:-31457280}
       USER_UPLOAD_TOTAL_BYTES: ${USER_UPLOAD_TOTAL_BYTES:-31457280}
@@ -80,6 +89,13 @@ services:
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
+      METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
+      OUTBOX_MAX_ATTEMPTS: ${OUTBOX_MAX_ATTEMPTS:-12}
+      CELERY_VISIBILITY_TIMEOUT_SECONDS: ${CELERY_VISIBILITY_TIMEOUT_SECONDS:-3600}
+      OUTBOX_LEASE_SECONDS: ${OUTBOX_LEASE_SECONDS:-30}
+      OUTBOX_RETRY_INITIAL_SECONDS: ${OUTBOX_RETRY_INITIAL_SECONDS:-5}
+      OUTBOX_RETRY_MAX_SECONDS: ${OUTBOX_RETRY_MAX_SECONDS:-300}
+      OUTBOX_PUBLISHED_RETENTION_DAYS: ${OUTBOX_PUBLISHED_RETENTION_DAYS:-7}
       DATA_ROOT: ${DATA_ROOT:-/app/data}
       UPLOAD_SCANNER_BACKEND: ${UPLOAD_SCANNER_BACKEND:?UPLOAD_SCANNER_BACKEND is required}
     depends_on:
@@ -99,5 +115,24 @@ services:
       - static_files:/srv/static:ro
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    profiles: [monitoring]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ${METRICS_BEARER_TOKEN_FILE:?METRICS_BEARER_TOKEN_FILE is required}:/etc/prometheus/secrets/metrics_bearer_token:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      web:
+        condition: service_healthy
+    expose:
+      - "9090"
+    restart: unless-stopped
+
 volumes:
   static_files:
+  prometheus_data:

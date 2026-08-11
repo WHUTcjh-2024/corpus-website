@@ -23,7 +23,6 @@ from .contracts import (
     KwicMatch,
     KwicPage,
     KwicQueryError,
-    KwicSearchError,
     QueryToken,
 )
 

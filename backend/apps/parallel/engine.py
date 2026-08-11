@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import re
 import sqlite3
 from collections import Counter
 from contextlib import closing
@@ -14,9 +13,7 @@ from apps.processing.text import token_matches
 
 from .contracts import (
     ALIGNMENT_UNITS,
-    MAX_CONDITION_LENGTH,
     SEARCH_SIDES,
-    SORT_POSITIONS,
     HighlightFragment,
     ParallelHit,
     ParallelIndexCorrupt,
