@@ -98,7 +98,7 @@ def visible_corpora_for(user: Any) -> QuerySet[Corpus]:
         return queryset.filter(
             Q(source_type=CorpusSourceType.DEMO)
             | Q(source_type=CorpusSourceType.USER, owner=user)
-        ).distinct()
+        )
 
     profile = get_user_profile(user)
     allowed_levels = ROLE_ACCESS_LEVELS.get(profile.role if profile else "", [])
@@ -109,7 +109,7 @@ def visible_corpora_for(user: Any) -> QuerySet[Corpus]:
             access_level__in=allowed_levels,
         )
         | Q(source_type=CorpusSourceType.USER, owner=user)
-    ).distinct()
+    )
 
 
 def can_create_personal_corpus(user: Any) -> bool:

@@ -21,7 +21,11 @@ from apps.corpus_intake.classifiers import classify_path
 
 from .artifacts import ArtifactWriter
 from .contracts import SourceFile
-from .exceptions import ProcessingAlreadyQueued, ProcessingError
+from .exceptions import (
+    ProcessingAlreadyQueued,
+    ProcessingError,
+    RetryableProcessingError,
+)
 from .importers.registry import get_importer
 from .models import ProcessingTask, ProcessingTaskStatus
 
@@ -60,6 +64,8 @@ def dispatch_processing_task(task: ProcessingTask):
 
 def process_task(task_id) -> dict[str, Any]:
     task = _mark_running(task_id)
+    if task is None:
+        return {"task_id": str(task_id), "status": "skipped"}
     corpus = task.corpus
     writer = ArtifactWriter(
         data_root=settings.DATA_ROOT,
@@ -93,6 +99,10 @@ def process_task(task_id) -> dict[str, Any]:
         )
         _mark_success(task.pk, report, writer.processed_output)
         return report
+    except OSError as exc:
+        writer.abort()
+        _mark_pending_for_retry(task.pk, corpus.pk, str(exc))
+        raise RetryableProcessingError(str(exc)) from exc
     except Exception as exc:
         writer.abort()
         _mark_failed(task.pk, corpus.pk, str(exc))
@@ -102,14 +112,17 @@ def process_task(task_id) -> dict[str, Any]:
 
 
 @transaction.atomic
-def _mark_running(task_id) -> ProcessingTask:
+def _mark_running(task_id) -> ProcessingTask | None:
     task = (
         ProcessingTask.objects.select_for_update()
         .select_related("corpus")
         .get(pk=task_id)
     )
+    # Celery may redeliver a message after an acknowledgement timeout or a
+    # worker restart. Once another worker has claimed (or completed) the task,
+    # the duplicate delivery must be a harmless no-op rather than a failed job.
     if task.status != ProcessingTaskStatus.PENDING:
-        raise ProcessingError(f"Task must be pending, got: {task.status}")
+        return None
     task.status = ProcessingTaskStatus.RUNNING
     task.progress = 5
     task.error_message = ""
@@ -201,6 +214,37 @@ def _mark_failed(task_id, corpus_id, message: str) -> None:
     CorpusFile.objects.filter(corpus_id=corpus_id, status=CorpusFileStatus.PROCESSING).update(
         status=CorpusFileStatus.FAILED,
         error_message=error_message,
+        updated_at=timezone.now(),
+    )
+
+
+@transaction.atomic
+def mark_processing_retry_exhausted(task_id, message: str) -> None:
+    """Persist the terminal state after Celery has exhausted transient retries."""
+    task = ProcessingTask.objects.select_for_update().select_related("corpus").get(pk=task_id)
+    if task.status in {ProcessingTaskStatus.PENDING, ProcessingTaskStatus.RUNNING}:
+        _mark_failed(task.pk, task.corpus_id, message)
+
+
+@transaction.atomic
+def _mark_pending_for_retry(task_id, corpus_id, message: str) -> None:
+    """Release a failed attempt so the next Celery delivery can claim it safely."""
+    retry_message = f"Temporary processing failure; retrying: {message}"[:4000]
+    ProcessingTask.objects.filter(pk=task_id, status=ProcessingTaskStatus.RUNNING).update(
+        status=ProcessingTaskStatus.PENDING,
+        progress=0,
+        error_message=retry_message,
+        finished_at=None,
+        updated_at=timezone.now(),
+    )
+    Corpus.objects.filter(pk=corpus_id).update(
+        status=CorpusStatus.PENDING_PROCESSING,
+        stage="queued",
+        updated_at=timezone.now(),
+    )
+    CorpusFile.objects.filter(corpus_id=corpus_id, status=CorpusFileStatus.PROCESSING).update(
+        status=CorpusFileStatus.PENDING,
+        error_message=retry_message,
         updated_at=timezone.now(),
     )
 

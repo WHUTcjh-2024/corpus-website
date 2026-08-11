@@ -38,6 +38,10 @@ class ExportError(RuntimeError):
     pass
 
 
+class RetryableExportError(ExportError):
+    """Raised for transient filesystem failures that are safe to retry."""
+
+
 PARALLEL_TYPES = {
     CorpusType.ALIGNED_TSV,
     CorpusType.PAIRED_RAW_ZH_EN,
@@ -63,10 +67,19 @@ def create_export_job(
 
     now = timezone.now()
     _expire_due_jobs(ExportJob.objects.filter(requested_by=locked_user), now=now)
-    if ExportJob.objects.filter(
+    active_job = ExportJob.objects.filter(
         requested_by=locked_user,
         status__in=[ExportJobStatus.PENDING, ExportJobStatus.RUNNING],
-    ).exists():
+    ).first()
+    if active_job is not None:
+        if (
+            active_job.corpus_id == locked_corpus.pk
+            and active_job.kind == kind
+            and active_job.query == normalized_query
+        ):
+            # A browser retry or duplicate POST must resolve to the original
+            # job, not enqueue a second export or make the UI report an error.
+            return active_job
         raise ValidationError("当前账号已有等待或执行中的导出任务。")
     recent_count = ExportJob.objects.filter(
         requested_by=locked_user,
@@ -108,6 +121,8 @@ def dispatch_export_job(job: ExportJob):
 
 def process_export_job(job_id) -> dict[str, Any]:
     job = _mark_running(job_id)
+    if job is None:
+        return {"job_id": str(job_id), "status": "skipped"}
     output_root = (settings.DATA_ROOT / "exports").resolve()
     output_dir = (
         output_root / str(job.corpus_id) / str(job.requested_by_id)
@@ -115,11 +130,12 @@ def process_export_job(job_id) -> dict[str, Any]:
     if not output_dir.is_relative_to(output_root):
         _mark_failed(job.pk, "导出路径无效。")
         raise ExportError("导出路径无效。")
-    output_dir.mkdir(parents=True, exist_ok=True)
     final_path = (output_dir / f"{job.pk}-{job.kind}.tsv").resolve()
-    temporary_path = (output_dir / f".{uuid.uuid4().hex}.exporting").resolve()
+    temporary_path: Path | None = None
 
     try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        temporary_path = (output_dir / f".{uuid.uuid4().hex}.exporting").resolve()
         headers, rows = _export_rows(job)
         row_count = 0
         with temporary_path.open("x", encoding="utf-8-sig", newline="") as destination:
@@ -148,8 +164,14 @@ def process_export_job(job_id) -> dict[str, Any]:
             metadata={"job_id": str(job.pk), "kind": job.kind, "row_count": row_count},
         )
         return {"job_id": str(job.pk), "row_count": row_count, "path": str(final_path)}
+    except OSError as exc:
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
+        _mark_pending_for_retry(job.pk, str(exc))
+        raise RetryableExportError(str(exc)) from exc
     except Exception as exc:
-        temporary_path.unlink(missing_ok=True)
+        if temporary_path is not None:
+            temporary_path.unlink(missing_ok=True)
         final_path.unlink(missing_ok=True)
         _mark_failed(job.pk, str(exc))
         record_audit_event(
@@ -368,14 +390,16 @@ def _parallel_rows(job: ExportJob) -> Iterator[Sequence[object]]:
 
 
 @transaction.atomic
-def _mark_running(job_id) -> ExportJob:
+def _mark_running(job_id) -> ExportJob | None:
     job = (
         ExportJob.objects.select_for_update()
         .select_related("corpus", "requested_by")
         .get(pk=job_id)
     )
+    # Duplicate deliveries are expected with at-least-once brokers. The first
+    # worker owns the state transition; subsequent deliveries are no-ops.
     if job.status != ExportJobStatus.PENDING:
-        raise ExportError(f"Export job must be pending, got: {job.status}")
+        return None
     if job.expires_at <= timezone.now():
         _expire_job(job)
         raise ExportError("导出任务已过期。")
@@ -420,6 +444,26 @@ def _mark_failed(job_id, message: str) -> None:
     job.finished_at = timezone.now()
     job.save(
         update_fields=["status", "progress", "error_message", "finished_at", "updated_at"]
+    )
+
+
+@transaction.atomic
+def mark_export_retry_exhausted(job_id, message: str) -> None:
+    """Persist the final error after the Celery retry budget is exhausted."""
+    job = ExportJob.objects.select_for_update().get(pk=job_id)
+    if job.status in {ExportJobStatus.PENDING, ExportJobStatus.RUNNING}:
+        _mark_failed(job.pk, message)
+
+
+@transaction.atomic
+def _mark_pending_for_retry(job_id, message: str) -> None:
+    retry_message = f"Temporary export failure; retrying: {message}"[:4000]
+    ExportJob.objects.filter(pk=job_id, status=ExportJobStatus.RUNNING).update(
+        status=ExportJobStatus.PENDING,
+        progress=0,
+        error_message=retry_message,
+        finished_at=None,
+        updated_at=timezone.now(),
     )
 
 

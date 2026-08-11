@@ -45,7 +45,10 @@ def with_latest_tasks(queryset):
     return queryset.prefetch_related(
         Prefetch(
             "processing_tasks",
-            queryset=ProcessingTask.objects.order_by("-created_at"),
+            # Django translates this sliced prefetch to a window query on
+            # PostgreSQL, so a corpus with years of history still loads only
+            # its newest task instead of every task it has ever created.
+            queryset=ProcessingTask.objects.order_by("-created_at")[:1],
             to_attr="task_history",
         )
     )

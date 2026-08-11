@@ -39,7 +39,7 @@ def _with_latest_tasks(queryset):
     return queryset.prefetch_related(
         Prefetch(
             "processing_tasks",
-            queryset=ProcessingTask.objects.order_by("-created_at"),
+            queryset=ProcessingTask.objects.order_by("-created_at")[:1],
             to_attr="task_history",
         )
     )

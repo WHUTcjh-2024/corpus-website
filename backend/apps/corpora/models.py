@@ -125,6 +125,12 @@ class Corpus(models.Model):
         ordering = ["name", "created_at"]
         verbose_name = "语料库"
         verbose_name_plural = "语料库"
+        indexes = [
+            models.Index(
+                fields=["source_type", "status", "access_level"],
+                name="corpus_visibility_idx",
+            ),
+        ]
         constraints = [
             models.CheckConstraint(
                 condition=(
@@ -219,6 +225,9 @@ class CorpusFile(models.Model):
         ordering = ["created_at", "original_filename"]
         verbose_name = "语料文件"
         verbose_name_plural = "语料文件"
+        indexes = [
+            models.Index(fields=["corpus", "status"], name="corpus_file_status_idx"),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["corpus", "stored_path"],

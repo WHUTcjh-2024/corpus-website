@@ -66,6 +66,13 @@ class ProcessingTask(models.Model):
         ordering = ["-created_at"]
         verbose_name = "加工任务"
         verbose_name_plural = "加工任务"
+        indexes = [
+            models.Index(fields=["corpus", "-created_at"], name="processing_corpus_created_idx"),
+            models.Index(
+                fields=["requested_by", "status", "-created_at"],
+                name="processing_request_status_idx",
+            ),
+        ]
         constraints = [
             models.UniqueConstraint(
                 fields=["corpus"],
