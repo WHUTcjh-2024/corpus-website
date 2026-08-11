@@ -77,10 +77,10 @@ services:
       timeout: 5s
       retries: 12
 
-  worker:
+  processing-worker:
     build:
       context: ./backend
-    command: celery -A config worker --loglevel=info
+    command: celery -A config worker --loglevel=info --queues=processing,default --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
@@ -107,9 +107,40 @@ services:
       - ./backend:/app/backend
       - ./data:/app/data
     depends_on:
-      db:
+      web:
         condition: service_healthy
-      redis:
+
+  export-worker:
+    build:
+      context: ./backend
+    command: celery -A config worker --loglevel=info --queues=exports --hostname=exports@%h --concurrency=${EXPORT_WORKER_CONCURRENCY:-1}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
+      DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      DATA_ROOT: /app/data
+      USER_UPLOAD_MAX_FILE_BYTES: ${USER_UPLOAD_MAX_FILE_BYTES:-31457280}
+      USER_UPLOAD_TOTAL_BYTES: ${USER_UPLOAD_TOTAL_BYTES:-31457280}
+      TEST_UPLOAD_MAX_FILE_BYTES: ${TEST_UPLOAD_MAX_FILE_BYTES:-2097152}
+      TEST_UPLOAD_TOTAL_BYTES: ${TEST_UPLOAD_TOTAL_BYTES:-5242880}
+      UPLOAD_SCANNER_BACKEND: ${UPLOAD_SCANNER_BACKEND:-apps.corpora.scanners.DisabledUploadScanner}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_TIMEOUT_SECONDS: ${CLAMAV_TIMEOUT_SECONDS:-15}
+      EXPORT_TTL_SECONDS: ${EXPORT_TTL_SECONDS:-86400}
+      EXPORT_MAX_ROWS: ${EXPORT_MAX_ROWS:-100000}
+      EXPORT_MAX_DOWNLOADS: ${EXPORT_MAX_DOWNLOADS:-5}
+      EXPORT_MAX_JOBS_PER_HOUR: ${EXPORT_MAX_JOBS_PER_HOUR:-10}
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+    depends_on:
+      web:
         condition: service_healthy
 
   outbox:

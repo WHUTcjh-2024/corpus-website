@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
+from django.db.models.expressions import RawSQL
 
 from apps.corpora.models import Corpus
 
@@ -60,14 +61,22 @@ class ProcessingTask(models.Model):
     started_at = models.DateTimeField("开始时间", null=True, blank=True)
     finished_at = models.DateTimeField("结束时间", null=True, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
+    created_sequence = models.BigIntegerField(
+        db_default=RawSQL("nextval('processing_task_created_sequence_seq')", []),
+        editable=False,
+        unique=True,
+    )
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["-created_at", "-created_sequence"]
         verbose_name = "加工任务"
         verbose_name_plural = "加工任务"
         indexes = [
-            models.Index(fields=["corpus", "-created_at"], name="processing_corpus_created_idx"),
+            models.Index(
+                fields=["corpus", "-created_at", "-created_sequence"],
+                name="proc_corpus_created_seq_idx",
+            ),
             models.Index(
                 fields=["requested_by", "status", "-created_at"],
                 name="processing_request_status_idx",

@@ -20,6 +20,26 @@ Use `--all --limit 100` only after fixing a shared failure, such as a restored
 broker or corrected network policy. Replayed events return to `pending`; the
 publisher sends them on its next polling cycle.
 
+## Dedicated worker queues
+
+Corpus processing and export jobs are routed to separate Celery queues:
+`processing.process_corpus` to `processing`, and `exports.build_export` to
+`exports`. Production Compose runs a `processing-worker` and an
+`export-worker`; a long-running corpus import therefore cannot consume export
+capacity.
+
+Scale the workers independently according to their bottleneck. For example,
+increase parallel corpus processing while retaining one rate-limited exporter:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d \
+  --scale processing-worker=3 --scale export-worker=1
+```
+
+Use `PROCESSING_WORKER_CONCURRENCY` and `EXPORT_WORKER_CONCURRENCY` to bound
+parallelism within one replica. Keep export concurrency low unless storage and
+database load have been measured; exports can read many indexed rows at once.
+
 ## Metrics and alerting
 
 `GET /metrics` returns Prometheus text metrics only when the request includes

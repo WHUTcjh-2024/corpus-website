@@ -134,7 +134,11 @@ class CorpusSerializer(serializers.ModelSerializer):
 
     def get_latest_task(self, obj: Corpus) -> dict | None:
         task_history = getattr(obj, "task_history", None)
-        task = task_history[0] if task_history else obj.processing_tasks.order_by("-created_at").first()
+        task = (
+            task_history[0]
+            if task_history
+            else obj.processing_tasks.order_by("-created_at", "-created_sequence").first()
+        )
         return ProcessingTaskSerializer(task).data if task else None
 
 

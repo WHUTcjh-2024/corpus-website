@@ -4,6 +4,8 @@ import os
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
+from kombu import Queue
+
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 PROJECT_ROOT = BASE_DIR.parent
@@ -191,6 +193,16 @@ CELERY_TASK_TIME_LIMIT = 30 * 60
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_DEFAULT_QUEUE = "default"
+CELERY_TASK_QUEUES = (
+    Queue("default"),
+    Queue("processing"),
+    Queue("exports"),
+)
+CELERY_TASK_ROUTES = {
+    "processing.process_corpus": {"queue": "processing"},
+    "exports.build_export": {"queue": "exports"},
+}
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "visibility_timeout": int(os.getenv("CELERY_VISIBILITY_TIMEOUT_SECONDS", 60 * 60)),
 }

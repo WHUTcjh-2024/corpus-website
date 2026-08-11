@@ -47,8 +47,11 @@ def with_latest_tasks(queryset):
             "processing_tasks",
             # Django translates this sliced prefetch to a window query on
             # PostgreSQL, so a corpus with years of history still loads only
-            # its newest task instead of every task it has ever created.
-            queryset=ProcessingTask.objects.order_by("-created_at")[:1],
+            # its newest task instead of every task it has ever created. The
+            # database-generated sequence resolves timestamp ties consistently.
+            queryset=ProcessingTask.objects.order_by(
+                "-created_at", "-created_sequence"
+            )[:1],
             to_attr="task_history",
         )
     )
