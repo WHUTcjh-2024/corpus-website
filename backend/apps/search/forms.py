@@ -6,7 +6,7 @@ from .kwic import SORT_FIELDS, KwicQueryError, compile_query, validate_full_rege
 from .query_parser import QuerySyntaxError, parse_query
 
 
-LANGUAGE_LABELS = {"zh": "中文", "en": "English"}
+LANGUAGE_LABELS = {"zh": "中文", "en": "英文"}
 
 
 class KwicSearchForm(forms.Form):
@@ -92,16 +92,16 @@ class KwicSearchForm(forms.Form):
         label="匹配范围",
         required=False,
         initial="1",
-        choices=(("1", "整词（Words）"), ("0", "词内子串")),
+        choices=(("1", "整词匹配"), ("0", "词内子串")),
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     case_sensitive = forms.BooleanField(
-        label="区分大小写（Case）",
+        label="区分大小写",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     regex = forms.BooleanField(
-        label="逐 Token 正则（Regex）",
+        label="逐词元正则",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
@@ -112,7 +112,7 @@ class KwicSearchForm(forms.Form):
         widget=forms.HiddenInput(),
     )
     results_set = forms.ChoiceField(
-        label="Results Set",
+        label="结果集",
         choices=(("0", "全部命中"), ("25", "随机 25"), ("50", "随机 50"), ("100", "随机 100")),
         initial="0",
         required=False,
@@ -132,26 +132,26 @@ class KwicSearchForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     query_list = forms.CharField(
-        label="Search Query List",
+        label="检索词列表",
         max_length=10000,
         required=False,
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "每行一个备选查询"}),
     )
     context_queries = forms.CharField(
-        label="Context Query List",
+        label="语境词列表",
         max_length=10000,
         required=False,
-        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "每行一个单 Token 语境词"}),
+        widget=forms.Textarea(attrs={"class": "form-control", "rows": 3, "placeholder": "每行一个单词元语境词"}),
     )
     context_logic = forms.ChoiceField(
-        label="Context logic",
-        choices=(("or", "OR"), ("and", "AND")),
+        label="语境逻辑",
+        choices=(("or", "或"), ("and", "且")),
         initial="or",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     context_from = forms.IntegerField(
-        label="From（L 为负数）",
+        label="起始位置（L 为负数）",
         min_value=-10,
         max_value=10,
         initial=-5,
@@ -159,7 +159,7 @@ class KwicSearchForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
     context_to = forms.IntegerField(
-        label="To（R 为正数）",
+        label="结束位置（R 为正数）",
         min_value=-10,
         max_value=10,
         initial=5,
@@ -167,7 +167,7 @@ class KwicSearchForm(forms.Form):
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
     exclude_context = forms.BooleanField(
-        label="Not in context",
+        label="排除语境词",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
@@ -225,14 +225,14 @@ class KwicSearchForm(forms.Form):
                 code="incompatible_advanced_search",
             )
         if not query and not query_list and self.is_bound:
-            self.add_error("q", "请提供主查询词或 Search Query List。")
+            self.add_error("q", "请提供主查询词或检索词列表。")
         if cleaned.get("context_from", -5) > cleaned.get("context_to", 5):
             self.add_error("context_to", "语境窗口终点不能小于起点。")
         if query_mode == "cqp" and (
             cleaned.get("case_sensitive") or cleaned.get("regex")
         ):
             raise forms.ValidationError(
-                "CQP 子集使用表达式自身的匹配规则，请关闭 Case/Regex 开关。",
+                "CQP 子集使用表达式自身的匹配规则，请关闭大小写和正则开关。",
                 code="incompatible_options",
             )
         if query_mode == "full_regex":

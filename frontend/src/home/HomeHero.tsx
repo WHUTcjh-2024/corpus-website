@@ -16,14 +16,12 @@ export function HomeHero({ loginPanel }: HomeHeroProps) {
       />
       <div className="campus-hero__shade" aria-hidden="true" />
       <div className="campus-hero__content">
-        <p className="campus-hero__eyebrow">Corpus Research Workspace</p>
         <h1>智能语料检索与分析平台</h1>
         <p className="campus-hero__lead">探索语言 · 数据驱动 · 智慧研究</p>
 
         <section className="campus-hero-statement" aria-label="平台说明与登录">
           <div className="campus-hero-statement__top">
             <div className="campus-hero-statement__heading">
-              <span>Platform Statement</span>
               <h2>平台说明</h2>
             </div>
             <span className="campus-hero-statement__tag">NSFC · 22BYY022</span>

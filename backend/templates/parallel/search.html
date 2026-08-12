@@ -6,7 +6,6 @@
 {% include "components/breadcrumb.html" with current_label="平行语料检索" %}
 <div class="page-header">
   <div>
-    <p class="page-eyebrow">Parallel Concordance</p>
     <h1 class="page-title">{{ corpus.name }}</h1>
     <p class="page-description">中英双语对照检索，保留源语料顺序并显示对齐方法与置信度；适合译法比较、术语一致性和上下文复核。</p>
   </div>
@@ -25,7 +24,7 @@
       <label class="form-label" for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>
       <div class="query-input-shell">
         {{ form.q }}
-        <span class="kbd-hint">Ctrl Enter</span>
+        <span class="kbd-hint">Ctrl + Enter</span>
       </div>
       {{ form.q.errors }}
     </div>
@@ -45,7 +44,7 @@
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.en_not_contains.id_for_label }}">{{ form.en_not_contains.label }}</label>{{ form.en_not_contains }}</div>
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.filename_contains.id_for_label }}">{{ form.filename_contains.label }}</label>{{ form.filename_contains }}</div>
       <div class="col-md-6 col-xl-3"><label class="form-label" for="{{ form.min_confidence.id_for_label }}">{{ form.min_confidence.label }}</label>{{ form.min_confidence }}<div class="form-text">原始候选配对建议先用 0.65 抽检。</div></div>
-      <div class="col-12"><div class="query-tags"><span class="query-tag">全部包含条件使用 AND</span><span class="query-tag">排除条件使用 NOT</span></div></div>
+      <div class="col-12"><div class="query-tags"><span class="query-tag">全部包含条件取“且”</span><span class="query-tag">排除条件取“非”</span></div></div>
     </div>
   </details>
 
@@ -98,13 +97,13 @@
   </div>
 
   <div class="parallel-result">
-    <div class="row g-0 parallel-result__head"><div class="col-1 p-2 text-center">Pair</div><div class="col-11"><div class="row g-0"><div class="col-md-6 p-2 border-end border-secondary">中文原文</div><div class="col-md-6 p-2">English translation</div></div></div></div>
+    <div class="row g-0 parallel-result__head"><div class="col-1 p-2 text-center">序号</div><div class="col-11"><div class="row g-0"><div class="col-md-6 p-2 border-end border-secondary">中文原文</div><div class="col-md-6 p-2">英文译文</div></div></div></div>
     {% for hit in result.hits %}
       <article class="row g-0 parallel-pair-card">
-        <div class="col-1 p-2 text-center bg-light"><div class="fw-semibold">{{ hit.pair_ordinal }}</div><div class="table-meta">#{{ hit.global_position }}{% if hit.occurrence_ordinal > 1 %} · hit {{ hit.occurrence_ordinal }}{% endif %}</div></div>
+        <div class="col-1 p-2 text-center bg-light"><div class="fw-semibold">{{ hit.pair_ordinal }}</div><div class="table-meta">#{{ hit.global_position }}{% if hit.occurrence_ordinal > 1 %} · 第 {{ hit.occurrence_ordinal }} 次命中{% endif %}</div></div>
         <div class="col-11">
           <div class="parallel-result__meta">
-            {{ hit.alignment_unit_display }} · {{ hit.method_display }} · confidence {{ hit.confidence|floatformat:2 }}
+            {{ hit.alignment_unit_display }} · {{ hit.method_display }} · 置信度 {{ hit.confidence|floatformat:2 }}
             {% if hit.zh_filename or hit.en_filename %} · 来源：{{ hit.zh_filename|default:"—" }}{% if hit.en_filename and hit.en_filename != hit.zh_filename %} / {{ hit.en_filename }}{% endif %}{% endif %}
           </div>
           <div class="parallel-pair-grid">

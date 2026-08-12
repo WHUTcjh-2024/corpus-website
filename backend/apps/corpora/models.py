@@ -170,8 +170,8 @@ class CorpusDocumentation(models.Model):
     document_count = models.PositiveIntegerField("文档数", default=0)
     paragraph_count = models.PositiveBigIntegerField("段落数", default=0)
     sentence_count = models.PositiveBigIntegerField("句子数", default=0)
-    token_count = models.PositiveBigIntegerField("Token 数", default=0)
-    type_count = models.PositiveBigIntegerField("Type 数", default=0)
+    token_count = models.PositiveBigIntegerField("词元数", default=0)
+    type_count = models.PositiveBigIntegerField("词型数", default=0)
     segmentation_tool = models.CharField("分词工具", max_length=200, blank=True)
     processing_notes = models.TextField("加工说明", blank=True)
     copyright_notice = models.TextField("版权说明", blank=True)
@@ -179,11 +179,11 @@ class CorpusDocumentation(models.Model):
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
     class Meta:
-        verbose_name = "Corpus Documentation"
-        verbose_name_plural = "Corpus Documentation"
+        verbose_name = "语料说明"
+        verbose_name_plural = "语料说明"
 
     def __str__(self) -> str:
-        return f"Documentation: {self.corpus.name}"
+        return f"语料说明：{self.corpus.name}"
 
 
 class CorpusFile(models.Model):

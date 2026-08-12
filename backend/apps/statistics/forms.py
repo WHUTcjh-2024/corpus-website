@@ -7,7 +7,7 @@ from django import forms
 from apps.search.kwic import query_terms
 
 
-LANGUAGE_LABELS = {"zh": "中文", "en": "English"}
+LANGUAGE_LABELS = {"zh": "中文", "en": "英文"}
 PAGE_SIZE_CHOICES = (("20", "20"), ("50", "50"), ("100", "100"))
 
 
@@ -34,8 +34,8 @@ class LanguageForm(forms.Form):
 
 class WordListForm(LanguageForm):
     display_type = forms.ChoiceField(
-        label="Display type",
-        choices=(("type", "Type"), ("type_pos", "Type + POS"), ("headword", "Headword/Lemma")),
+        label="统计单位",
+        choices=(("type", "词型"), ("type_pos", "词型 + POS"), ("headword", "词元 / 词形还原")),
         initial="type",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -75,7 +75,7 @@ class WordListForm(LanguageForm):
     )
     sort_by = forms.ChoiceField(
         label="排序",
-        choices=(("frequency", "Frequency"), ("range", "Range"), ("term", "Word start"), ("end", "Word end")),
+        choices=(("frequency", "频次"), ("range", "文档数"), ("term", "词首"), ("end", "词尾")),
         initial="frequency",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -155,7 +155,7 @@ class WordListForm(LanguageForm):
 
 class NgramForm(LanguageForm):
     n = forms.ChoiceField(
-        label="N-Gram size",
+        label="N-Gram 长度",
         choices=tuple((str(value), str(value)) for value in range(2, 6)),
         initial="2",
         required=False,
@@ -197,7 +197,7 @@ class NgramForm(LanguageForm):
     )
     sort_by = forms.ChoiceField(
         label="排序",
-        choices=(("frequency", "Frequency"), ("range", "Range"), ("term", "N-Gram")),
+        choices=(("frequency", "频次"), ("range", "文档数"), ("term", "N-Gram")),
         initial="frequency",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
@@ -244,26 +244,26 @@ class NgramForm(LanguageForm):
 
 class ClusterForm(LanguageForm):
     q = forms.CharField(
-        label="Search term",
+        label="检索词",
         max_length=200,
         widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "off"}),
     )
     cluster_size = forms.ChoiceField(
-        label="Cluster size",
+        label="词簇长度",
         choices=tuple((str(value), str(value)) for value in range(2, 11)),
         initial="3",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     query_position = forms.ChoiceField(
-        label="Term position",
-        choices=(("left", "On left"), ("right", "On right")),
+        label="检索词位置",
+        choices=(("left", "左侧"), ("right", "右侧")),
         initial="left",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     min_frequency = forms.IntegerField(
-        label="Min. Freq",
+        label="最小频次",
         min_value=1,
         max_value=1_000_000,
         initial=2,
@@ -271,7 +271,7 @@ class ClusterForm(LanguageForm):
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
     min_range = forms.IntegerField(
-        label="Min. Range",
+        label="最小文档数",
         min_value=1,
         max_value=1_000_000,
         initial=1,
@@ -284,12 +284,12 @@ class ClusterForm(LanguageForm):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     sort_by = forms.ChoiceField(
-        label="Sort by",
+        label="排序",
         choices=(
-            ("frequency", "Frequency"),
-            ("range", "Range"),
-            ("term", "Cluster"),
-            ("probability", "Transition probability"),
+            ("frequency", "频次"),
+            ("range", "文档数"),
+            ("term", "词簇"),
+            ("probability", "转移概率"),
         ),
         initial="frequency",
         required=False,
@@ -367,11 +367,11 @@ class KeywordForm(LanguageForm):
     sort_by = forms.ChoiceField(
         label="排序",
         choices=(
-            ("log_likelihood", "Log-Likelihood"),
-            ("chi_square", "Chi-square"),
-            ("log_ratio", "|Log Ratio|"),
-            ("frequency", "Target Frequency"),
-            ("term", "Word"),
+            ("log_likelihood", "对数似然值"),
+            ("chi_square", "卡方值"),
+            ("log_ratio", "绝对对数比"),
+            ("frequency", "目标语料频次"),
+            ("term", "词项"),
         ),
         initial="log_likelihood",
         required=False,
@@ -487,12 +487,12 @@ class WordcloudForm(LanguageForm):
 
 class CollocateForm(LanguageForm):
     q = forms.CharField(
-        label="Search term",
+        label="检索词",
         max_length=200,
         widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "off"}),
     )
     left_span = forms.IntegerField(
-        label="Left span",
+        label="左侧窗口",
         min_value=0,
         max_value=10,
         initial=5,
@@ -500,7 +500,7 @@ class CollocateForm(LanguageForm):
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
     right_span = forms.IntegerField(
-        label="Right span",
+        label="右侧窗口",
         min_value=0,
         max_value=10,
         initial=5,
@@ -524,7 +524,7 @@ class CollocateForm(LanguageForm):
         widget=forms.NumberInput(attrs={"class": "form-control"}),
     )
     pos = forms.CharField(
-        label="Collocate POS",
+        label="搭配词 POS",
         max_length=30,
         required=False,
         widget=forms.TextInput(attrs={"class": "form-control"}),
@@ -535,27 +535,27 @@ class CollocateForm(LanguageForm):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     sort_by = forms.ChoiceField(
-        label="Statistic",
+        label="统计指标",
         choices=(
             ("log_dice", "LogDice"),
             ("mi", "MI"),
             ("mi2", "MI2"),
             ("mi3", "MI3"),
-            ("dice", "Dice"),
-            ("minimum_sensitivity", "Minimum Sensitivity"),
+            ("dice", "Dice 系数"),
+            ("minimum_sensitivity", "最小敏感度"),
             ("mu", "Mu"),
             ("rrf", "RRF"),
             ("drf", "DRF"),
-            ("z_score", "Z-score"),
-            ("t_score", "T-score"),
-            ("log_ratio", "Log Ratio"),
-            ("log_likelihood", "Log-Likelihood"),
-            ("chi_square", "Chi-square"),
-            ("frequency", "Frequency"),
-            ("left_frequency", "Frequency (L)"),
-            ("right_frequency", "Frequency (R)"),
-            ("range", "Range"),
-            ("term", "Word"),
+            ("z_score", "Z 分数"),
+            ("t_score", "T 分数"),
+            ("log_ratio", "对数比"),
+            ("log_likelihood", "对数似然值"),
+            ("chi_square", "卡方值"),
+            ("frequency", "频次"),
+            ("left_frequency", "左侧频次"),
+            ("right_frequency", "右侧频次"),
+            ("range", "文档数"),
+            ("term", "词项"),
         ),
         initial="log_dice",
         required=False,
@@ -617,12 +617,12 @@ class CollocateForm(LanguageForm):
 
 class ConcordancePlotForm(LanguageForm):
     q = forms.CharField(
-        label="Search term",
+        label="检索词",
         max_length=200,
         widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "off"}),
     )
     overlay_q = forms.CharField(
-        label="Overlay term",
+        label="叠加检索词",
         max_length=200,
         required=False,
         widget=forms.TextInput(
@@ -630,21 +630,21 @@ class ConcordancePlotForm(LanguageForm):
         ),
     )
     sort_by = forms.ChoiceField(
-        label="Sort by",
+        label="排序",
         choices=(
-            ("doc_id", "DocID"),
-            ("filename", "DocPath"),
-            ("tokens", "DocTokens"),
-            ("frequency", "Frequency"),
-            ("normalized_frequency", "NormFrequency"),
-            ("dispersion", "Dispersion"),
+            ("doc_id", "文档编号"),
+            ("filename", "文档路径"),
+            ("tokens", "文档词元数"),
+            ("frequency", "频次"),
+            ("normalized_frequency", "标准化频次"),
+            ("dispersion", "离散度"),
         ),
         initial="doc_id",
         required=False,
         widget=forms.Select(attrs={"class": "form-select"}),
     )
     invert_order = forms.BooleanField(
-        label="Invert order",
+        label="反向排序",
         required=False,
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
@@ -654,7 +654,7 @@ class ConcordancePlotForm(LanguageForm):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
     bin_count = forms.IntegerField(
-        label="Dispersion bins",
+        label="离散度分箱数",
         min_value=10,
         max_value=200,
         initial=100,

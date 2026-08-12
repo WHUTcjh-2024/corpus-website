@@ -29,9 +29,6 @@ export function CorpusShowcase({
       <div className="campus-corpus-showcase">
         <header className="campus-corpus-showcase__header">
           <div>
-            <span className="campus-corpus-showcase__eyebrow">
-              PROJECT CORPUS / RESEARCH COLLECTION
-            </span>
             <h2>老师项目语料库</h2>
             <p>马克思主义中国化经典文献汉英平行语料库建设及其综合研究</p>
           </div>
@@ -44,7 +41,6 @@ export function CorpusShowcase({
         <div className="campus-corpus-showcase__overview">
           <div className="campus-corpus-showcase__statement">
             <span className="campus-corpus-showcase__index">01</span>
-            <span className="campus-corpus-showcase__label">COLLECTION NOTE</span>
             <h3>把经典文献的汉英表达，转化为可观察、可比较、可复核的研究材料。</h3>
             <p>本区域向专家与公众展示已登记、已加工的公开样本，完整教师资源继续按访问等级保护。</p>
             <div className="campus-corpus-showcase__tags">
@@ -55,7 +51,6 @@ export function CorpusShowcase({
             </div>
           </div>
           <div className="campus-corpus-showcase__snapshot">
-            <div className="campus-corpus-showcase__label">COLLECTION SNAPSHOT</div>
             <div className="campus-corpus-showcase__stat-grid">
               <div>
                 <strong>{isLoading ? "—" : formatCount(overview.metrics.corpus_count)}</strong>
@@ -77,7 +72,7 @@ export function CorpusShowcase({
               </div>
               <div className="is-wide">
                 <strong>{isLoading ? "—" : formatCount(overview.metrics.token_count)}</strong>
-                <span>Tokens</span>
+                <span>词元</span>
               </div>
             </div>
             <div className="campus-corpus-showcase__snapshot-note">
@@ -130,13 +125,13 @@ export function CorpusShowcase({
                         <strong>
                           {documentation ? formatCount(documentation.token_count) : "—"}
                         </strong>
-                        <small>tokens</small>
+                        <small>词元</small>
                       </span>
                       <span>
                         <strong>
                           {documentation ? formatCount(documentation.type_count) : "—"}
                         </strong>
-                        <small>types</small>
+                        <small>词型</small>
                       </span>
                     </div>
                     <span className="campus-corpus-record__status">
@@ -149,7 +144,6 @@ export function CorpusShowcase({
           </div>
 
           <aside className="campus-corpus-showcase__aside">
-            <span className="campus-corpus-showcase__label">PROJECT NOTES</span>
             <h3>语料库使用说明</h3>
             <p>公开页面呈现项目对象、样本构成和加工规模；登录后可进入与账号等级对应的检索和分析空间。</p>
             <dl>

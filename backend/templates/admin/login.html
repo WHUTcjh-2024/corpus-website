@@ -27,12 +27,11 @@
     </div>
 
     <div class="admin-auth-form">
-      <span class="admin-eyebrow">Admin Sign In</span>
       <h2>管理员登录</h2>
       <p>请使用具备 staff 权限的账号访问后台。</p>
 
       {% if form.errors and not form.non_field_errors %}
-        <p class="errornote">{% blocktranslate count counter=form.errors.items|length %}Please correct the error below.{% plural %}Please correct the errors below.{% endblocktranslate %}</p>
+        <p class="errornote">请检查以下错误。</p>
       {% endif %}
       {% if form.non_field_errors %}
         {% for error in form.non_field_errors %}
@@ -41,10 +40,7 @@
       {% endif %}
       {% if user.is_authenticated %}
         <p class="errornote">
-          {% blocktranslate trimmed %}
-            You are authenticated as {{ username }}, but are not authorized to
-            access this page. Would you like to login to a different account?
-          {% endblocktranslate %}
+          当前已使用 {{ username }} 登录，但没有访问此页面的权限。请使用其他账号登录。
         </p>
       {% endif %}
 
@@ -64,7 +60,7 @@
         {% url 'admin_password_reset' as password_reset_url %}
         {% if password_reset_url %}
           <div class="password-reset-link">
-            <a href="{{ password_reset_url }}">{% translate 'Forgotten your login credentials?' %}</a>
+            <a href="{{ password_reset_url }}">忘记登录信息？</a>
           </div>
         {% endif %}
         <div class="submit-row">

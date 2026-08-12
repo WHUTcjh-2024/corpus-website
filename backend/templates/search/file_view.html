@@ -1,20 +1,19 @@
 {% extends "layouts/dashboard_layout.html" %}
 
-{% block title %}File View - {{ result.filename }}{% endblock %}
+{% block title %}文件内容 - {{ result.filename }}{% endblock %}
 
 {% block dashboard_content %}
 <section>
-  {% include "components/breadcrumb.html" with current_label="File View" %}
+  {% include "components/breadcrumb.html" with current_label="文件内容" %}
   <div class="page-header">
     <div>
-      <p class="page-eyebrow">Indexed source context</p>
       <h1 class="page-title">{{ result.filename }}</h1>
-      <p class="page-description">{{ corpus.name }} · {{ result.language }} · {{ result.hit_count }} hits · {{ result.type_count }} types · {{ result.token_count }} tokens{% if result.selected_hit %} · Hit {{ result.selected_hit }}/{{ result.hit_count }}{% endif %}</p>
+      <p class="page-description">{{ corpus.name }} · {{ result.language }} · {{ result.hit_count }} 条命中 · {{ result.type_count }} 个词型 · {{ result.token_count }} 个词元{% if result.selected_hit %} · 第 {{ result.selected_hit }}/{{ result.hit_count }} 条{% endif %}</p>
     </div>
     <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'search:kwic' corpus.pk %}">返回 KWIC</a></div>
   </div>
   {% include "components/watermark.html" %}
-  <form method="get" class="filter-card mb-3"><input type="hidden" name="language" value="{{ result.language }}">{% if result.row_id %}<input type="hidden" name="row" value="{{ result.row_id }}">{% endif %}<div class="row g-2 align-items-end"><div class="col-lg-8"><label class="form-label" for="fileQuery">文件内检索</label><input class="form-control" id="fileQuery" name="q" value="{{ result.query }}"></div><div class="col-lg-2"><label class="form-label" for="wholeWords">匹配</label><select class="form-select" id="wholeWords" name="whole_words"><option value="1">Words</option><option value="0">Substring</option></select></div><div class="col-lg-2 d-grid"><button class="btn btn-primary" type="submit">高亮全部</button></div></div></form>
+  <form method="get" class="filter-card mb-3"><input type="hidden" name="language" value="{{ result.language }}">{% if result.row_id %}<input type="hidden" name="row" value="{{ result.row_id }}">{% endif %}<div class="row g-2 align-items-end"><div class="col-lg-8"><label class="form-label" for="fileQuery">文件内检索</label><input class="form-control" id="fileQuery" name="q" value="{{ result.query }}"></div><div class="col-lg-2"><label class="form-label" for="wholeWords">匹配</label><select class="form-select" id="wholeWords" name="whole_words"><option value="1">整词匹配</option><option value="0">词内子串</option></select></div><div class="col-lg-2 d-grid"><button class="btn btn-primary" type="submit">高亮全部</button></div></div></form>
   <article class="card shadow-sm">
     <div class="card-body corpus-file-view" style="white-space: pre-wrap; line-height: 1.9">{% if result.segments %}{% for segment in result.segments %}{% if segment.is_hit %}<mark{% if segment.selected %} id="kwic-anchor" class="border border-danger border-2"{% endif %} data-file-hit>{{ segment.text }}</mark>{% else %}{{ segment.text }}{% endif %}{% endfor %}{% else %}{{ result.before }}{% if result.keyword %}<mark id="kwic-anchor">{{ result.keyword }}</mark>{% endif %}{{ result.after }}{% endif %}</div>
   </article>

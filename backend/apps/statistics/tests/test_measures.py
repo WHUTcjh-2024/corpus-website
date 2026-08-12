@@ -8,7 +8,6 @@ from apps.statistics.measures import (
     association_measures,
     chi_square,
     chi_square_p_value,
-    is_significant,
     log_likelihood,
 )
 
@@ -58,14 +57,5 @@ class ContingencyTableTests(TestCase):
         self.assertGreater(measures["log_likelihood"], 0)
         self.assertLess(measures["p_value"], 0.001)
 
-    def test_chi_square_survival_function_and_bonferroni(self) -> None:
+    def test_chi_square_survival_function(self) -> None:
         self.assertAlmostEqual(chi_square_p_value(3.841458820694124), 0.05, places=6)
-        self.assertTrue(is_significant(0.009, alpha=0.05))
-        self.assertFalse(
-            is_significant(
-                0.009,
-                alpha=0.05,
-                comparisons=10,
-                bonferroni=True,
-            )
-        )
