@@ -206,6 +206,17 @@ def _mark_success(
             error_message="",
             updated_at=timezone.now(),
         )
+    if task.corpus.corpus_type in {
+        CorpusType.ALIGNED_TSV,
+        CorpusType.PAIRED_RAW_ZH_EN,
+        CorpusType.PAIRED_TAGGED_ZH_EN,
+    }:
+        # A failed optional audit must never make a successfully indexed corpus
+        # unavailable. The outbox still makes delivery durable and traceable.
+        from apps.audits.services import create_parallel_audit, dispatch_parallel_audit
+
+        audit = create_parallel_audit(corpus=task.corpus, processing_task=task)
+        dispatch_parallel_audit(audit)
 
 
 @transaction.atomic

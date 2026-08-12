@@ -19,6 +19,9 @@ class OutboxTaskName(models.TextChoices):
     BUILD_EXPORT = "exports.build_export", "生成导出"
 
 
+    AUDIT_PARALLEL_CORPUS = "audits.audit_parallel_corpus", "平行语料审计"
+
+
 class OutboxEvent(models.Model):
     """A durable command that is published to Celery after its DB transaction commits."""
 

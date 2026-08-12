@@ -66,6 +66,7 @@ INSTALLED_APPS = [
     "apps.corpora",
     "apps.corpus_intake",
     "apps.processing",
+    "apps.audits",
     "apps.search",
     "apps.parallel",
     "apps.statistics",
@@ -201,6 +202,7 @@ CELERY_TASK_QUEUES = (
 )
 CELERY_TASK_ROUTES = {
     "processing.process_corpus": {"queue": "processing"},
+    "audits.audit_parallel_corpus": {"queue": "processing"},
     "exports.build_export": {"queue": "exports"},
 }
 CELERY_BROKER_TRANSPORT_OPTIONS = {
@@ -216,6 +218,18 @@ OUTBOX_MAX_ATTEMPTS = int(os.getenv("OUTBOX_MAX_ATTEMPTS", "12"))
 OUTBOX_PUBLISHED_RETENTION_DAYS = int(
     os.getenv("OUTBOX_PUBLISHED_RETENTION_DAYS", "7")
 )
+
+# The Go auditor is an offline executable, not a network service. Django owns
+# task orchestration and persistence; the executable only exchanges files.
+CORPUS_AUDITOR_COMMAND = os.getenv(
+    "CORPUS_AUDITOR_COMMAND",
+    "go -C ./go/corpus-auditor run ./cmd/corpus-auditor",
+)
+PARALLEL_AUDIT_TIMEOUT_SECONDS = int(os.getenv("PARALLEL_AUDIT_TIMEOUT_SECONDS", "300"))
+PARALLEL_AUDIT_LOW_CONFIDENCE = float(os.getenv("PARALLEL_AUDIT_LOW_CONFIDENCE", "0.6"))
+PARALLEL_AUDIT_MIN_LENGTH_RATIO = float(os.getenv("PARALLEL_AUDIT_MIN_LENGTH_RATIO", "0.12"))
+PARALLEL_AUDIT_MAX_LENGTH_RATIO = float(os.getenv("PARALLEL_AUDIT_MAX_LENGTH_RATIO", "1.8"))
+PARALLEL_AUDIT_MAX_ANOMALIES = int(os.getenv("PARALLEL_AUDIT_MAX_ANOMALIES", "1000"))
 METRICS_BEARER_TOKEN = os.getenv("METRICS_BEARER_TOKEN", "")
 
 LOGGING = {
