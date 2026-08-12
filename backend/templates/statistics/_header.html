@@ -1,15 +1,15 @@
 <div class="page-header">
-  <div><p class="page-eyebrow">AntConc-Compatible Analysis</p><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">统计基于已加工 Token 索引，不扫描或修改老师原文件。</p></div>
+  <div><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">统计基于已加工词元索引，不扫描或修改老师原文件。</p></div>
   <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a><a class="btn btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">语料说明</a></div>
 </div>
 <nav class="nav tool-tabs" aria-label="统计分析工具">
-  <a class="nav-link{% if request.resolver_match.url_name == 'word_list' %} active{% endif %}" href="{% url 'statistics:word_list' corpus.pk %}">Word List</a>
-  <a class="nav-link{% if request.resolver_match.url_name == 'clusters' %} active{% endif %}" href="{% url 'statistics:clusters' corpus.pk %}">Clusters</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'word_list' %} active{% endif %}" href="{% url 'statistics:word_list' corpus.pk %}">词表</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'clusters' %} active{% endif %}" href="{% url 'statistics:clusters' corpus.pk %}">词簇</a>
   <a class="nav-link{% if request.resolver_match.url_name == 'ngrams' %} active{% endif %}" href="{% url 'statistics:ngrams' corpus.pk %}">N-Gram</a>
-  <a class="nav-link{% if request.resolver_match.url_name == 'collocates' %} active{% endif %}" href="{% url 'statistics:collocates' corpus.pk %}">Collocates</a>
-  <a class="nav-link{% if request.resolver_match.url_name == 'keywords' %} active{% endif %}" href="{% url 'statistics:keywords' corpus.pk %}">Keywords</a>
-  <a class="nav-link{% if request.resolver_match.url_name == 'concordance_plot' %} active{% endif %}" href="{% url 'statistics:concordance_plot' corpus.pk %}">Concordance Plot</a>
-  <a class="nav-link{% if request.resolver_match.url_name == 'wordcloud' %} active{% endif %}" href="{% url 'statistics:wordcloud' corpus.pk %}">Wordcloud</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'collocates' %} active{% endif %}" href="{% url 'statistics:collocates' corpus.pk %}">搭配词</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'keywords' %} active{% endif %}" href="{% url 'statistics:keywords' corpus.pk %}">关键词</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'concordance_plot' %} active{% endif %}" href="{% url 'statistics:concordance_plot' corpus.pk %}">索引图</a>
+  <a class="nav-link{% if request.resolver_match.url_name == 'wordcloud' %} active{% endif %}" href="{% url 'statistics:wordcloud' corpus.pk %}">词云</a>
 </nav>
 {% include "components/index_repair_notice.html" %}
 {% if statistics_error and not index_repair %}<div class="alert alert-warning">{{ statistics_error }}</div>{% endif %}

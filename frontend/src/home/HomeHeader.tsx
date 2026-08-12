@@ -28,7 +28,6 @@ export function HomeHeader({ isAuthenticated, onProtectedNavigation }: HomeHeade
           />
           <span className="platform-brand__center">
             <strong>翻译跨学科研究中心</strong>
-            <small>Translation Interdisciplinary Research Center</small>
           </span>
         </a>
         <nav className="public-nav" aria-label="公共导航">

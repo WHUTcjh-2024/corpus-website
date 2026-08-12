@@ -12,7 +12,6 @@ export function HomeFooter() {
         <span className="campus-footer__divider" aria-hidden="true" />
         <div className="campus-footer__center">
           <strong>翻译跨学科研究中心</strong>
-          <span>Translation Interdisciplinary Research Center</span>
         </div>
       </div>
       <div className="campus-footer__copy">
@@ -30,7 +29,7 @@ export function HomeFooter() {
           <span>邮箱：</span>
           <a href="mailto:570372819@qq.com">570372819@qq.com</a>
         </p>
-        <p>© 2026 Translation Interdisciplinary Research Center, WHUT. All rights reserved.</p>
+        <p>© 2026 武汉理工大学外国语学院翻译跨学科研究中心</p>
       </div>
     </footer>
   );

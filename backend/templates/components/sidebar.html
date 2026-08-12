@@ -6,7 +6,6 @@
       </span>
       <div>
         <h2 class="offcanvas-title" id="platformSidebarLabel">平台导航</h2>
-        <small>Corpus Research Workspace</small>
       </div>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="offcanvas" data-bs-target="#platformSidebar" aria-label="关闭"></button>
@@ -17,14 +16,13 @@
         <svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H11v16H6.5A2.5 2.5 0 0 0 4 21.5zM20 5.5A2.5 2.5 0 0 0 17.5 3H13v16h4.5a2.5 2.5 0 0 1 2.5 2.5z"/></svg>
       </span>
       <span class="sidebar-workspace-card__copy">
-        <small>RESEARCH WORKSPACE</small>
         <strong>语料研究工作台</strong>
       </span>
       <span class="sidebar-workspace-card__status"><i></i>已连接</span>
     </div>
 
     <nav class="sidebar-nav" aria-label="工作台导航">
-      <p class="sidebar-section-label"><span>工作空间</span><small>Workspace</small></p>
+      <p class="sidebar-section-label"><span>工作空间</span></p>
       <a class="sidebar-link{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'dashboard' %} active{% endif %}" href="{% url 'accounts:dashboard' %}"{% if request.resolver_match.namespace == 'accounts' and request.resolver_match.url_name == 'dashboard' %} aria-current="page"{% endif %}>
         <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></span><span class="sidebar-link__label">工作台</span>
       </a>
@@ -38,7 +36,7 @@
         <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v6h14v-6"/></svg></span><span class="sidebar-link__label">上传语料</span>
       </a>
 
-      <p class="sidebar-section-label"><span>研究工具</span><small>Research tools</small></p>
+      <p class="sidebar-section-label"><span>研究工具</span></p>
       <a class="sidebar-link{% if request.resolver_match.namespace == 'search' or request.GET.tool == 'kwic' %} active{% endif %}" href="{% url 'corpora:list' %}?tool=kwic"{% if request.resolver_match.namespace == 'search' or request.GET.tool == 'kwic' %} aria-current="page"{% endif %}>
         <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5M7 10h6"/></svg></span><span class="sidebar-link__label">KWIC 检索</span>
       </a>
@@ -56,17 +54,12 @@
       </a>
 
       {% if user.is_staff %}
-        <p class="sidebar-section-label"><span>系统管理</span><small>Administration</small></p>
+        <p class="sidebar-section-label"><span>系统管理</span></p>
         <a class="sidebar-link" href="{% url 'admin:index' %}">
           <span class="sidebar-link__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1A8 8 0 0 0 15 6l-.3-2.5h-4L10.4 6A8 8 0 0 0 8.8 7L6.5 6 4.5 9.5 6.6 11a7 7 0 0 0 0 2l-2.1 1.5 2 3.5 2.3-1a8 8 0 0 0 1.6 1l.3 2.5h4L15 18a8 8 0 0 0 1.6-1l2.3 1 2-3.5-2-1.5a7 7 0 0 0 .1-1z"/></svg></span><span class="sidebar-link__label">管理后台</span>
         </a>
       {% endif %}
     </nav>
-
-    <figure class="sidebar-campus-gate" aria-hidden="true">
-      <img src="/static/img/whut-campus-building-pale.png" alt="">
-      <figcaption><small>WUT · SCHOOL OF FOREIGN LANGUAGES</small><strong>厚德博学 · 追求卓越</strong></figcaption>
-    </figure>
 
     <a class="sidebar-help" href="{% url 'home' %}#platform-guide">
       <span class="sidebar-help__icon" aria-hidden="true">

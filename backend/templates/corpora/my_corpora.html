@@ -4,7 +4,7 @@
 
 {% block dashboard_content %}
 <div class="page-header">
-  <div><p class="page-eyebrow">Private Corpus Workspace</p><h1 class="page-title">我的语料</h1><p class="page-description">已使用 {{ used_bytes|filesizeformat }} / {{ total_bytes|filesizeformat }}；每个账号同时只运行一个加工任务。</p></div>
+  <div><h1 class="page-title">我的语料</h1><p class="page-description">已使用 {{ used_bytes|filesizeformat }} / {{ total_bytes|filesizeformat }}；每个账号同时只运行一个加工任务。</p></div>
   <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'accounts:quota_request' %}">申请扩容</a><a class="btn btn-outline-secondary" href="{% url 'exports:list' %}">我的导出</a><a class="btn btn-primary" href="{% url 'corpora:upload' %}">上传语料</a></div>
 </div>
 

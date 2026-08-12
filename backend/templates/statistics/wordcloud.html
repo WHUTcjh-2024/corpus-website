@@ -1,6 +1,7 @@
 {% extends "layouts/dashboard_layout.html" %}
+{% load static %}
 
-{% block title %}Wordcloud - {{ corpus.name }}{% endblock %}
+{% block title %}词云 - {{ corpus.name }}{% endblock %}
 
 {% block dashboard_content %}
 {% include "statistics/_header.html" %}
@@ -18,8 +19,8 @@
 
 {% if result %}
   <div class="d-flex flex-wrap gap-3 justify-content-between align-items-center mb-2">
-    <p class="mb-0">Source Types <strong>{{ result.source_types }}</strong> · Displayed <strong>{{ result.terms|length }}</strong> · Excluded Stopwords <strong>{{ result.excluded_stopwords }}</strong></p>
-    <span class="badge rounded-pill text-bg-light border">对数权重 · 防重叠螺旋布局</span>
+    <p class="mb-0">来源类型 <strong>{{ result.source_types }}</strong> · 展示词项 <strong>{{ result.terms|length }}</strong> · 排除停用词 <strong>{{ result.excluded_stopwords }}</strong></p>
+    <div class="chart-panel__actions"><span class="badge rounded-pill text-bg-light border">对数权重 · 防重叠螺旋布局</span><button class="btn btn-sm btn-outline-primary" type="button" id="wordcloudDownload">下载矢量 SVG</button></div>
   </div>
   <style>
     .wordcloud-shell { background: linear-gradient(145deg, #f8fbff 0%, #eef5fb 100%); border: 1px solid #d9e5ef; border-radius: 1rem; box-shadow: 0 12px 34px rgba(31, 76, 117, .09); overflow: hidden; }
@@ -30,7 +31,7 @@
   </style>
   <div class="wordcloud-shell" aria-label="按词频加权的词云">
     {% if result.terms %}
-      <svg class="wordcloud-svg" viewBox="0 0 {{ result.canvas_width }} {{ result.canvas_height }}" role="img" aria-labelledby="wordcloud-title wordcloud-desc">
+      <svg class="wordcloud-svg" id="wordcloudSvg" viewBox="0 0 {{ result.canvas_width }} {{ result.canvas_height }}" role="img" aria-labelledby="wordcloud-title wordcloud-desc">
         <title id="wordcloud-title">{{ corpus.name }} 词云</title>
         <desc id="wordcloud-desc">按词频对数缩放并采用无重叠螺旋布局；点击词项进入 KWIC。</desc>
         <defs>
@@ -40,13 +41,14 @@
         <g opacity=".32" fill="none" stroke="#b9d0e3"><ellipse cx="500" cy="280" rx="390" ry="195"/><ellipse cx="500" cy="280" rx="275" ry="137"/></g>
         {% for term in result.terms %}
           <a class="wordcloud-term" href="{% url 'search:kwic' corpus.pk %}?q={{ term.term|urlencode }}" aria-label="{{ term.term }}，频次 {{ term.frequency }}">
-            <title>{{ term.term }} · Frequency {{ term.frequency }}</title>
+            <title>{{ term.term }} · 频次 {{ term.frequency }}</title>
             <text x="{{ term.x }}" y="{{ term.y }}" text-anchor="middle" dominant-baseline="central" font-size="{{ term.font_size }}" fill="{{ term.color }}">{{ term.term }}</text>
           </a>
         {% endfor %}
       </svg>
     {% else %}<div class="text-secondary text-center py-5">当前条件没有可显示词项。</div>{% endif %}
   </div>
-  <p class="small text-secondary mt-2">大小表示 Frequency（对数缩放），颜色辅助区分相邻词项；悬停查看频次，点击进入 KWIC 核查语境。</p>
+  <p class="small text-secondary mt-2">大小表示频次（对数缩放），颜色辅助区分相邻词项；悬停查看频次，点击进入 KWIC 核查语境。</p>
 {% endif %}
 {% endblock %}
+{% block extra_scripts %}{% if result.terms %}<script src="{% static 'js/charts.js' %}"></script><script>document.getElementById("wordcloudDownload")?.addEventListener("click", () => CorpusCharts.downloadSvg("wordcloudSvg", "{{ corpus.name|escapejs }}-词云.svg"));</script>{% endif %}{% endblock %}

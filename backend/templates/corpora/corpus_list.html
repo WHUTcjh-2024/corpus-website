@@ -4,7 +4,7 @@
 
 {% block dashboard_content %}
 <div class="page-header">
-  <div><p class="page-eyebrow">Corpus Resources</p><h1 class="page-title">语料库资源</h1><p class="page-description">可见范围已根据账号角色、访问等级与语料所有权在后端完成过滤。</p></div>
+  <div><h1 class="page-title">语料库资源</h1><p class="page-description">可见范围已根据账号角色、访问等级与语料所有权在后端完成过滤。</p></div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary" href="{% url 'corpora:mine' %}">我的语料</a>
     {% if can_create_personal %}<a class="btn btn-outline-primary" href="{% url 'corpora:create' %}">登记元数据</a>{% endif %}
@@ -13,7 +13,7 @@
 </div>
 
 {% if request.GET.tool %}
-  <div class="alert alert-info">请先选择一个状态为“可用”的语料库，再进入 {% if request.GET.tool == 'parallel' %}ParaConc 平行检索{% elif request.GET.tool == 'statistics' %}统计分析{% else %}KWIC 检索{% endif %}。</div>
+  <div class="alert alert-info">请先选择一个状态为“可用”的语料库，再进入 {% if request.GET.tool == 'parallel' %}平行检索{% elif request.GET.tool == 'statistics' %}统计分析{% else %}KWIC 检索{% endif %}。</div>
 {% endif %}
 
 <section class="filter-card">
@@ -38,7 +38,7 @@
               {% if corpus.status == "ready" %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a>
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'statistics:word_list' corpus.pk %}">统计</a>
-                {% if corpus.corpus_type == "aligned_tsv" or corpus.corpus_type == "paired_raw_zh_en" or corpus.corpus_type == "paired_tagged_zh_en" %}<a class="btn btn-sm btn-primary" href="{% url 'parallel:search' corpus.pk %}">ParaConc</a>{% endif %}
+                {% if corpus.corpus_type == "aligned_tsv" or corpus.corpus_type == "paired_raw_zh_en" or corpus.corpus_type == "paired_tagged_zh_en" %}<a class="btn btn-sm btn-primary" href="{% url 'parallel:search' corpus.pk %}">平行检索</a>{% endif %}
               {% endif %}
             </span>
           </td>

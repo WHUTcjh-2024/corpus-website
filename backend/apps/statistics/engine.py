@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import math
 import sqlite3
 import unicodedata
@@ -1001,14 +1000,18 @@ class StatisticsEngine:
         ) in rows:
             observed_value = int(observed)
             corpus_frequency_value = int(corpus_frequency)
+            # A token can occur in multiple windows around the same node.
+            # The contingency table, however, uses token-level marginals, so
+            # cap the co-occurrence count before calculating association scores.
             opportunities = int(context_size)
+            cooccurrence = min(observed_value, opportunities, corpus_frequency_value)
             table_size = max(
                 corpus_size,
-                opportunities + corpus_frequency_value - observed_value,
+                opportunities + corpus_frequency_value - cooccurrence,
             )
             measures = association_measures(
                 ContingencyTable.from_marginals(
-                    cooccurrence=observed_value,
+                    cooccurrence=cooccurrence,
                     node_opportunities=opportunities,
                     collocate_frequency=corpus_frequency_value,
                     corpus_size=table_size,
@@ -1392,20 +1395,6 @@ def _positional_dispersion(bins: dict[int, int], bin_count: int) -> float:
     )
     maximum_deviation = 2 * (1 - uniform)
     return max(0.0, min(1.0, 1 - deviation / maximum_deviation))
-
-
-def _documents_by_id(path: Path) -> dict[str, dict]:
-    if not path.is_file():
-        raise StatisticsIndexUnavailable("文档元数据不存在。")
-    try:
-        return {
-            str(record.get("id", "")): record
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-            for record in [json.loads(line)]
-        }
-    except (OSError, json.JSONDecodeError) as exc:
-        raise StatisticsIndexCorrupt("文档元数据损坏。") from exc
 
 
 def _keyword_statistics(

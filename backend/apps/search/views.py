@@ -120,7 +120,7 @@ def kwic_search(request: HttpRequest, corpus_id) -> HttpResponse:
                 "simple": "普通 KWIC",
             }[form.cleaned_data["query_mode"]]
         )
-        language_label = "中文" if form.cleaned_data["language"] == "zh" else "English"
+        language_label = "中文" if form.cleaned_data["language"] == "zh" else "英文"
     return render(
         request,
         "search/kwic.html",
@@ -158,7 +158,7 @@ def file_view(request: HttpRequest, corpus_id, document_id: str) -> HttpResponse
         if row_id is not None and row_id < 1:
             raise ValueError
     except ValueError:
-        return HttpResponse("无效的 Row ID。", status=400)
+        return HttpResponse("无效的行编号。", status=400)
     engine = KwicSearchEngine(data_root=settings.DATA_ROOT, corpus_id=str(corpus.pk))
     try:
         result = engine.file_view(
@@ -176,7 +176,7 @@ def file_view(request: HttpRequest, corpus_id, document_id: str) -> HttpResponse
     except (KwicIndexUnavailable, KwicIndexCorrupt):
         repair = ensure_corpus_index_ready(corpus, force=True)
         return HttpResponse(
-            repair.message if repair else "File View 索引暂时不可用。",
+            repair.message if repair else "文件内容索引暂时不可用。",
             status=202 if repair and repair.is_active else 409,
         )
     return render(

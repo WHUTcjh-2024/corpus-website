@@ -607,52 +607,6 @@ body.public-body {
   outline-offset: 2px;
 }
 
-.sidebar-campus-gate {
-  margin: 19px 0 0;
-  padding: 8px 0 5px;
-  overflow: hidden;
-  border: 0;
-  border-radius: 0;
-  color: rgba(194, 174, 130, 0.58);
-  background: transparent;
-  box-shadow: none;
-}
-
-.sidebar-campus-gate img {
-  display: block;
-  width: min(100%, 182px);
-  height: auto;
-  margin: 0 auto;
-  opacity: 0.58;
-  filter: saturate(0.46) brightness(0.96);
-  image-rendering: auto;
-  object-fit: contain;
-}
-
-.sidebar-campus-gate figcaption {
-  display: grid;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(194, 174, 130, 0.18);
-  text-align: center;
-  gap: 4px;
-}
-
-.sidebar-campus-gate figcaption small {
-  color: rgba(194, 174, 130, 0.42);
-  font-size: 0.46rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.sidebar-campus-gate figcaption strong {
-  color: rgba(194, 174, 130, 0.56);
-  font-family: KaiTi, STKaiti, "Microsoft YaHei", serif;
-  font-size: 0.73rem;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-}
-
 .sidebar-help {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1185,6 +1139,30 @@ textarea.form-control {
 .chart-panel,
 .wordcloud-shell {
   overflow: hidden;
+}
+
+.chart-canvas {
+  min-height: 290px;
+}
+
+.chart-canvas--compact {
+  min-height: 205px;
+}
+
+.chart-panel--primary {
+  margin-bottom: 20px;
+}
+
+.chart-panel__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chart-canvas--wide {
+  min-height: 360px;
 }
 
 .pagination {

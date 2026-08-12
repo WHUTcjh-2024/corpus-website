@@ -7,9 +7,8 @@
 {% include "components/breadcrumb.html" with current_label="KWIC 检索" %}
 <div class="page-header kwic-page-header">
   <div>
-    <p class="page-eyebrow">KWIC Concordance</p>
     <h1 class="page-title">{{ corpus.name }}</h1>
-    <p class="page-description">连续 Token 流检索 · Words / Case / Regex / 通配符 · 三级 KWIC 排序</p>
+    <p class="page-description">连续词元流检索 · 整词、大小写、正则与通配符 · 三级 KWIC 排序</p>
   </div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary" href="{% url 'statistics:word_list' corpus.pk %}">统计分析</a>
@@ -56,9 +55,9 @@
       <div class="col-12 col-xl-2">
         <label class="form-label">查询语法提示</label>
         <div class="query-tags">
-          <span class="query-tag">Regex：逐 Token</span>
+          <span class="query-tag">正则：逐词元</span>
           <span class="query-tag">CQP 子集语法示例：[lemma] / [pos]</span>
-          <span class="query-tag">开放槽位：[] 匹配一个 Token</span>
+          <span class="query-tag">开放槽位：[] 匹配一个词元</span>
         </div>
       </div>
       <div class="col-12 col-xl-6">
@@ -136,7 +135,7 @@
             </td>
             <td class="kwic-source">
               <div class="kwic-source__name" title="{{ hit.source_filename|default:'未知文件' }}"><a href="{% url 'search:file_view' corpus.pk hit.document_id %}?language={{ hit.language }}&amp;row={{ hit.row_id }}{% if form.cleaned_data.query_mode != 'cqp' %}&amp;q={{ result.query|urlencode }}&amp;whole_words={% if result.whole_words %}1{% else %}0{% endif %}&amp;case_sensitive={% if result.case_sensitive %}1{% else %}0{% endif %}&amp;regex={% if result.regex %}1{% else %}0{% endif %}&amp;full_regex={% if result.full_regex %}1{% else %}0{% endif %}{% endif %}">{{ hit.source_filename|default:"未知文件" }}</a></div>
-              <div class="kwic-source__meta"><span>段 {{ hit.paragraph_ordinal }}</span><span>句 {{ hit.sentence_ordinal }}</span><span>Row {{ hit.row_id }}</span></div>
+              <div class="kwic-source__meta"><span>段 {{ hit.paragraph_ordinal }}</span><span>句 {{ hit.sentence_ordinal }}</span><span>行 {{ hit.row_id }}</span></div>
             </td>
             <td class="text-end">{{ hit.kpf_count }}</td>
           </tr>

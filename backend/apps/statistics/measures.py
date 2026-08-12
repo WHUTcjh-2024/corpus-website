@@ -145,21 +145,6 @@ def chi_square_p_value(statistic: float) -> float:
     return math.erfc(math.sqrt(statistic / 2))
 
 
-def is_significant(
-    p_value: float,
-    *,
-    alpha: float,
-    comparisons: int = 1,
-    bonferroni: bool = False,
-) -> bool:
-    if not 0 < alpha < 1:
-        raise ValueError("alpha must be between zero and one")
-    if comparisons < 1:
-        raise ValueError("comparisons must be at least one")
-    threshold = alpha / comparisons if bonferroni else alpha
-    return p_value <= threshold
-
-
 def _divide(numerator: float, denominator: float) -> float:
     return numerator / denominator if denominator else 0.0
 

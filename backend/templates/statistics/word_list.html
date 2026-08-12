@@ -1,7 +1,7 @@
 {% extends "layouts/dashboard_layout.html" %}
 {% load static %}
 
-{% block title %}Word List - {{ corpus.name }}{% endblock %}
+{% block title %}词表 - {{ corpus.name }}{% endblock %}
 {% block dashboard_content %}
 {% include "statistics/_header.html" %}
 <form method="get" class="filter-card"><div class="row g-3 align-items-end">
@@ -16,13 +16,11 @@
   <div class="col-sm-6 col-xl-1 d-grid"><button class="btn btn-primary" type="submit">生成词表</button></div>
 </div><details class="mt-3"><summary>大小写与 Stoplist / Allowlist</summary><div class="row g-3 mt-1"><div class="col-md-2"><div class="form-check mt-4">{{ form.case_sensitive }} <label class="form-check-label" for="{{ form.case_sensitive.id_for_label }}">{{ form.case_sensitive.label }}</label></div></div><div class="col-md-3"><label class="form-label" for="{{ form.list_mode.id_for_label }}">{{ form.list_mode.label }}</label>{{ form.list_mode }}</div><div class="col-md-7"><label class="form-label" for="{{ form.list_terms.id_for_label }}">{{ form.list_terms.label }}</label>{{ form.list_terms }}{% for error in form.list_terms.errors %}<div class="text-danger small">{{ error }}</div>{% endfor %}</div></div></details></form>
 {% if result %}
-  <div class="stats-summary"><span>Tokens <strong>{{ result.total_tokens }}</strong></span><span>Types <strong>{{ result.total_types }}</strong></span><span>当前展示 {{ result.rows|length }} 条</span></div>
-  <div class="row g-4">
-    <div class="col-xl-7"><div class="table-shell table-responsive"><table class="table table-hover"><thead><tr><th>Rank</th><th>Word</th><th class="text-end">Frequency</th><th class="text-end">Range</th><th class="text-end">Per million</th></tr></thead><tbody>{% for row in result.rows %}<tr><td>{{ row.rank }}</td><td><a class="table-link" href="{% url 'search:kwic' corpus.pk %}?q={{ row.term|urlencode }}">{{ row.term }}</a></td><td class="text-end">{{ row.frequency }}</td><td class="text-end">{{ row.document_range }}</td><td class="text-end">{{ row.per_million|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="5" class="empty-state">没有符合条件的词项。</td></tr>{% endfor %}</tbody></table></div></div>
-    <div class="col-xl-5"><section class="platform-card chart-panel"><header class="platform-card__header"><h2>高频词分布</h2><span class="table-meta">当前页 TOP 20</span></header><div class="platform-card__body"><div class="chart-canvas" id="wordListChart" aria-label="高频词条形图"></div></div></section></div>
-  </div>
+  <div class="stats-summary"><span>词元 <strong>{{ result.total_tokens }}</strong></span><span>词型 <strong>{{ result.total_types }}</strong></span><span>当前展示 {{ result.rows|length }} 条</span></div>
+  <section class="platform-card chart-panel chart-panel--primary"><header class="platform-card__header"><h2>词频可视化</h2><div class="chart-panel__actions"><span class="table-meta">当前页 TOP 20</span><button class="btn btn-sm btn-outline-primary" type="button" data-chart-download="wordListChart" data-chart-filename="{{ corpus.name }}-词频分布">下载高清 PNG</button><button class="btn btn-sm btn-outline-primary" type="button" data-chart-download="wordListBoxChart" data-chart-filename="{{ corpus.name }}-词频箱线图">下载箱线图</button></div></header><div class="platform-card__body"><div class="row g-4"><div class="col-lg-8"><div class="chart-canvas chart-canvas--wide" id="wordListChart" aria-label="高频词条形图"></div></div><div class="col-lg-4"><div class="chart-canvas chart-canvas--wide" id="wordListBoxChart" aria-label="词频箱线图"></div></div></div></div></section>
+  <div class="table-shell table-responsive"><table class="table table-hover"><thead><tr><th>序号</th><th>词项</th><th class="text-end">频次</th><th class="text-end">文档数</th><th class="text-end">每百万词</th></tr></thead><tbody>{% for row in result.rows %}<tr><td>{{ row.rank }}</td><td><a class="table-link" href="{% url 'search:kwic' corpus.pk %}?q={{ row.term|urlencode }}">{{ row.term }}</a></td><td class="text-end">{{ row.frequency }}</td><td class="text-end">{{ row.document_range }}</td><td class="text-end">{{ row.per_million|floatformat:2 }}</td></tr>{% empty %}<tr><td colspan="5" class="empty-state">没有符合条件的词项。</td></tr>{% endfor %}</tbody></table></div>
   {% include "statistics/_pagination.html" %}
   <script id="word-list-chart-data" type="application/json">[{% for row in result.rows|slice:":20" %}{"name":"{{ row.term|escapejs }}","value":{{ row.frequency }}}{% if not forloop.last %},{% endif %}{% endfor %}]</script>
 {% endif %}
 {% endblock %}
-{% block extra_scripts %}{% if result %}<script src="{% static 'vendor/echarts/echarts.min.js' %}"></script><script src="{% static 'js/charts.js' %}"></script><script>CorpusCharts.horizontalBar("wordListChart", "word-list-chart-data");</script>{% endif %}{% endblock %}
+{% block extra_scripts %}{% if result %}<script src="{% static 'vendor/echarts/echarts.min.js' %}"></script><script src="{% static 'js/charts.js' %}"></script><script>CorpusCharts.horizontalBar("wordListChart", "word-list-chart-data", "频次");CorpusCharts.boxPlot("wordListBoxChart", "word-list-chart-data", "value", "频次");</script>{% endif %}{% endblock %}

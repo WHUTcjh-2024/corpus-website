@@ -1,15 +1,15 @@
 {% extends "layouts/dashboard_layout.html" %}
 
-{% block title %}{{ corpus.name }} - Corpus Documentation{% endblock %}
+{% block title %}{{ corpus.name }} - 语料说明{% endblock %}
 
 {% block dashboard_content %}
 <div class="page-header">
-  <div><p class="page-eyebrow">Corpus Documentation</p><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">{{ corpus.description|default:"暂无语料说明" }}</p></div>
+  <div><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">{{ corpus.description|default:"暂无语料说明" }}</p></div>
   <div class="page-actions">
     {% if corpus.status == "ready" %}
       <a class="btn btn-outline-primary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a>
       <a class="btn btn-outline-primary" href="{% url 'statistics:word_list' corpus.pk %}">统计分析</a>
-      {% if corpus.corpus_type == "aligned_tsv" or corpus.corpus_type == "paired_raw_zh_en" or corpus.corpus_type == "paired_tagged_zh_en" %}<a class="btn btn-primary" href="{% url 'parallel:search' corpus.pk %}">ParaConc</a>{% endif %}
+      {% if corpus.corpus_type == "aligned_tsv" or corpus.corpus_type == "paired_raw_zh_en" or corpus.corpus_type == "paired_tagged_zh_en" %}<a class="btn btn-primary" href="{% url 'parallel:search' corpus.pk %}">平行检索</a>{% endif %}
     {% endif %}
     <a class="btn btn-outline-secondary" href="{% url 'corpora:list' %}">返回列表</a>
   </div>
@@ -20,8 +20,8 @@
   <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">文档</p><div class="metric-card__value">{{ documentation.document_count }}</div></div></div>
   <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">段落</p><div class="metric-card__value">{{ documentation.paragraph_count }}</div></div></div>
   <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">句子</p><div class="metric-card__value">{{ documentation.sentence_count }}</div></div></div>
-  <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">Token</p><div class="metric-card__value">{{ documentation.token_count }}</div></div></div>
-  <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">Type</p><div class="metric-card__value">{{ documentation.type_count }}</div></div></div>
+  <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">词元</p><div class="metric-card__value">{{ documentation.token_count }}</div></div></div>
+  <div class="col-6 col-md-4 col-xl-2"><div class="metric-card"><p class="metric-card__label">词型</p><div class="metric-card__value">{{ documentation.type_count }}</div></div></div>
 </section>
 
 <div class="row g-4">
@@ -95,10 +95,10 @@
 
 {% if alignment_preview or alignment_preview_error %}
 <section class="platform-card mt-4">
-  <header class="platform-card__header"><div><h2>{% if corpus.corpus_type == "paired_raw_zh_en" %}候选段落映射预览{% else %}人工结构对齐预览{% endif %}</h2><div class="table-meta mt-1">{% if corpus.corpus_type == "paired_raw_zh_en" %}由段落长度自动推断，请结合置信度抽检{% else %}按源文件编号与既有顺序展示{% endif %}</div></div><a class="btn btn-sm btn-outline-primary" href="{% url 'parallel:search' corpus.pk %}">打开 ParaConc</a></header>
+  <header class="platform-card__header"><div><h2>{% if corpus.corpus_type == "paired_raw_zh_en" %}候选段落映射预览{% else %}人工结构对齐预览{% endif %}</h2><div class="table-meta mt-1">{% if corpus.corpus_type == "paired_raw_zh_en" %}由段落长度自动推断，请结合置信度抽检{% else %}按源文件编号与既有顺序展示{% endif %}</div></div><a class="btn btn-sm btn-outline-primary" href="{% url 'parallel:search' corpus.pk %}">打开平行检索</a></header>
   <div class="platform-card__body p-0">
     {% if alignment_preview_error %}<div class="alert alert-warning m-3">{{ alignment_preview_error }}</div>{% else %}
-      <div class="table-responsive"><table class="table"><thead><tr><th style="width:5rem">Pair</th><th>中文原文</th><th>English translation</th></tr></thead><tbody>{% for pair in alignment_preview %}<tr><th>#{{ pair.pair_ordinal }}</th><td>{{ pair.zh_text }}</td><td>{{ pair.en_text }}</td></tr>{% endfor %}</tbody></table></div>
+      <div class="table-responsive"><table class="table"><thead><tr><th style="width:5rem">序号</th><th>中文原文</th><th>英文译文</th></tr></thead><tbody>{% for pair in alignment_preview %}<tr><th>#{{ pair.pair_ordinal }}</th><td>{{ pair.zh_text }}</td><td>{{ pair.en_text }}</td></tr>{% endfor %}</tbody></table></div>
     {% endif %}
   </div>
 </section>
