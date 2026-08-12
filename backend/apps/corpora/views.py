@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from django.conf import settings
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
@@ -21,6 +23,7 @@ from apps.processing.exceptions import ProcessingError
 from apps.processing.index_health import ensure_corpus_index_ready
 from apps.processing.models import ProcessingTask
 from apps.processing.services import dispatch_processing_task
+from apps.audits.models import ParallelAuditStatus
 
 from .forms import CorpusUploadForm, PersonalCorpusForm
 from .models import Corpus, CorpusStatus, CorpusType
@@ -148,6 +151,7 @@ def corpus_documentation(request: HttpRequest, corpus_id) -> HttpResponse:
         pk=corpus_id,
     )
     latest_task = corpus.processing_tasks.order_by("-created_at").first()
+    latest_audit = corpus.parallel_audits.order_by("-created_at").first()
     alignment_preview = ()
     alignment_preview_error = ""
     parallel_types = {
@@ -178,6 +182,7 @@ def corpus_documentation(request: HttpRequest, corpus_id) -> HttpResponse:
             "corpus": corpus,
             "documentation": corpus.documentation,
             "latest_task": latest_task,
+            "latest_audit": latest_audit,
             "can_manage": corpus.source_type == "user" and corpus.owner_id == request.user.pk,
             "alignment_preview": alignment_preview,
             "alignment_preview_error": alignment_preview_error,
@@ -186,9 +191,28 @@ def corpus_documentation(request: HttpRequest, corpus_id) -> HttpResponse:
 
 
 @approved_user_required
+def parallel_audit_anomalies(request: HttpRequest, corpus_id) -> FileResponse:
+    corpus = get_object_or_404(visible_corpora_for(request.user), pk=corpus_id)
+    audit = corpus.parallel_audits.filter(status=ParallelAuditStatus.SUCCESS).first()
+    if audit is None or not audit.anomalies_path:
+        raise Http404("当前语料尚无可下载的审计明细")
+    expected_root = (Path(settings.DATA_ROOT) / "processed" / str(corpus.pk)).resolve()
+    path = Path(audit.anomalies_path).resolve()
+    if not path.is_file() or not path.is_relative_to(expected_root):
+        raise Http404("审计明细文件不可用")
+    return FileResponse(
+        path.open("rb"),
+        as_attachment=True,
+        filename=f"{corpus.name}-平行语料审计异常.jsonl",
+        content_type="application/x-ndjson; charset=utf-8",
+    )
+
+
+@approved_user_required
 def corpus_status(request: HttpRequest, corpus_id) -> JsonResponse:
     corpus = get_object_or_404(visible_corpora_for(request.user), pk=corpus_id)
     task = corpus.processing_tasks.order_by("-created_at").first()
+    audit = corpus.parallel_audits.order_by("-created_at").first()
     return JsonResponse(
         {
             "corpus_id": str(corpus.pk),
@@ -204,6 +228,16 @@ def corpus_status(request: HttpRequest, corpus_id) -> JsonResponse:
                     "error_message": task.error_message,
                 }
                 if task
+                else None
+            ),
+            "audit": (
+                {
+                    "id": str(audit.pk),
+                    "status": audit.status,
+                    "status_label": audit.get_status_display(),
+                    "error_message": audit.error_message,
+                }
+                if audit
                 else None
             ),
         }

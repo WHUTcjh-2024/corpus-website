@@ -63,6 +63,36 @@
 </section>
 {% endif %}
 
+{% if latest_audit %}
+<section class="platform-card mt-4">
+  <header class="platform-card__header">
+    <div>
+      <h2>平行语料质量审计</h2>
+      <div class="table-meta mt-1">在语料索引完成后自动执行，不影响语料检索与统计功能。</div>
+    </div>
+    <span class="status-badge status-{{ latest_audit.status }}">{{ latest_audit.get_status_display }}</span>
+  </header>
+  <div class="platform-card__body">
+    {% if latest_audit.status == "success" %}
+      <div class="row g-3">
+        <div class="col-6 col-md-3"><div class="metric-card"><p class="metric-card__label">审计句对</p><div class="metric-card__value">{{ latest_audit.summary.total_pairs|default:0 }}</div></div></div>
+        <div class="col-6 col-md-3"><div class="metric-card"><p class="metric-card__label">需复核句对</p><div class="metric-card__value">{{ latest_audit.summary.flagged_pairs|default:0 }}</div></div></div>
+        <div class="col-6 col-md-3"><div class="metric-card"><p class="metric-card__label">低置信度</p><div class="metric-card__value">{{ latest_audit.summary.low_confidence_pairs|default:0 }}</div></div></div>
+        <div class="col-6 col-md-3"><div class="metric-card"><p class="metric-card__label">长度异常</p><div class="metric-card__value">{{ latest_audit.summary.length_ratio_outliers|default:0 }}</div></div></div>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+        <span class="table-meta">空侧 {{ latest_audit.summary.empty_side_pairs|default:0 }} · 重复句对 {{ latest_audit.summary.duplicate_pairs|default:0 }} · 源文多译 {{ latest_audit.summary.source_translation_variants|default:0 }}</span>
+        <a class="btn btn-sm btn-outline-primary ms-auto" href="{% url 'corpora:audit_anomalies' corpus.pk %}">下载异常明细</a>
+      </div>
+    {% elif latest_audit.status == "failed" %}
+      <div class="alert alert-warning mb-0">审计未完成，不影响当前语料的检索与统计。{{ latest_audit.error_message }}</div>
+    {% else %}
+      <p class="mb-0 text-secondary">平行语料质量审计正在后台执行，完成后刷新此页即可查看结果。</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
 {% if alignment_preview or alignment_preview_error %}
 <section class="platform-card mt-4">
   <header class="platform-card__header"><div><h2>{% if corpus.corpus_type == "paired_raw_zh_en" %}候选段落映射预览{% else %}人工结构对齐预览{% endif %}</h2><div class="table-meta mt-1">{% if corpus.corpus_type == "paired_raw_zh_en" %}由段落长度自动推断，请结合置信度抽检{% else %}按源文件编号与既有顺序展示{% endif %}</div></div><a class="btn btn-sm btn-outline-primary" href="{% url 'parallel:search' corpus.pk %}">打开 ParaConc</a></header>
@@ -86,7 +116,7 @@
 {% endblock %}
 
 {% block extra_scripts %}
-{% if latest_task.status == "pending" or latest_task.status == "running" %}
+{% if latest_task.status == "pending" or latest_task.status == "running" or latest_audit.status == "pending" or latest_audit.status == "running" %}
 <script>
 (() => {
   const panel = document.getElementById("processing-status");
@@ -96,11 +126,14 @@
       const response = await fetch(panel.dataset.statusUrl, {headers: {Accept: "application/json"}});
       if (!response.ok) return;
       const data = await response.json();
-      if (!data.task) return;
-      panel.querySelector("[data-task-label]").textContent = data.task.status_label;
-      panel.querySelector("[data-task-progress]").style.width = `${data.task.progress}%`;
-      panel.querySelector("[data-task-percent]").textContent = `${data.task.progress}%`;
-      if (["success", "failed"].includes(data.task.status)) window.location.reload();
+      const taskIsActive = data.task && ["pending", "running"].includes(data.task.status);
+      const auditIsActive = data.audit && ["pending", "running"].includes(data.audit.status);
+      if (data.task && panel.querySelector("[data-task-label]")) {
+        panel.querySelector("[data-task-label]").textContent = data.task.status_label;
+        panel.querySelector("[data-task-progress]").style.width = `${data.task.progress}%`;
+        panel.querySelector("[data-task-percent]").textContent = `${data.task.progress}%`;
+      }
+      if (!taskIsActive && !auditIsActive) window.location.reload();
     } finally { window.setTimeout(poll, 2000); }
   };
   window.setTimeout(poll, 1500);
