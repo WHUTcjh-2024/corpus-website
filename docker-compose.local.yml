@@ -138,6 +138,7 @@ services:
       EXPORT_MAX_ROWS: ${EXPORT_MAX_ROWS:-100000}
       EXPORT_MAX_DOWNLOADS: ${EXPORT_MAX_DOWNLOADS:-5}
       EXPORT_MAX_JOBS_PER_HOUR: ${EXPORT_MAX_JOBS_PER_HOUR:-10}
+      CORPUS_AUDITOR_COMMAND: corpus-auditor
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data
