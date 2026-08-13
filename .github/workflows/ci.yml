@@ -96,11 +96,12 @@ jobs:
       - name: Validate production security configuration
         env:
           DJANGO_SETTINGS_MODULE: config.settings.production
-          DJANGO_SECRET_KEY: ci-production-secret-9f4a8c2d7e1b6g3h5j0k4m8n2p6r
+          DJANGO_SECRET_KEY: ci-test-only-K3r4T8sF1pN7wQ2xY9bC5dG6hJ0mL4vR8zA1eE7uI3oP
           DJANGO_ALLOWED_HOSTS: ci.example.test
           DJANGO_CSRF_TRUSTED_ORIGINS: https://ci.example.test
           UPLOAD_SCANNER_BACKEND: apps.corpora.scanners.ClamAVUploadScanner
           METRICS_BEARER_TOKEN: ci-metrics-token-9f4a8c2d7e1b6g3h5j0k4m8n
+          CORPUS_AUDITOR_QUEUE_ENABLED: "true"
         run: python manage.py check --deploy --fail-level WARNING
       - name: Check migration drift
         run: python manage.py makemigrations --check --dry-run
