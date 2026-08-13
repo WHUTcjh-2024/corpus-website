@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package corpus_auditor.v1;
+
+option go_package = "corpus-platform/corpus-auditor/api/proto/corpus_auditor/v1;auditorv1";
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/empty.proto";
+
+service CorpusAuditor {
+  rpc SubmitAudit(SubmitAuditRequest) returns (AuditJob);
+  rpc GetAudit(GetAuditRequest) returns (AuditJob);
+  rpc CancelAudit(CancelAuditRequest) returns (AuditJob);
+  rpc SubmitBatch(SubmitBatchRequest) returns (SubmitBatchResponse);
+  rpc Health(google.protobuf.Empty) returns (HealthResponse);
+}
+
+message AuditOptions {
+  double low_confidence = 1;
+  double min_length_ratio = 2;
+  double max_length_ratio = 3;
+  int32 max_anomalies = 4;
+}
+
+message SubmitAuditRequest {
+  string job_id = 1;
+  string input_ref = 2;
+  string output_prefix = 3;
+  string callback_path = 4;
+  AuditOptions options = 5;
+}
+
+message GetAuditRequest { string job_id = 1; }
+message CancelAuditRequest { string job_id = 1; }
+message SubmitBatchRequest { repeated SubmitAuditRequest jobs = 1; }
+
+message CallbackDelivery {
+  bool delivered = 1;
+  int32 attempts = 2;
+  string next_at = 3;
+  string last_error = 4;
+}
+
+message AuditJob {
+  string id = 1;
+  string state = 2;
+  int32 attempt = 3;
+  string input_ref = 4;
+  string output_prefix = 5;
+  string report_ref = 6;
+  string anomalies_ref = 7;
+  string error_code = 8;
+  string error_message = 9;
+  CallbackDelivery callback = 10;
+  string created_at = 11;
+  string updated_at = 12;
+  google.protobuf.Struct summary = 13;
+  string auditor_version = 14;
+}
+
+message SubmitBatchResponse { repeated AuditJob jobs = 1; }
+message HealthResponse { string status = 1; string service = 2; }

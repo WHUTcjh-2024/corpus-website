@@ -249,8 +249,23 @@ if (
 ):
     raise ValueError("Agent runtime settings must use positive bounded values.")
 
-# The Go auditor is an offline executable, not a network service. Django owns
-# task orchestration and persistence; the executable only exchanges files.
+# The Go auditor is a separate data-plane service. Django owns authorization,
+# durable orchestration and callback persistence; the service receives only
+# data-root-relative references and writes its reports to the shared volume.
+CORPUS_AUDITOR_SERVICE_ENABLED = env_bool("CORPUS_AUDITOR_SERVICE_ENABLED", False)
+CORPUS_AUDITOR_SERVICE_BASE_URL = os.getenv("CORPUS_AUDITOR_SERVICE_BASE_URL", "")
+CORPUS_AUDITOR_SERVICE_TOKEN = os.getenv("CORPUS_AUDITOR_SERVICE_TOKEN", "")
+CORPUS_AUDITOR_CALLBACK_TOKEN = os.getenv("CORPUS_AUDITOR_CALLBACK_TOKEN", "")
+CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS = float(
+    os.getenv("CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS", "10")
+)
+CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS = int(
+    os.getenv("CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS", "300")
+)
+CORPUS_AUDITOR_RECONCILE_BATCH_SIZE = int(
+    os.getenv("CORPUS_AUDITOR_RECONCILE_BATCH_SIZE", "100")
+)
+# This local executable is an explicit development/test fallback only.
 CORPUS_AUDITOR_COMMAND = os.getenv(
     "CORPUS_AUDITOR_COMMAND",
     "go -C ./go/corpus-auditor run ./cmd/corpus-auditor",
@@ -260,6 +275,13 @@ PARALLEL_AUDIT_LOW_CONFIDENCE = float(os.getenv("PARALLEL_AUDIT_LOW_CONFIDENCE",
 PARALLEL_AUDIT_MIN_LENGTH_RATIO = float(os.getenv("PARALLEL_AUDIT_MIN_LENGTH_RATIO", "0.12"))
 PARALLEL_AUDIT_MAX_LENGTH_RATIO = float(os.getenv("PARALLEL_AUDIT_MAX_LENGTH_RATIO", "1.8"))
 PARALLEL_AUDIT_MAX_ANOMALIES = int(os.getenv("PARALLEL_AUDIT_MAX_ANOMALIES", "1000"))
+
+if (
+    CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS <= 0
+    or CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS < 1
+    or CORPUS_AUDITOR_RECONCILE_BATCH_SIZE < 1
+):
+    raise ValueError("Corpus auditor service settings must use positive bounded values.")
 METRICS_BEARER_TOKEN = os.getenv("METRICS_BEARER_TOKEN", "")
 
 LOGGING = {

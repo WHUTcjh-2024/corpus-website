@@ -14,6 +14,28 @@ permissions:
   contents: read
 
 jobs:
+  go-auditor:
+    name: Go auditor quality gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend/go/corpus-auditor
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache-dependency-path: backend/go/corpus-auditor/go.sum
+      - name: Check Go formatting and generated contract compilation
+        run: |
+          test -z "$(gofmt -l api cmd internal)"
+          go vet ./...
+      - name: Test Go service
+        run: go test ./...
+      - name: Build static service binary
+        run: CGO_ENABLED=0 go build -trimpath -o /tmp/corpus-auditor-service ./cmd/corpus-auditor-service
+
   backend:
     name: Backend quality gate
     runs-on: ubuntu-latest

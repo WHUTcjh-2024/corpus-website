@@ -37,12 +37,12 @@ func run(args []string, stdout, stderr io.Writer) error {
 	}
 
 	reportData, err := audit.Run(audit.Options{
-		InputPath:        *input,
-		ReportPath:       *report,
-		AnomaliesPath:    *anomalies,
-		LowConfidence:    *lowConfidence,
-		MinLengthRatio:   *minLengthRatio,
-		MaxLengthRatio:   *maxLengthRatio,
+		InputPath:         *input,
+		ReportPath:        *report,
+		AnomaliesPath:     *anomalies,
+		LowConfidence:     *lowConfidence,
+		MinLengthRatio:    *minLengthRatio,
+		MaxLengthRatio:    *maxLengthRatio,
 		MaxAnomalyRecords: *maxAnomalies,
 	})
 	if err != nil {

@@ -36,3 +36,10 @@ groups:
           severity: warning
         annotations:
           summary: Corpus Agent approval backlog exceeds the expected operating threshold.
+      - alert: CorpusRemoteAuditorBacklog
+        expr: corpus_parallel_audits{status="running"} > 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Remote corpus auditor backlog exceeds the expected operating threshold.

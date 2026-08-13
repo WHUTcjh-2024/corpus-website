@@ -15,6 +15,11 @@ class ParallelAuditStatus(models.TextChoices):
     FAILED = "failed", "审计失败"
 
 
+class ParallelAuditExecutionMode(models.TextChoices):
+    REMOTE = "remote", "Go service"
+    LOCAL = "local", "Local fallback"
+
+
 class ParallelAudit(models.Model):
     """A durable, immutable audit attempt for one completed processing task."""
 
@@ -37,6 +42,23 @@ class ParallelAudit(models.Model):
         choices=ParallelAuditStatus.choices,
         default=ParallelAuditStatus.PENDING,
         db_index=True,
+    )
+    execution_mode = models.CharField(
+        "Execution mode",
+        max_length=20,
+        choices=ParallelAuditExecutionMode.choices,
+        default=ParallelAuditExecutionMode.REMOTE,
+    )
+    remote_job_id = models.CharField(
+        "Remote job ID", max_length=64, blank=True, unique=True, null=True
+    )
+    remote_state = models.CharField("Remote state", max_length=32, blank=True)
+    remote_attempt = models.PositiveIntegerField("Remote attempt", default=0)
+    remote_callback_received_at = models.DateTimeField(
+        "Remote callback received at", null=True, blank=True
+    )
+    remote_callback_payload_hash = models.CharField(
+        "Remote callback payload hash", max_length=64, blank=True
     )
     report_path = models.CharField("报告路径", max_length=1500, blank=True)
     anomalies_path = models.CharField("异常明细路径", max_length=1500, blank=True)

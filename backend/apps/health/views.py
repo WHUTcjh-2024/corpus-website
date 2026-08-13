@@ -29,6 +29,7 @@ def readyz(request: HttpRequest) -> JsonResponse:
         "redis": _redis_ready(),
         "data_root": settings.DATA_ROOT.exists(),
         "agent_model": _agent_model_ready(),
+        "corpus_auditor": _corpus_auditor_ready(),
     }
     status_code = 200 if all(checks.values()) else 503
     return JsonResponse({"status": "ready" if status_code == 200 else "not_ready", "checks": checks}, status=status_code)
@@ -70,4 +71,15 @@ def _agent_model_ready() -> bool:
         settings.AGENT_MODEL_BASE_URL
         and settings.AGENT_MODEL_API_KEY
         and settings.AGENT_MODEL_NAME
+    )
+
+
+def _corpus_auditor_ready() -> bool:
+    """Do not make local deterministic tests depend on a network service."""
+    if not settings.CORPUS_AUDITOR_SERVICE_ENABLED:
+        return True
+    return bool(
+        settings.CORPUS_AUDITOR_SERVICE_BASE_URL
+        and settings.CORPUS_AUDITOR_SERVICE_TOKEN
+        and settings.CORPUS_AUDITOR_CALLBACK_TOKEN
     )

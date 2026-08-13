@@ -40,3 +40,6 @@ deploy/secrets/*
 Thumbs.db
 .idea/
 .vscode/
+backend/go/corpus-auditor/bin/
+backend/go/corpus-auditor/*.exe
+data/service-smoke/

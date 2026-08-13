@@ -5,6 +5,7 @@ package audit
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -38,12 +39,12 @@ type Options struct {
 
 // Report is stable JSON consumed by the Django application.
 type Report struct {
-	SchemaVersion string        `json:"schema_version"`
-	AuditorVersion string       `json:"auditor_version"`
-	GeneratedAt   time.Time     `json:"generated_at"`
-	Input         InputMetadata `json:"input"`
-	Thresholds    Thresholds    `json:"thresholds"`
-	Summary       Summary       `json:"summary"`
+	SchemaVersion  string        `json:"schema_version"`
+	AuditorVersion string        `json:"auditor_version"`
+	GeneratedAt    time.Time     `json:"generated_at"`
+	Input          InputMetadata `json:"input"`
+	Thresholds     Thresholds    `json:"thresholds"`
+	Summary        Summary       `json:"summary"`
 }
 
 type InputMetadata struct {
@@ -52,24 +53,24 @@ type InputMetadata struct {
 }
 
 type Thresholds struct {
-	LowConfidence   float64 `json:"low_confidence"`
-	MinLengthRatio  float64 `json:"min_length_ratio"`
-	MaxLengthRatio  float64 `json:"max_length_ratio"`
-	MaxAnomalyRows  int     `json:"max_anomaly_rows"`
+	LowConfidence  float64 `json:"low_confidence"`
+	MinLengthRatio float64 `json:"min_length_ratio"`
+	MaxLengthRatio float64 `json:"max_length_ratio"`
+	MaxAnomalyRows int     `json:"max_anomaly_rows"`
 }
 
 type Summary struct {
-	TotalPairs                 int     `json:"total_pairs"`
-	FlaggedPairs               int     `json:"flagged_pairs"`
-	EmptySidePairs             int     `json:"empty_side_pairs"`
-	DuplicatePairs             int     `json:"duplicate_pairs"`
-	SourceTranslationVariants  int     `json:"source_translation_variants"`
-	LowConfidencePairs         int     `json:"low_confidence_pairs"`
-	InvalidConfidencePairs     int     `json:"invalid_confidence_pairs"`
-	LengthRatioOutliers        int     `json:"length_ratio_outliers"`
-	WrittenAnomalyRows         int     `json:"written_anomaly_rows"`
-	SuppressedAnomalyRows      int     `json:"suppressed_anomaly_rows"`
-	MeanConfidence             float64 `json:"mean_confidence"`
+	TotalPairs                int     `json:"total_pairs"`
+	FlaggedPairs              int     `json:"flagged_pairs"`
+	EmptySidePairs            int     `json:"empty_side_pairs"`
+	DuplicatePairs            int     `json:"duplicate_pairs"`
+	SourceTranslationVariants int     `json:"source_translation_variants"`
+	LowConfidencePairs        int     `json:"low_confidence_pairs"`
+	InvalidConfidencePairs    int     `json:"invalid_confidence_pairs"`
+	LengthRatioOutliers       int     `json:"length_ratio_outliers"`
+	WrittenAnomalyRows        int     `json:"written_anomaly_rows"`
+	SuppressedAnomalyRows     int     `json:"suppressed_anomaly_rows"`
+	MeanConfidence            float64 `json:"mean_confidence"`
 }
 
 type inputPair struct {
@@ -101,6 +102,13 @@ type sourceVariantState struct {
 // Run streams the JSONL input and publishes each completed output by atomic
 // replacement. The caller never observes a half-written report or anomaly file.
 func Run(options Options) (Report, error) {
+	return RunContext(context.Background(), options)
+}
+
+// RunContext is the cancellable form of Run.  It keeps the file-level contract
+// unchanged while allowing a service worker to release resources promptly when
+// an operator cancels a queued or running job.
+func RunContext(ctx context.Context, options Options) (Report, error) {
 	if err := options.validate(); err != nil {
 		return Report{}, err
 	}
@@ -133,6 +141,9 @@ func Run(options Options) (Report, error) {
 	confidenceMean := 0.0
 
 	for line := 1; scanner.Scan(); line++ {
+		if err := ctx.Err(); err != nil {
+			return Report{}, err
+		}
 		if strings.TrimSpace(scanner.Text()) == "" {
 			continue
 		}
@@ -179,12 +190,12 @@ func Run(options Options) (Report, error) {
 	summary.MeanConfidence = round(confidenceMean, 6)
 
 	report := Report{
-		SchemaVersion: ReportSchemaVersion,
+		SchemaVersion:  ReportSchemaVersion,
 		AuditorVersion: AuditorVersion,
-		GeneratedAt: time.Now().UTC(),
-		Input: InputMetadata{Filename: filepath.Base(options.InputPath), SHA256: hex.EncodeToString(hash.Sum(nil))},
-		Thresholds: Thresholds{LowConfidence: options.LowConfidence, MinLengthRatio: options.MinLengthRatio, MaxLengthRatio: options.MaxLengthRatio, MaxAnomalyRows: options.MaxAnomalyRecords},
-		Summary: summary,
+		GeneratedAt:    time.Now().UTC(),
+		Input:          InputMetadata{Filename: filepath.Base(options.InputPath), SHA256: hex.EncodeToString(hash.Sum(nil))},
+		Thresholds:     Thresholds{LowConfidence: options.LowConfidence, MinLengthRatio: options.MinLengthRatio, MaxLengthRatio: options.MaxLengthRatio, MaxAnomalyRows: options.MaxAnomalyRecords},
+		Summary:        summary,
 	}
 	payload, err := json.MarshalIndent(report, "", "  ")
 	if err != nil {

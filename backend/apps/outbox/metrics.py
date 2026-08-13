@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from .models import OutboxEvent, OutboxEventStatus
 from apps.agent.models import AgentRun, AgentRunStatus
+from apps.audits.models import ParallelAudit, ParallelAuditStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +15,7 @@ class OutboxMetrics:
     event_counts: dict[str, int]
     oldest_pending_age_seconds: float
     agent_run_counts: dict[str, int]
+    parallel_audit_counts: dict[str, int]
 
 
 def collect_outbox_metrics() -> OutboxMetrics:
@@ -36,6 +38,7 @@ def collect_outbox_metrics() -> OutboxMetrics:
         event_counts={status: counts.get(status, 0) for status in OutboxEventStatus.values},
         oldest_pending_age_seconds=oldest_pending_age_seconds,
         agent_run_counts=_agent_run_counts(),
+        parallel_audit_counts=_parallel_audit_counts(),
     )
 
 
@@ -46,6 +49,15 @@ def _agent_run_counts() -> dict[str, int]:
         .values_list("status", "total")
     )
     return {status: counts.get(status, 0) for status in AgentRunStatus.values}
+
+
+def _parallel_audit_counts() -> dict[str, int]:
+    counts = dict(
+        ParallelAudit.objects.values("status")
+        .annotate(total=Count("id"))
+        .values_list("status", "total")
+    )
+    return {status: counts.get(status, 0) for status in ParallelAuditStatus.values}
 
 
 def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
@@ -70,4 +82,14 @@ def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
     )
     for status in AgentRunStatus.values:
         lines.append(f'corpus_agent_runs{{status="{status}"}} {snapshot.agent_run_counts[status]}')
+    lines.extend(
+        [
+            "# HELP corpus_parallel_audits Number of parallel audit jobs by state.",
+            "# TYPE corpus_parallel_audits gauge",
+        ]
+    )
+    for status in ParallelAuditStatus.values:
+        lines.append(
+            f'corpus_parallel_audits{{status="{status}"}} {snapshot.parallel_audit_counts[status]}'
+        )
     return "\n".join(lines) + "\n"
