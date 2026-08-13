@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from django.db.models import Count, Min
+from django.db.models import Count, Min, Sum
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from .models import OutboxEvent, OutboxEventStatus
@@ -16,6 +17,10 @@ class OutboxMetrics:
     oldest_pending_age_seconds: float
     agent_run_counts: dict[str, int]
     parallel_audit_counts: dict[str, int]
+    oldest_agent_external_wait_age_seconds: float
+    oldest_parallel_audit_age_seconds: float
+    model_fallback_run_count: int
+    estimated_model_cost_usd: float
 
 
 def collect_outbox_metrics() -> OutboxMetrics:
@@ -39,6 +44,12 @@ def collect_outbox_metrics() -> OutboxMetrics:
         oldest_pending_age_seconds=oldest_pending_age_seconds,
         agent_run_counts=_agent_run_counts(),
         parallel_audit_counts=_parallel_audit_counts(),
+        oldest_agent_external_wait_age_seconds=_oldest_agent_external_wait_age_seconds(),
+        oldest_parallel_audit_age_seconds=_oldest_parallel_audit_age_seconds(),
+        model_fallback_run_count=_model_fallback_run_count(),
+        estimated_model_cost_usd=float(
+            AgentRun.objects.aggregate(total=Sum("estimated_cost_usd"))["total"] or 0
+        ),
     )
 
 
@@ -58,6 +69,30 @@ def _parallel_audit_counts() -> dict[str, int]:
         .values_list("status", "total")
     )
     return {status: counts.get(status, 0) for status in ParallelAuditStatus.values}
+
+
+def _oldest_agent_external_wait_age_seconds() -> float:
+    oldest = AgentRun.objects.filter(status=AgentRunStatus.WAITING_EXTERNAL).aggregate(
+        oldest=Min(Coalesce("external_wait_started_at", "created_at"))
+    )["oldest"]
+    return _age_seconds(oldest)
+
+
+def _oldest_parallel_audit_age_seconds() -> float:
+    oldest = ParallelAudit.objects.filter(
+        status__in=(ParallelAuditStatus.PENDING, ParallelAuditStatus.RUNNING)
+    ).aggregate(oldest=Min(Coalesce("started_at", "created_at")))["oldest"]
+    return _age_seconds(oldest)
+
+
+def _age_seconds(value) -> float:
+    if value is None:
+        return 0.0
+    return max((timezone.now() - value).total_seconds(), 0.0)
+
+
+def _model_fallback_run_count() -> int:
+    return AgentRun.objects.filter(model_usage__fallback=True).count()
 
 
 def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
@@ -84,6 +119,19 @@ def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
         lines.append(f'corpus_agent_runs{{status="{status}"}} {snapshot.agent_run_counts[status]}')
     lines.extend(
         [
+            "# HELP corpus_agent_external_wait_oldest_age_seconds Age of the oldest Agent run waiting on an external result.",
+            "# TYPE corpus_agent_external_wait_oldest_age_seconds gauge",
+            f"corpus_agent_external_wait_oldest_age_seconds {snapshot.oldest_agent_external_wait_age_seconds:.6f}",
+            "# HELP corpus_agent_model_fallback_runs Number of Agent runs that completed with deterministic model fallback.",
+            "# TYPE corpus_agent_model_fallback_runs gauge",
+            f"corpus_agent_model_fallback_runs {snapshot.model_fallback_run_count}",
+            "# HELP corpus_agent_estimated_model_cost_usd Persisted estimated model cost across Agent runs.",
+            "# TYPE corpus_agent_estimated_model_cost_usd gauge",
+            f"corpus_agent_estimated_model_cost_usd {snapshot.estimated_model_cost_usd:.8f}",
+        ]
+    )
+    lines.extend(
+        [
             "# HELP corpus_parallel_audits Number of parallel audit jobs by state.",
             "# TYPE corpus_parallel_audits gauge",
         ]
@@ -92,4 +140,11 @@ def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
         lines.append(
             f'corpus_parallel_audits{{status="{status}"}} {snapshot.parallel_audit_counts[status]}'
         )
+    lines.extend(
+        [
+            "# HELP corpus_parallel_audit_oldest_active_age_seconds Age of the oldest pending or running parallel audit.",
+            "# TYPE corpus_parallel_audit_oldest_active_age_seconds gauge",
+            f"corpus_parallel_audit_oldest_active_age_seconds {snapshot.oldest_parallel_audit_age_seconds:.6f}",
+        ]
+    )
     return "\n".join(lines) + "\n"

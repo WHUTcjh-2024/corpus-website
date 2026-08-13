@@ -80,6 +80,13 @@ func New(config Config) (*Streams, error) {
 
 func (streams *Streams) Close() error { return nil }
 
+// Ping confirms that Redis is available before the service declares itself
+// ready to consume commands. It intentionally does not create streams/groups.
+func (streams *Streams) Ping(ctx context.Context) error {
+	_, err := streams.command(ctx, "PING")
+	return err
+}
+
 func (streams *Streams) EnsureCommandGroup(ctx context.Context) error {
 	_, err := streams.command(ctx, "XGROUP", "CREATE", streams.config.CommandStream, streams.config.CommandGroup, "0", "MKSTREAM")
 	if err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {

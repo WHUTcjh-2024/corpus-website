@@ -46,3 +46,24 @@ func TestHTTPServerRequiresBearerTokenAndRejectsUnknownFields(t *testing.T) {
 		t.Fatalf("body = %#v", body)
 	}
 }
+
+func TestReadyzRequiresExternalDependencyButHealthzRemainsLive(t *testing.T) {
+	t.Parallel()
+	auditor, err := service.New(service.Config{DataRoot: t.TempDir(), StateDirectory: filepath.Join(t.TempDir(), "jobs"), ResultPublisher: discardPublisher{}, WorkerCount: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer auditor.Close()
+	server := httptest.NewServer(NewHTTPServerWithReadiness(auditor, "control", func() bool { return false }).Handler())
+	defer server.Close()
+	for path, expected := range map[string]int{"/healthz": http.StatusOK, "/readyz": http.StatusServiceUnavailable} {
+		response, requestErr := http.Get(server.URL + path)
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		response.Body.Close()
+		if response.StatusCode != expected {
+			t.Fatalf("%s status = %d, want %d", path, response.StatusCode, expected)
+		}
+	}
+}

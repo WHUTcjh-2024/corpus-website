@@ -71,9 +71,14 @@ func run(arguments []string) error {
 	}
 	defer auditor.Close()
 
+	queueReady := func() bool {
+		context, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		return streams.Ping(context) == nil
+	}
 	server := &http.Server{
 		Addr:              *listenAddress,
-		Handler:           transport.NewHTTPServer(auditor, *controlToken).Handler(),
+		Handler:           transport.NewHTTPServerWithReadiness(auditor, *controlToken, queueReady).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,

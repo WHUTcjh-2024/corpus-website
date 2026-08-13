@@ -23,7 +23,7 @@ class AgentRunAdmin(admin.ModelAdmin):
         "id", "requested_by", "corpus", "mode", "skill", "idempotency_key", "request_id",
         "request_fingerprint", "plan", "status", "answer", "evidence", "model_usage",
         "estimated_cost_usd", "error_code", "error_message", "attempt_count", "locked_until",
-        "external_wait_kind", "external_wait_id", "external_wait_expires_at",
+        "external_wait_kind", "external_wait_id", "external_wait_started_at", "external_wait_expires_at",
         "started_at", "finished_at", "created_at", "updated_at",
     )
     inlines = (AgentStepInline,)

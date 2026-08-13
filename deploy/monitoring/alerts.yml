@@ -43,3 +43,17 @@ groups:
           severity: warning
         annotations:
           summary: Remote corpus auditor backlog exceeds the expected operating threshold.
+      - alert: CorpusAgentExternalWaitDelayed
+        expr: corpus_agent_external_wait_oldest_age_seconds > 300
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: An Agent has been waiting on an external audit result for more than five minutes.
+      - alert: CorpusParallelAuditStalled
+        expr: corpus_parallel_audit_oldest_active_age_seconds > 600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: A parallel audit has remained pending or running for more than ten minutes.
