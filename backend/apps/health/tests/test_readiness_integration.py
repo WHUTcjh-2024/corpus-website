@@ -1,10 +1,51 @@
 import os
 from unittest import skipUnless
+from unittest.mock import patch
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
+
+from apps.audits.queue import AuditQueueUnavailable
 
 
 class ReadinessIntegrationTests(TestCase):
+    @override_settings(CORPUS_AUDITOR_QUEUE_ENABLED=False)
+    @patch("apps.health.views._redis_ready", return_value=True)
+    def test_readiness_reports_required_dependency_contract(self, _redis_ready):
+        response = self.client.get("/readyz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()["checks"],
+            {
+                "database": True,
+                "redis": True,
+                "data_root": True,
+                "agent_model": True,
+                "auditor_queue": True,
+            },
+        )
+
+    @override_settings(CORPUS_AUDITOR_QUEUE_ENABLED=True)
+    @patch("apps.health.views._redis_ready", return_value=True)
+    @patch("apps.health.views.AuditQueue.ping")
+    def test_readiness_checks_auditor_redis_stream_dependency(self, ping, _redis_ready):
+        response = self.client.get("/readyz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["checks"]["auditor_queue"])
+        ping.assert_called_once()
+
+    @override_settings(CORPUS_AUDITOR_QUEUE_ENABLED=True)
+    @patch("apps.health.views._redis_ready", return_value=True)
+    @patch("apps.health.views.AuditQueue.ping", side_effect=AuditQueueUnavailable("offline"))
+    def test_readiness_rejects_work_when_auditor_queue_is_unavailable(
+        self, _ping, _redis_ready
+    ):
+        response = self.client.get("/readyz")
+
+        self.assertEqual(response.status_code, 503)
+        self.assertFalse(response.json()["checks"]["auditor_queue"])
+
     @skipUnless(
         os.getenv("REQUIRE_REDIS_INTEGRATION") == "true",
         "Redis integration checks run only where Redis is provisioned.",
@@ -13,10 +54,6 @@ class ReadinessIntegrationTests(TestCase):
         response = self.client.get("/readyz")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {
-                "status": "ready",
-                "checks": {"database": True, "redis": True, "data_root": True},
-            },
-        )
+        self.assertTrue(response.json()["checks"]["database"])
+        self.assertTrue(response.json()["checks"]["redis"])
+        self.assertTrue(response.json()["checks"]["data_root"])

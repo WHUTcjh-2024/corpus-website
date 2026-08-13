@@ -53,6 +53,13 @@ class AuditQueue:
             group=settings.CORPUS_AUDITOR_RESULT_GROUP,
         )
 
+    def ping(self) -> None:
+        """Verify that the queue dependency is reachable without mutating it."""
+        try:
+            self.client.ping()
+        except RedisError as exc:
+            raise AuditQueueUnavailable("Unable to reach the auditor queue.") from exc
+
     def read_results(self, *, limit: int) -> list[ResultEntry]:
         try:
             batches = self.client.xreadgroup(

@@ -102,6 +102,9 @@ class AgentRun(models.Model):
         blank=True,
     )
     external_wait_id = models.UUIDField("外部等待任务 ID", null=True, blank=True, db_index=True)
+    external_wait_started_at = models.DateTimeField(
+        "外部等待开始时间", null=True, blank=True, db_index=True
+    )
     external_wait_expires_at = models.DateTimeField(
         "外部等待超时", null=True, blank=True, db_index=True
     )
@@ -136,6 +139,10 @@ class AgentRun(models.Model):
             models.Index(
                 fields=["status", "external_wait_id"],
                 name="agent_run_external_wait_idx",
+            ),
+            models.Index(
+                fields=["status", "external_wait_started_at"],
+                name="agent_run_wait_age_idx",
             ),
         ]
 

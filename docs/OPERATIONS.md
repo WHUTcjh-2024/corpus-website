@@ -62,6 +62,17 @@ Create alerts for:
 - a sustained `corpus_agent_runs{status="waiting_approval"}` backlog above the
   operating threshold; expired approvals should be allowed to age out rather
   than auto-approved.
+- `corpus_agent_external_wait_oldest_age_seconds > 300` for 10 minutes. This
+  detects an Agent Saga blocked after issuing an audit command.
+- `corpus_parallel_audit_oldest_active_age_seconds > 600` for 10 minutes. This
+  detects a stuck Redis Streams command, worker, or result projection path.
+
+`/healthz` is liveness only: it answers whether the Django process is alive.
+Container orchestration must use `/readyz`, which additionally checks PostgreSQL,
+Redis, the mounted data directory, optional model configuration, and the Redis
+Streams dependency used by the Go auditor. Likewise, the Go auditor's `/readyz`
+checks Redis before it accepts traffic, while `/healthz` remains available during
+a transient broker outage for diagnosis.
 
 The default retention is seven days for successfully published events. Dead
 letters are retained for investigation and manual replay.

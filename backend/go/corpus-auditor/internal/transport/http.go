@@ -19,10 +19,21 @@ const maxRequestBytes = 1 << 20
 type HTTPServer struct {
 	service *service.Service
 	token   string
+	ready   func() bool
 }
 
 func NewHTTPServer(auditor *service.Service, token string) *HTTPServer {
-	return &HTTPServer{service: auditor, token: token}
+	return NewHTTPServerWithReadiness(auditor, token, auditor.Healthy)
+}
+
+// NewHTTPServerWithReadiness keeps liveness independent from external
+// dependencies while allowing the executable to reject traffic when its
+// Redis Streams transport cannot accept commands.
+func NewHTTPServerWithReadiness(auditor *service.Service, token string, ready func() bool) *HTTPServer {
+	if ready == nil {
+		ready = auditor.Healthy
+	}
+	return &HTTPServer{service: auditor, token: token, ready: ready}
 }
 
 func (server *HTTPServer) Handler() http.Handler {
@@ -37,6 +48,10 @@ func (server *HTTPServer) Handler() http.Handler {
 }
 
 func (server *HTTPServer) health(writer http.ResponseWriter, request *http.Request) {
+	if request.URL.Path == "/readyz" && !server.ready() {
+		writeJSON(writer, http.StatusServiceUnavailable, map[string]any{"status": "not_ready", "service": "corpus-auditor"})
+		return
+	}
 	if !server.service.Healthy() {
 		writeJSON(writer, http.StatusServiceUnavailable, map[string]any{"status": "stopping", "service": "corpus-auditor"})
 		return

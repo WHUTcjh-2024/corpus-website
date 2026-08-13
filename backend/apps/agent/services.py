@@ -411,12 +411,13 @@ def cancel_agent_run(*, run_id, user, request=None) -> AgentRun:
     run.locked_until = None
     run.external_wait_kind = ""
     run.external_wait_id = None
+    run.external_wait_started_at = None
     run.external_wait_expires_at = None
     run.finished_at = timezone.now()
     run.save(
         update_fields=[
             "status", "error_code", "error_message", "locked_until", "external_wait_kind",
-            "external_wait_id", "external_wait_expires_at", "finished_at", "updated_at",
+            "external_wait_id", "external_wait_started_at", "external_wait_expires_at", "finished_at", "updated_at",
         ]
     )
     AgentApproval.objects.filter(run=run, status=AgentApprovalStatus.PENDING).update(
@@ -599,12 +600,13 @@ def _synchronize_parallel_audit_wait(*, run_id, step_id) -> str:
     run.locked_until = None
     run.external_wait_kind = AgentExternalWaitKind.PARALLEL_AUDIT
     run.external_wait_id = audit.pk
-    run.external_wait_expires_at = timezone.now() + timedelta(
+    run.external_wait_started_at = timezone.now()
+    run.external_wait_expires_at = run.external_wait_started_at + timedelta(
         seconds=settings.AGENT_EXTERNAL_WAIT_TTL_SECONDS
     )
     run.save(
         update_fields=[
-            "status", "locked_until", "external_wait_kind", "external_wait_id",
+            "status", "locked_until", "external_wait_kind", "external_wait_id", "external_wait_started_at",
             "external_wait_expires_at", "updated_at",
         ]
     )
@@ -652,10 +654,11 @@ def _pause_for_approval(*, run_id, payload: dict[str, Any]) -> tuple[AgentApprov
     run.locked_until = None
     run.external_wait_kind = ""
     run.external_wait_id = None
+    run.external_wait_started_at = None
     run.external_wait_expires_at = None
     run.save(
         update_fields=[
-            "status", "locked_until", "external_wait_kind", "external_wait_id",
+            "status", "locked_until", "external_wait_kind", "external_wait_id", "external_wait_started_at",
             "external_wait_expires_at", "updated_at",
         ]
     )
@@ -683,6 +686,7 @@ def _expire_pending_approval(*, run_id, now) -> bool:
     run.error_message = "The approval window expired."
     run.external_wait_kind = ""
     run.external_wait_id = None
+    run.external_wait_started_at = None
     run.external_wait_expires_at = None
     run.finished_at = now
     run.save(
@@ -692,6 +696,7 @@ def _expire_pending_approval(*, run_id, now) -> bool:
             "error_message",
             "external_wait_kind",
             "external_wait_id",
+            "external_wait_started_at",
             "external_wait_expires_at",
             "finished_at",
             "updated_at",
@@ -737,12 +742,13 @@ def _expire_external_wait(*, run_id, now) -> bool:
     run.locked_until = None
     run.external_wait_kind = ""
     run.external_wait_id = None
+    run.external_wait_started_at = None
     run.external_wait_expires_at = None
     run.finished_at = now
     run.save(
         update_fields=[
             "status", "error_code", "error_message", "locked_until", "external_wait_kind",
-            "external_wait_id", "external_wait_expires_at", "finished_at", "updated_at",
+            "external_wait_id", "external_wait_started_at", "external_wait_expires_at", "finished_at", "updated_at",
         ]
     )
     record_audit_event(
@@ -830,10 +836,11 @@ def advance_waiting_agent_runs_for_parallel_audit(*, audit) -> int:
         run.locked_until = None
         run.external_wait_kind = ""
         run.external_wait_id = None
+        run.external_wait_started_at = None
         run.external_wait_expires_at = None
         run.save(
             update_fields=[
-                "status", "locked_until", "external_wait_kind", "external_wait_id",
+                "status", "locked_until", "external_wait_kind", "external_wait_id", "external_wait_started_at",
                 "external_wait_expires_at", "updated_at",
             ]
         )
@@ -900,12 +907,13 @@ def _fail_parallel_audit_wait(*, run: AgentRun, audit, reason: str | None = None
     run.locked_until = None
     run.external_wait_kind = ""
     run.external_wait_id = None
+    run.external_wait_started_at = None
     run.external_wait_expires_at = None
     run.finished_at = now
     run.save(
         update_fields=[
             "status", "error_code", "error_message", "locked_until", "external_wait_kind",
-            "external_wait_id", "external_wait_expires_at", "finished_at", "updated_at",
+            "external_wait_id", "external_wait_started_at", "external_wait_expires_at", "finished_at", "updated_at",
         ]
     )
     record_audit_event(
@@ -940,6 +948,7 @@ def _mark_run_success(
         locked_until=None,
         external_wait_kind="",
         external_wait_id=None,
+        external_wait_started_at=None,
         external_wait_expires_at=None,
         finished_at=timezone.now(),
         error_code="",
@@ -958,6 +967,7 @@ def _mark_run_failed(run_id, *, code: str, message: str) -> bool:
         locked_until=None,
         external_wait_kind="",
         external_wait_id=None,
+        external_wait_started_at=None,
         external_wait_expires_at=None,
         finished_at=timezone.now(),
         updated_at=timezone.now(),
