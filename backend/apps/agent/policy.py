@@ -43,6 +43,11 @@ SKILLS = {
         version="v1",
         allowed_tools=frozenset({"get_latest_quality_report", "search_parallel"}),
     ),
+    "parallel_quality_audit@v1": SkillDefinition(
+        name="parallel_quality_audit",
+        version="v1",
+        allowed_tools=frozenset({"request_quality_audit"}),
+    ),
     "corpus_export_handoff@v1": SkillDefinition(
         name="corpus_export_handoff",
         version="v1",
@@ -102,11 +107,14 @@ def plan_run(
     elif mode == AgentRunMode.QUALITY_REVIEW:
         if not parallel:
             raise AgentPolicyError("Quality review is available only for processed parallel corpora.")
-        skill = SKILLS["parallel_quality_review@v1"]
-        steps = [
+        has_report = corpus.parallel_audits.filter(status="success").exists()
+        skill = SKILLS["parallel_quality_review@v1"] if has_report else SKILLS["parallel_quality_audit@v1"]
+        steps = ([
             {"node": "load_quality_report", "tool": "get_latest_quality_report", "input": {}},
-        ]
-        if query:
+        ] if has_report else [
+            {"node": "create_quality_audit", "tool": "request_quality_audit", "input": {}},
+        ])
+        if query and has_report:
             steps.append({"node": "inspect_evidence", "tool": "search_parallel", "input": retrieval_input})
     else:
         skill = SKILLS["corpus_export_handoff@v1"]

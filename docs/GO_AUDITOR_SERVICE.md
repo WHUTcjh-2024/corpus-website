@@ -1,52 +1,68 @@
-# Go corpus auditor service
+# Queue-backed Go corpus auditor
 
-## Boundary
+## Execution boundary
 
 ```mermaid
 sequenceDiagram
-  participant P as Django control plane
-  participant O as Transactional outbox + Celery
-  participant G as Go auditor service
+  participant A as Agent / processing completion
+  participant O as Django transactional outbox
+  participant C as Celery command publisher
+  participant Q as Redis Streams
+  participant G as Go audit workers
   participant V as Shared data volume
+  participant P as Django result projector
 
-  P->>O: persist ParallelAudit, publish command
-  O->>P: worker claims audit
-  P->>G: POST audit with relative artifact references
-  G->>V: read pairs, atomically write report/anomalies
-  G->>P: signed terminal callback
-  P->>P: validate signature, output prefix, and idempotency
-  P->>P: persist summary and terminal state
-  P->>G: bounded reconciliation only if callback is lost
+  A->>O: create ParallelAudit + durable command
+  O->>C: publish after commit
+  C->>Q: XADD corpus:audit:commands:v1
+  G->>Q: XREADGROUP command
+  G->>V: read pairs; atomically write report/anomalies
+  G->>Q: XADD corpus:audit:results:v1
+  P->>Q: XREADGROUP result
+  P->>P: validate artifact refs and commit terminal state
+  P->>Q: XACK result after DB commit
 ```
 
-The execution plane has no Django database credentials. The control plane
-never executes the Go binary in production. Both services mount exactly the
-same data root.
+Django owns authorization, task creation, and status projection. The Go
+service owns execution only: it receives bounded, data-root-relative artifact
+references and has no Django database access. There is no synchronous Python →
+Go request and no HTTP callback in the production workflow.
 
-## Reliability behavior
+## Delivery semantics
 
-| Failure | Behavior |
-| --- | --- |
-| Django cannot submit to Go | Celery retries; the Django audit is released back to `pending`. |
-| Go process restarts during a job | Durable `running` job is requeued during service restore. |
-| Go callback cannot reach Django | Go retries with bounded exponential backoff; Django periodically queries terminal remote state. |
-| Duplicate submission/callback | Job ID + fingerprint is idempotent; Django stores the first terminal payload hash. |
-| Output path escape | Both sides reject paths outside `processed/<corpus>/audits/<audit>/`. |
-| Callback replay/tampering | HMAC signature plus five-minute timestamp skew validation rejects it. |
+- The transactional Outbox prevents a committed `ParallelAudit` from being lost
+  before its Redis command is published.
+- The command stream uses a Go consumer group. A command is acknowledged only
+  after its durable Go job record is created; `job_id + fingerprint` makes
+  redelivery idempotent.
+- The Go service atomically writes report files, then publishes one terminal
+  result event. Failed result publication is retried from the durable job
+  record with bounded exponential backoff.
+- Django's result projector writes `ParallelAudit` terminal state transactionally
+  before `XACK`. `result_message_id` and the payload hash make a crash between
+  commit and acknowledgment harmless.
+- Invalid command/result messages remain in the relevant pending-entry list for
+  operational inspection; they are not silently discarded.
 
 ## Operations
 
-Local Compose starts `corpus-auditor` separately and exposes HTTP `8090` and
-gRPC `9090` only on the internal network. Production uses a durable
-`auditor_state` volume and an explicit `DATA_ROOT_HOST_PATH` bind mount so the
-Go service and Django workers see the same generated artifacts.
+The queue contracts are versioned by stream name and `schema_version=1`:
+
+| Stream | Producer | Consumer group | Purpose |
+| --- | --- | --- | --- |
+| `corpus:audit:commands:v1` | Django Outbox/Celery | `corpus-auditor-v1` | launch audit jobs |
+| `corpus:audit:results:v1` | Go workers | `django-audit-projector-v1` | terminal job results |
+
+Local Compose starts a dedicated `audit-result-projector` process. Production
+must use a Redis endpoint reachable by both control and data planes, with ACLs
+limited to the two audit streams and consumer-group commands. The Go worker
+exposes health plus its compatibility HTTP/gRPC API, but Django no longer uses
+those APIs for job delivery.
 
 Useful checks:
 
 ```powershell
 docker compose --env-file .env.local.example -f docker-compose.local.yml up --build
-docker compose --env-file .env.local.example -f docker-compose.local.yml ps
+docker compose --env-file .env.local.example -f docker-compose.local.yml exec redis redis-cli XPENDING corpus:audit:commands:v1 corpus-auditor-v1
+docker compose --env-file .env.local.example -f docker-compose.local.yml exec redis redis-cli XPENDING corpus:audit:results:v1 django-audit-projector-v1
 ```
-
-`/metrics` exports `corpus_parallel_audits{status=...}`. Alert when remote
-audits remain `running` beyond the expected workload window.

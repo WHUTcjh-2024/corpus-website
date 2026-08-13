@@ -19,7 +19,7 @@ CACHES = {
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = False
-CORPUS_AUDITOR_SERVICE_ENABLED = False
+CORPUS_AUDITOR_QUEUE_ENABLED = False
 
 # The production platform intentionally relies on PostgreSQL's sequence-backed
 # deterministic processing order.  SQLite cannot parse that DDL, so unit tests

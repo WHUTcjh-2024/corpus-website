@@ -1,9 +1,9 @@
 # Corpus Auditor
 
-`corpus-auditor` is the Go data-plane service for parallel-corpus quality
+`corpus-auditor` is the Go data-plane worker for parallel-corpus quality
 inspection. Django remains the control plane: it authorizes work, persists
-audit state, and exposes results. The auditor never receives database
-credentials or absolute host paths.
+audit state, and exposes results. Redis Streams carries commands and terminal
+results; the worker never receives database credentials or absolute host paths.
 
 It checks empty sides, duplicate pairs, conflicting translations for the same
 source, low/invalid confidence, and Chinese-English length-ratio outliers.
@@ -20,16 +20,16 @@ The service exposes both HTTP/JSON and a generated gRPC API:
 - `GET /healthz`, `GET /readyz` — liveness/readiness.
 - `api/proto/corpus_auditor/v1/auditor.proto` — versioned typed gRPC contract.
 
-Requests contain only `DATA_ROOT`-relative `input_ref` / `output_prefix` values.
-The fixed callback target is configured at service startup, not accepted from
-clients. A terminal result is POSTed back with HMAC-SHA256 over
-`timestamp + "\n" + raw_body`; Django verifies timestamp skew, signature,
-job identity, output prefix, and callback idempotency.
+Command events contain only `DATA_ROOT`-relative `input_ref` / `output_prefix`
+values. The worker consumes `corpus:audit:commands:v1` through a consumer group
+and writes terminal events to `corpus:audit:results:v1`. Django persists a
+result before acknowledging it, verifies job identity and output prefix, and
+uses the result stream ID plus payload hash for idempotency.
 
 Each job is stored as an atomically replaced JSON document. On restart,
-in-flight jobs return to `queued`; terminal callbacks retry with bounded
-exponential backoff, and Django performs bounded remote-state reconciliation if
-the callback retry budget is exhausted.
+in-flight jobs return to `queued`; terminal results retry with bounded
+exponential backoff. Reclaimed command entries and job fingerprints make
+at-least-once Redis delivery safe.
 
 ## Run locally
 
@@ -37,9 +37,7 @@ the callback retry budget is exhausted.
 go test ./...
 go build -o bin/corpus-auditor-service.exe ./cmd/corpus-auditor-service
 
-$env:AUDITOR_CONTROL_TOKEN = "local-control-token"
-$env:AUDITOR_CALLBACK_BASE_URL = "http://127.0.0.1:8000"
-$env:AUDITOR_CALLBACK_TOKEN = "local-callback-token"
+$env:AUDITOR_REDIS_URL = "redis://127.0.0.1:6379/0"
 .\bin\corpus-auditor-service.exe --data-root ..\..\..\data --state-dir .\var\jobs
 ```
 

@@ -201,10 +201,11 @@ CELERY_TASK_QUEUES = (
     Queue("processing"),
     Queue("exports"),
     Queue("agent"),
+    Queue("audit_commands"),
 )
 CELERY_TASK_ROUTES = {
     "processing.process_corpus": {"queue": "processing"},
-    "audits.audit_parallel_corpus": {"queue": "processing"},
+    "audits.publish_parallel_audit_command": {"queue": "audit_commands"},
     "exports.build_export": {"queue": "exports"},
     "agent.run_corpus_agent": {"queue": "agent"},
 }
@@ -252,19 +253,21 @@ if (
 # The Go auditor is a separate data-plane service. Django owns authorization,
 # durable orchestration and callback persistence; the service receives only
 # data-root-relative references and writes its reports to the shared volume.
-CORPUS_AUDITOR_SERVICE_ENABLED = env_bool("CORPUS_AUDITOR_SERVICE_ENABLED", False)
-CORPUS_AUDITOR_SERVICE_BASE_URL = os.getenv("CORPUS_AUDITOR_SERVICE_BASE_URL", "")
-CORPUS_AUDITOR_SERVICE_TOKEN = os.getenv("CORPUS_AUDITOR_SERVICE_TOKEN", "")
-CORPUS_AUDITOR_CALLBACK_TOKEN = os.getenv("CORPUS_AUDITOR_CALLBACK_TOKEN", "")
-CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS = float(
-    os.getenv("CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS", "10")
+CORPUS_AUDITOR_QUEUE_ENABLED = env_bool("CORPUS_AUDITOR_QUEUE_ENABLED", False)
+CORPUS_AUDITOR_QUEUE_URL = os.getenv("CORPUS_AUDITOR_QUEUE_URL", REDIS_URL)
+CORPUS_AUDITOR_COMMAND_STREAM = os.getenv("CORPUS_AUDITOR_COMMAND_STREAM", "corpus:audit:commands:v1")
+CORPUS_AUDITOR_COMMAND_GROUP = os.getenv("CORPUS_AUDITOR_COMMAND_GROUP", "corpus-auditor-v1")
+CORPUS_AUDITOR_COMMAND_CONSUMER = os.getenv("CORPUS_AUDITOR_COMMAND_CONSUMER", "")
+CORPUS_AUDITOR_RESULT_STREAM = os.getenv("CORPUS_AUDITOR_RESULT_STREAM", "corpus:audit:results:v1")
+CORPUS_AUDITOR_RESULT_GROUP = os.getenv("CORPUS_AUDITOR_RESULT_GROUP", "django-audit-projector-v1")
+CORPUS_AUDITOR_RESULT_BATCH_SIZE = int(os.getenv("CORPUS_AUDITOR_RESULT_BATCH_SIZE", "100"))
+CORPUS_AUDITOR_RESULT_BLOCK_MS = int(os.getenv("CORPUS_AUDITOR_RESULT_BLOCK_MS", "1000"))
+CORPUS_AUDITOR_RESULT_CLAIM_IDLE_MS = int(os.getenv("CORPUS_AUDITOR_RESULT_CLAIM_IDLE_MS", "30000"))
+CORPUS_AUDITOR_QUEUE_SOCKET_TIMEOUT_SECONDS = float(
+    os.getenv("CORPUS_AUDITOR_QUEUE_SOCKET_TIMEOUT_SECONDS", "5")
 )
-CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS = int(
-    os.getenv("CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS", "300")
-)
-CORPUS_AUDITOR_RECONCILE_BATCH_SIZE = int(
-    os.getenv("CORPUS_AUDITOR_RECONCILE_BATCH_SIZE", "100")
-)
+CORPUS_AUDITOR_STREAM_MAXLEN = int(os.getenv("CORPUS_AUDITOR_STREAM_MAXLEN", "100000"))
+CORPUS_AUDITOR_MESSAGE_MAX_BYTES = int(os.getenv("CORPUS_AUDITOR_MESSAGE_MAX_BYTES", "1048576"))
 # This local executable is an explicit development/test fallback only.
 CORPUS_AUDITOR_COMMAND = os.getenv(
     "CORPUS_AUDITOR_COMMAND",
@@ -277,11 +280,14 @@ PARALLEL_AUDIT_MAX_LENGTH_RATIO = float(os.getenv("PARALLEL_AUDIT_MAX_LENGTH_RAT
 PARALLEL_AUDIT_MAX_ANOMALIES = int(os.getenv("PARALLEL_AUDIT_MAX_ANOMALIES", "1000"))
 
 if (
-    CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS <= 0
-    or CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS < 1
-    or CORPUS_AUDITOR_RECONCILE_BATCH_SIZE < 1
+    CORPUS_AUDITOR_RESULT_BATCH_SIZE < 1
+    or CORPUS_AUDITOR_RESULT_BLOCK_MS < 0
+    or CORPUS_AUDITOR_RESULT_CLAIM_IDLE_MS < 1000
+    or CORPUS_AUDITOR_QUEUE_SOCKET_TIMEOUT_SECONDS <= 0
+    or CORPUS_AUDITOR_STREAM_MAXLEN < 100
+    or not 1 <= CORPUS_AUDITOR_MESSAGE_MAX_BYTES <= 1_048_576
 ):
-    raise ValueError("Corpus auditor service settings must use positive bounded values.")
+    raise ValueError("Corpus auditor queue settings must use safe positive bounds.")
 METRICS_BEARER_TOKEN = os.getenv("METRICS_BEARER_TOKEN", "")
 
 LOGGING = {

@@ -35,20 +35,25 @@ services:
       - --grpc-listen=:9090
       - --data-root=/data
       - --state-dir=/var/lib/corpus-auditor/jobs
-      - --control-token=${CORPUS_AUDITOR_SERVICE_TOKEN:-local-auditor-control-token}
-      - --callback-base-url=http://web:8000
-      - --callback-token=${CORPUS_AUDITOR_CALLBACK_TOKEN:-local-auditor-callback-token}
+      - --control-token=${CORPUS_AUDITOR_COMPAT_API_TOKEN:-local-auditor-compat-token}
+      - --redis-url=redis://redis:6379/0
       - --workers=${AUDITOR_WORKERS:-2}
       - --queue-capacity=${AUDITOR_QUEUE_CAPACITY:-100}
       - --audit-timeout=${AUDITOR_AUDIT_TIMEOUT:-10m}
     environment:
       AUDITOR_LISTEN_ADDR: :8090
+      AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
+      AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
+      AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
     volumes:
       - ./data:/data
       - auditor_state:/var/lib/corpus-auditor
     expose:
       - "8090"
       - "9090"
+    depends_on:
+      redis:
+        condition: service_healthy
 
   web:
     build:
@@ -96,13 +101,11 @@ services:
       AGENT_MODEL_MAX_OUTPUT_TOKENS: ${AGENT_MODEL_MAX_OUTPUT_TOKENS:-600}
       AGENT_MODEL_INPUT_USD_PER_1M: ${AGENT_MODEL_INPUT_USD_PER_1M:-0}
       AGENT_MODEL_OUTPUT_USD_PER_1M: ${AGENT_MODEL_OUTPUT_USD_PER_1M:-0}
-      CORPUS_AUDITOR_SERVICE_ENABLED: "true"
-      CORPUS_AUDITOR_SERVICE_BASE_URL: http://corpus-auditor:8090
-      CORPUS_AUDITOR_SERVICE_TOKEN: ${CORPUS_AUDITOR_SERVICE_TOKEN:-local-auditor-control-token}
-      CORPUS_AUDITOR_CALLBACK_TOKEN: ${CORPUS_AUDITOR_CALLBACK_TOKEN:-local-auditor-callback-token}
-      CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS: ${CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS:-10}
-      CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS: ${CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS:-300}
-      CORPUS_AUDITOR_RECONCILE_BATCH_SIZE: ${CORPUS_AUDITOR_RECONCILE_BATCH_SIZE:-100}
+      CORPUS_AUDITOR_QUEUE_ENABLED: "true"
+      CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
+      CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
+      CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
+      CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data
@@ -122,7 +125,7 @@ services:
   processing-worker:
     build:
       context: ./backend
-    command: celery -A config worker --loglevel=info --queues=processing,default,agent --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
+    command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
@@ -157,13 +160,11 @@ services:
       AGENT_MODEL_MAX_OUTPUT_TOKENS: ${AGENT_MODEL_MAX_OUTPUT_TOKENS:-600}
       AGENT_MODEL_INPUT_USD_PER_1M: ${AGENT_MODEL_INPUT_USD_PER_1M:-0}
       AGENT_MODEL_OUTPUT_USD_PER_1M: ${AGENT_MODEL_OUTPUT_USD_PER_1M:-0}
-      CORPUS_AUDITOR_SERVICE_ENABLED: "true"
-      CORPUS_AUDITOR_SERVICE_BASE_URL: http://corpus-auditor:8090
-      CORPUS_AUDITOR_SERVICE_TOKEN: ${CORPUS_AUDITOR_SERVICE_TOKEN:-local-auditor-control-token}
-      CORPUS_AUDITOR_CALLBACK_TOKEN: ${CORPUS_AUDITOR_CALLBACK_TOKEN:-local-auditor-callback-token}
-      CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS: ${CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS:-10}
-      CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS: ${CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS:-300}
-      CORPUS_AUDITOR_RECONCILE_BATCH_SIZE: ${CORPUS_AUDITOR_RECONCILE_BATCH_SIZE:-100}
+      CORPUS_AUDITOR_QUEUE_ENABLED: "true"
+      CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
+      CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
+      CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
+      CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data
@@ -209,18 +210,41 @@ services:
       AGENT_MODEL_MAX_OUTPUT_TOKENS: ${AGENT_MODEL_MAX_OUTPUT_TOKENS:-600}
       AGENT_MODEL_INPUT_USD_PER_1M: ${AGENT_MODEL_INPUT_USD_PER_1M:-0}
       AGENT_MODEL_OUTPUT_USD_PER_1M: ${AGENT_MODEL_OUTPUT_USD_PER_1M:-0}
-      CORPUS_AUDITOR_SERVICE_ENABLED: "true"
-      CORPUS_AUDITOR_SERVICE_BASE_URL: http://corpus-auditor:8090
-      CORPUS_AUDITOR_SERVICE_TOKEN: ${CORPUS_AUDITOR_SERVICE_TOKEN:-local-auditor-control-token}
-      CORPUS_AUDITOR_CALLBACK_TOKEN: ${CORPUS_AUDITOR_CALLBACK_TOKEN:-local-auditor-callback-token}
-      CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS: ${CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS:-10}
-      CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS: ${CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS:-300}
-      CORPUS_AUDITOR_RECONCILE_BATCH_SIZE: ${CORPUS_AUDITOR_RECONCILE_BATCH_SIZE:-100}
+      CORPUS_AUDITOR_QUEUE_ENABLED: "true"
+      CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
+      CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
+      CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
+      CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
     volumes:
       - ./backend:/app/backend
       - ./data:/app/data
     depends_on:
       web:
+        condition: service_healthy
+
+  audit-result-projector:
+    build:
+      context: ./backend
+    command: python manage.py project_audit_results --loop --interval ${AUDIT_RESULT_PROJECT_INTERVAL_SECONDS:-1}
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
+      DJANGO_DEBUG: "true"
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
+      DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      REDIS_URL: redis://redis:6379/0
+      CORPUS_AUDITOR_QUEUE_ENABLED: "true"
+      CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
+      CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
+      CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
+      CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
+    volumes:
+      - ./backend:/app/backend
+      - ./data:/app/data
+    depends_on:
+      web:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   outbox:
@@ -243,13 +267,11 @@ services:
       OUTBOX_RETRY_MAX_SECONDS: ${OUTBOX_RETRY_MAX_SECONDS:-300}
       OUTBOX_PUBLISHED_RETENTION_DAYS: ${OUTBOX_PUBLISHED_RETENTION_DAYS:-7}
       AGENT_APPROVAL_CLEANUP_BATCH_SIZE: ${AGENT_APPROVAL_CLEANUP_BATCH_SIZE:-100}
-      CORPUS_AUDITOR_SERVICE_ENABLED: "true"
-      CORPUS_AUDITOR_SERVICE_BASE_URL: http://corpus-auditor:8090
-      CORPUS_AUDITOR_SERVICE_TOKEN: ${CORPUS_AUDITOR_SERVICE_TOKEN:-local-auditor-control-token}
-      CORPUS_AUDITOR_CALLBACK_TOKEN: ${CORPUS_AUDITOR_CALLBACK_TOKEN:-local-auditor-callback-token}
-      CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS: ${CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS:-10}
-      CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS: ${CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS:-300}
-      CORPUS_AUDITOR_RECONCILE_BATCH_SIZE: ${CORPUS_AUDITOR_RECONCILE_BATCH_SIZE:-100}
+      CORPUS_AUDITOR_QUEUE_ENABLED: "true"
+      CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
+      CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
+      CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
+      CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
     depends_on:
       web:
         condition: service_healthy

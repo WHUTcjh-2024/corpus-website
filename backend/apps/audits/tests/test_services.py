@@ -7,8 +7,8 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import ApplicationStatus, UserProfile, UserRole
-from apps.audits.models import ParallelAuditStatus
-from apps.audits.services import create_parallel_audit, run_parallel_audit
+from apps.audits.models import ParallelAuditExecutionMode, ParallelAuditStatus
+from apps.audits.services import create_parallel_audit, publish_parallel_audit_command
 from apps.corpora.models import (
     Corpus,
     CorpusAccessLevel,
@@ -63,11 +63,16 @@ class ParallelAuditIntegrationTests(TestCase):
             encoding="utf-8",
         )
 
-    @override_settings(CORPUS_AUDITOR_COMMAND="go -C ./go/corpus-auditor run ./cmd/corpus-auditor")
+    @override_settings(
+        CORPUS_AUDITOR_COMMAND="go -C ./go/corpus-auditor run ./cmd/corpus-auditor",
+        CORPUS_AUDITOR_QUEUE_ENABLED=False,
+    )
     def test_go_auditor_is_invoked_and_result_is_persisted(self) -> None:
         with override_settings(DATA_ROOT=self.data_root, PARALLEL_AUDIT_TIMEOUT_SECONDS=60):
             audit = create_parallel_audit(corpus=self.corpus, processing_task=self.processing_task)
-            result = run_parallel_audit(str(audit.pk))
+            audit.execution_mode = ParallelAuditExecutionMode.LOCAL
+            audit.save(update_fields=["execution_mode"])
+            result = publish_parallel_audit_command(str(audit.pk))
 
             audit.refresh_from_db()
             self.assertEqual(result["status"], "success")
@@ -76,8 +81,8 @@ class ParallelAuditIntegrationTests(TestCase):
             self.assertEqual(audit.summary["empty_side_pairs"], 1)
             self.assertTrue(Path(audit.report_path).is_file())
             self.assertTrue(Path(audit.anomalies_path).is_file())
-            event = OutboxEvent.objects.get(deduplication_key=f"parallel-audit:{audit.pk}")
-            self.assertEqual(event.task_name, OutboxTaskName.AUDIT_PARALLEL_CORPUS)
+            event = OutboxEvent.objects.get(deduplication_key=f"parallel-audit-command:{audit.pk}")
+            self.assertEqual(event.task_name, OutboxTaskName.PUBLISH_AUDIT_COMMAND)
             self.client.force_login(self.user)
             response = self.client.get(reverse("corpora:audit_anomalies", args=[self.corpus.pk]))
             self.assertEqual(response.status_code, 200)
@@ -88,4 +93,4 @@ class ParallelAuditIntegrationTests(TestCase):
         audit = create_parallel_audit(corpus=self.corpus, processing_task=self.processing_task)
         audit.status = ParallelAuditStatus.SUCCESS
         audit.save(update_fields=["status"])
-        self.assertEqual(run_parallel_audit(str(audit.pk))["status"], "skipped")
+        self.assertEqual(publish_parallel_audit_command(str(audit.pk))["status"], "skipped")

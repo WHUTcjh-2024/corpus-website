@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import logging
-import time
 from pathlib import Path
 from typing import Any
-from urllib import error as urlerror
-from urllib import request as urlrequest
 
 from django.conf import settings
 from django.db import transaction
@@ -24,12 +20,12 @@ from .models import (
     ParallelAuditExecutionMode,
     ParallelAuditStatus,
 )
+from .queue import AuditQueue, AuditQueueUnavailable
 
 
 logger = logging.getLogger(__name__)
-_MAX_REMOTE_RESPONSE_BYTES = 1_048_576
-_MAX_CALLBACK_PAYLOAD_BYTES = 1_048_576
-_TERMINAL_REMOTE_STATES = frozenset({"succeeded", "failed", "cancelled"})
+_MAX_RESULT_PAYLOAD_BYTES = 1_048_576
+_TERMINAL_WORKER_STATES = frozenset({"succeeded", "failed", "cancelled"})
 
 
 class ParallelAuditError(RuntimeError):
@@ -47,187 +43,219 @@ def create_parallel_audit(*, corpus: Corpus, processing_task: ProcessingTask) ->
         defaults={
             "corpus": corpus,
             "execution_mode": (
-                ParallelAuditExecutionMode.REMOTE
-                if settings.CORPUS_AUDITOR_SERVICE_ENABLED
+                ParallelAuditExecutionMode.QUEUE
+                if settings.CORPUS_AUDITOR_QUEUE_ENABLED
                 else ParallelAuditExecutionMode.LOCAL
             ),
         },
     )
-    enqueue_task(
-        task_name=OutboxTaskName.AUDIT_PARALLEL_CORPUS,
-        aggregate_id=audit.pk,
-        payload={"audit_id": str(audit.pk)},
-        deduplication_key=f"parallel-audit:{audit.pk}",
-    )
+    _enqueue_audit_command(audit)
     return audit
 
 
 def dispatch_parallel_audit(audit: ParallelAudit):
-    event = enqueue_task(
-        task_name=OutboxTaskName.AUDIT_PARALLEL_CORPUS,
-        aggregate_id=audit.pk,
-        payload={"audit_id": str(audit.pk)},
-        deduplication_key=f"parallel-audit:{audit.pk}",
-    )
+    event = _enqueue_audit_command(audit)
     return publish_event_after_commit(event.pk)
 
 
-def run_parallel_audit(audit_id: str) -> dict[str, object]:
-    audit = _claim_audit(audit_id)
+def _enqueue_audit_command(audit: ParallelAudit):
+    return enqueue_task(
+        task_name=OutboxTaskName.PUBLISH_AUDIT_COMMAND,
+        aggregate_id=audit.pk,
+        payload={"audit_id": str(audit.pk)},
+        deduplication_key=f"parallel-audit-command:{audit.pk}",
+    )
+
+
+def publish_parallel_audit_command(audit_id: str) -> dict[str, object]:
+    audit = _claim_audit_for_command(audit_id)
     if audit is None:
         return {"audit_id": str(audit_id), "status": "skipped"}
     if audit.execution_mode == ParallelAuditExecutionMode.LOCAL:
         return _run_local_parallel_audit(audit)
+
+    command = _command_payload(audit)
     try:
-        job = _submit_remote_audit(audit)
-    except RetryableParallelAuditError:
-        _release_for_retry(audit.pk)
-        raise
-    except ParallelAuditError as exc:
-        _mark_failed(audit.pk, str(exc), remote_state="submission_failed")
-        raise
-    remote_state = str(job.get("state", ""))
-    if remote_state in _TERMINAL_REMOTE_STATES:
-        apply_remote_audit_result(audit_id=audit.pk, payload=job, payload_hash="")
+        message_id = AuditQueue().publish_command(command)
+    except AuditQueueUnavailable as exc:
+        _release_command_for_retry(audit.pk)
+        raise RetryableParallelAuditError(str(exc)) from exc
+    except Exception as exc:
+        _mark_failed(audit.pk, str(exc), worker_state="command_publish_failed")
+        raise ParallelAuditError(str(exc)) from exc
+    _persist_command_publication(audit.pk, message_id=message_id)
     return {
         "audit_id": str(audit.pk),
-        "status": "success" if remote_state == "succeeded" else "submitted",
-        "remote_job_id": str(job.get("id", "")),
-        "remote_state": remote_state,
+        "status": "published",
+        "command_message_id": message_id,
     }
 
 
-def reconcile_remote_audits(*, limit: int | None = None) -> int:
-    """Recover from a lost callback without replaying the data-plane job.
+def consume_parallel_audit_results(*, limit: int | None = None) -> int:
+    """Project durable Go worker results into Django state.
 
-    The Go service owns job execution and sends a signed callback. This bounded
-    poller is only a control-plane repair path for terminal jobs whose callback
-    could not reach Django after its retry budget.
+    Redis Streams retain the result until this consumer group acknowledges it.
+    The database unique constraint on result_message_id and terminal payload
+    hash make redelivery harmless after a process crash between DB commit and
+    XACK.
     """
 
-    if not settings.CORPUS_AUDITOR_SERVICE_ENABLED:
+    if not settings.CORPUS_AUDITOR_QUEUE_ENABLED:
         return 0
-    batch_size = limit if limit is not None else settings.CORPUS_AUDITOR_RECONCILE_BATCH_SIZE
+    batch_size = limit if limit is not None else settings.CORPUS_AUDITOR_RESULT_BATCH_SIZE
     if batch_size < 1:
         return 0
-    audit_ids = list(
-        ParallelAudit.objects.filter(
-            execution_mode=ParallelAuditExecutionMode.REMOTE,
-            status=ParallelAuditStatus.RUNNING,
-        )
-        .exclude(remote_job_id="")
-        .order_by("started_at")
-        .values_list("pk", flat=True)[:batch_size]
-    )
-    repaired = 0
-    for audit_id in audit_ids:
+    try:
+        queue = AuditQueue()
+        queue.ensure_result_group()
+        entries = queue.reclaim_results(limit=batch_size)
+        if not entries:
+            entries = queue.read_results(limit=batch_size)
+    except AuditQueueUnavailable as exc:
+        logger.warning("Audit result queue is unavailable: %s", exc)
+        return 0
+    applied = 0
+    for entry in entries:
         try:
-            payload = _get_remote_audit(str(audit_id))
-        except RetryableParallelAuditError:
-            continue
-        except ParallelAuditError as exc:
-            logger.warning("Unable to reconcile remote audit %s: %s", audit_id, exc)
-            continue
-        if str(payload.get("state", "")) not in _TERMINAL_REMOTE_STATES:
-            continue
-        if apply_remote_audit_result(audit_id=audit_id, payload=payload, payload_hash=""):
-            repaired += 1
-    return repaired
-
-
-def apply_remote_audit_callback(*, audit_id: str, payload: dict[str, Any], payload_hash: str) -> bool:
-    return apply_remote_audit_result(
-        audit_id=audit_id,
-        payload=payload,
-        payload_hash=payload_hash,
-    )
+            if apply_parallel_audit_result(
+                audit_id=entry.payload.get("id", ""),
+                payload=entry.payload,
+                payload_hash=entry.payload_hash,
+                message_id=entry.message_id,
+            ):
+                applied += 1
+            queue.ack_result(entry.message_id)
+        except (ParallelAuditError, ValueError) as exc:
+            # Do not acknowledge an invalid payload; it remains inspectable in
+            # the pending-entry list instead of being silently lost.
+            logger.error("Rejected audit result message %s: %s", entry.message_id, exc)
+    return applied
 
 
 @transaction.atomic
-def apply_remote_audit_result(*, audit_id, payload: dict[str, Any], payload_hash: str) -> bool:
+def apply_parallel_audit_result(
+    *, audit_id, payload: dict[str, Any], payload_hash: str, message_id: str
+) -> bool:
+    if not isinstance(payload, dict):
+        raise ParallelAuditError("Worker result must be an object.")
     try:
         audit = (
             ParallelAudit.objects.select_for_update()
             .select_related("corpus")
             .get(pk=audit_id)
         )
-    except ParallelAudit.DoesNotExist as exc:
-        raise ParallelAuditError("Remote callback does not match an active audit.") from exc
-    if audit.execution_mode != ParallelAuditExecutionMode.REMOTE:
-        raise ParallelAuditError("This audit is not configured for the remote auditor service.")
-    _validate_remote_payload(audit, payload)
+    except (ParallelAudit.DoesNotExist, ValueError) as exc:
+        raise ParallelAuditError("Worker result does not match an active audit.") from exc
+    if audit.execution_mode != ParallelAuditExecutionMode.QUEUE:
+        raise ParallelAuditError("This audit is not configured for the queue worker.")
+    _validate_worker_payload(audit, payload)
     state = str(payload["state"])
-    if audit.status == ParallelAuditStatus.PENDING and not audit.remote_job_id:
-        # The executor may complete before a transient control-plane failure
-        # prevents the submission response from committing. The authenticated
-        # terminal callback is enough to converge that narrow race safely.
-        audit.status = ParallelAuditStatus.RUNNING
-    if audit.status in {ParallelAuditStatus.SUCCESS, ParallelAuditStatus.FAILED}:
-        if audit.remote_callback_payload_hash and payload_hash and not hmac.compare_digest(
-            audit.remote_callback_payload_hash, payload_hash
-        ):
-            raise ParallelAuditError("A terminal audit received a mismatched callback payload.")
+
+    if audit.result_message_id:
+        if audit.result_message_id != message_id:
+            if audit.result_payload_hash and audit.result_payload_hash != payload_hash:
+                raise ParallelAuditError("A terminal audit received a conflicting worker result.")
+            return False
+        if audit.result_payload_hash and audit.result_payload_hash != payload_hash:
+            raise ParallelAuditError("A worker result message ID was reused with another payload.")
         return False
-    if audit.status != ParallelAuditStatus.RUNNING:
-        raise ParallelAuditError("Remote callback does not match a running audit.")
+    if audit.status in {ParallelAuditStatus.SUCCESS, ParallelAuditStatus.FAILED}:
+        raise ParallelAuditError("A terminal audit received an untracked worker result.")
 
     if state == "succeeded":
-        report_path = _remote_ref_path(audit.corpus_id, payload.get("report_ref"), ".json")
-        anomalies_path = _remote_ref_path(audit.corpus_id, payload.get("anomalies_ref"), ".jsonl")
+        report_path = _worker_ref_path(
+            audit.corpus_id, audit.pk, payload.get("report_ref"), ".json"
+        )
+        anomalies_path = _worker_ref_path(
+            audit.corpus_id, audit.pk, payload.get("anomalies_ref"), ".jsonl"
+        )
         report = _read_report(report_path)
         summary = report.get("summary")
         if not isinstance(summary, dict):
-            raise ParallelAuditError("Remote audit report has no valid summary.")
+            raise ParallelAuditError("Worker report has no valid summary.")
         audit.status = ParallelAuditStatus.SUCCESS
         audit.report_path = str(report_path)
         audit.anomalies_path = str(anomalies_path)
         audit.summary = summary
         audit.error_message = ""
-    elif state in {"failed", "cancelled"}:
+    else:
         audit.status = ParallelAuditStatus.FAILED
         audit.error_message = str(payload.get("error_message", state))[:4000]
-    else:
-        # A callback should only carry terminal state. Treat any other state as
-        # an invalid remote response rather than regressing a durable record.
-        raise ParallelAuditError("Remote callback must contain a terminal state.")
-    audit.remote_state = state
-    audit.remote_attempt = _bounded_int(payload.get("attempt"), maximum=10_000)
-    audit.remote_callback_received_at = timezone.now()
-    if payload_hash:
-        audit.remote_callback_payload_hash = payload_hash
+    audit.worker_job_id = str(payload["id"])
+    audit.worker_state = state
+    audit.worker_attempt = _bounded_int(payload.get("attempt"), maximum=10_000)
+    audit.result_message_id = message_id
+    audit.result_received_at = timezone.now()
+    audit.result_payload_hash = payload_hash
     audit.finished_at = timezone.now()
     audit.save(
         update_fields=[
             "status", "report_path", "anomalies_path", "summary", "error_message",
-            "remote_state", "remote_attempt", "remote_callback_received_at",
-            "remote_callback_payload_hash", "finished_at", "updated_at",
+            "worker_job_id", "worker_state", "worker_attempt", "result_message_id",
+            "result_received_at", "result_payload_hash", "finished_at", "updated_at",
         ]
     )
     return True
 
 
-def verify_remote_callback(*, body: bytes, timestamp: str, signature: str) -> str:
-    if len(body) > _MAX_CALLBACK_PAYLOAD_BYTES:
-        raise ParallelAuditError("Remote callback body exceeds the allowed size.")
-    try:
-        epoch_seconds = int(timestamp)
-    except (TypeError, ValueError) as exc:
-        raise ParallelAuditError("Remote callback timestamp is invalid.") from exc
-    if abs(time.time() - epoch_seconds) > settings.CORPUS_AUDITOR_CALLBACK_MAX_SKEW_SECONDS:
-        raise ParallelAuditError("Remote callback timestamp is outside the accepted window.")
-    expected = "sha256=" + hmac.new(
-        settings.CORPUS_AUDITOR_CALLBACK_TOKEN.encode("utf-8"),
-        timestamp.encode("ascii") + b"\n" + body,
-        hashlib.sha256,
-    ).hexdigest()
-    if not hmac.compare_digest(expected, signature or ""):
-        raise ParallelAuditError("Remote callback signature is invalid.")
-    return hashlib.sha256(body).hexdigest()
+def _command_payload(audit: ParallelAudit) -> dict[str, Any]:
+    corpus_id = str(audit.corpus_id)
+    return {
+        "id": str(audit.pk),
+        "schema_version": 1,
+        "input_ref": f"processed/{corpus_id}/parallel_pairs.jsonl",
+        "output_prefix": f"processed/{corpus_id}/audits/{audit.pk}",
+        "options": {
+            "low_confidence": settings.PARALLEL_AUDIT_LOW_CONFIDENCE,
+            "min_length_ratio": settings.PARALLEL_AUDIT_MIN_LENGTH_RATIO,
+            "max_length_ratio": settings.PARALLEL_AUDIT_MAX_LENGTH_RATIO,
+            "max_anomalies": settings.PARALLEL_AUDIT_MAX_ANOMALIES,
+        },
+    }
+
+
+@transaction.atomic
+def _claim_audit_for_command(audit_id: str) -> ParallelAudit | None:
+    audit = ParallelAudit.objects.select_for_update().select_related("corpus").get(pk=audit_id)
+    if audit.status != ParallelAuditStatus.PENDING:
+        return None
+    audit.status = ParallelAuditStatus.RUNNING
+    audit.error_message = ""
+    audit.started_at = timezone.now()
+    audit.finished_at = None
+    audit.save(update_fields=["status", "error_message", "started_at", "finished_at", "updated_at"])
+    return audit
+
+
+@transaction.atomic
+def _persist_command_publication(audit_id, *, message_id: str) -> None:
+    audit = ParallelAudit.objects.select_for_update().get(pk=audit_id)
+    if audit.status != ParallelAuditStatus.RUNNING:
+        return
+    audit.worker_job_id = str(audit.pk)
+    audit.worker_state = "queued"
+    audit.command_message_id = message_id
+    audit.command_published_at = timezone.now()
+    audit.save(
+        update_fields=[
+            "worker_job_id", "worker_state", "command_message_id", "command_published_at", "updated_at"
+        ]
+    )
+
+
+@transaction.atomic
+def _release_command_for_retry(audit_id) -> None:
+    audit = ParallelAudit.objects.select_for_update().get(pk=audit_id)
+    if audit.status != ParallelAuditStatus.RUNNING or audit.command_message_id:
+        return
+    audit.status = ParallelAuditStatus.PENDING
+    audit.started_at = None
+    audit.error_message = "Audit command queue temporarily unavailable; retrying."
+    audit.save(update_fields=["status", "started_at", "error_message", "updated_at"])
 
 
 def _run_local_parallel_audit(audit: ParallelAudit) -> dict[str, object]:
     """Compatibility route for explicit local-development fallback only."""
-
     import shlex
     import subprocess
 
@@ -271,30 +299,6 @@ def _run_local_parallel_audit(audit: ParallelAudit) -> dict[str, object]:
 
 
 @transaction.atomic
-def _claim_audit(audit_id: str) -> ParallelAudit | None:
-    audit = ParallelAudit.objects.select_for_update().select_related("corpus").get(pk=audit_id)
-    if audit.status != ParallelAuditStatus.PENDING:
-        return None
-    audit.status = ParallelAuditStatus.RUNNING
-    audit.error_message = ""
-    audit.started_at = timezone.now()
-    audit.finished_at = None
-    audit.save(update_fields=["status", "error_message", "started_at", "finished_at", "updated_at"])
-    return audit
-
-
-@transaction.atomic
-def _release_for_retry(audit_id) -> None:
-    audit = ParallelAudit.objects.select_for_update().get(pk=audit_id)
-    if audit.status != ParallelAuditStatus.RUNNING:
-        return
-    audit.status = ParallelAuditStatus.PENDING
-    audit.started_at = None
-    audit.error_message = "Remote auditor temporarily unavailable; retrying."
-    audit.save(update_fields=["status", "started_at", "error_message", "updated_at"])
-
-
-@transaction.atomic
 def _mark_success(audit_id, report_path: Path, anomalies_path: Path, summary: dict) -> None:
     audit = ParallelAudit.objects.select_for_update().get(pk=audit_id)
     if audit.status != ParallelAuditStatus.RUNNING:
@@ -309,93 +313,26 @@ def _mark_success(audit_id, report_path: Path, anomalies_path: Path, summary: di
 
 
 @transaction.atomic
-def _mark_failed(audit_id, message: str, *, remote_state: str = "") -> None:
+def _mark_failed(audit_id, message: str, *, worker_state: str = "") -> None:
     audit = ParallelAudit.objects.select_for_update().get(pk=audit_id)
     if audit.status not in {ParallelAuditStatus.PENDING, ParallelAuditStatus.RUNNING}:
         return
     audit.status = ParallelAuditStatus.FAILED
-    audit.remote_state = remote_state or audit.remote_state
+    audit.worker_state = worker_state or audit.worker_state
     audit.error_message = message[:4000]
     audit.finished_at = timezone.now()
-    audit.save(update_fields=["status", "remote_state", "error_message", "finished_at", "updated_at"])
+    audit.save(update_fields=["status", "worker_state", "error_message", "finished_at", "updated_at"])
 
 
-def _submit_remote_audit(audit: ParallelAudit) -> dict[str, Any]:
-    corpus_id = str(audit.corpus_id)
-    payload = {
-        "job_id": str(audit.pk),
-        "input_ref": f"processed/{corpus_id}/parallel_pairs.jsonl",
-        "output_prefix": f"processed/{corpus_id}/audits/{audit.pk}",
-        "callback_path": f"/api/internal/audits/{audit.pk}/callback/",
-        "options": {
-            "low_confidence": settings.PARALLEL_AUDIT_LOW_CONFIDENCE,
-            "min_length_ratio": settings.PARALLEL_AUDIT_MIN_LENGTH_RATIO,
-            "max_length_ratio": settings.PARALLEL_AUDIT_MAX_LENGTH_RATIO,
-            "max_anomalies": settings.PARALLEL_AUDIT_MAX_ANOMALIES,
-        },
-    }
-    response = _remote_request(method="POST", path="/v1/audits", payload=payload)
-    _persist_submission(audit.pk, response)
-    return response
-
-
-def _get_remote_audit(audit_id: str) -> dict[str, Any]:
-    return _remote_request(method="GET", path=f"/v1/audits/{audit_id}")
-
-
-def _remote_request(*, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    data = json.dumps(payload, separators=(",", ":")).encode("utf-8") if payload is not None else None
-    request = urlrequest.Request(
-        f"{settings.CORPUS_AUDITOR_SERVICE_BASE_URL.rstrip('/')}{path}",
-        data=data,
-        method=method,
-        headers={
-            "Authorization": f"Bearer {settings.CORPUS_AUDITOR_SERVICE_TOKEN}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
-    try:
-        with urlrequest.urlopen(request, timeout=settings.CORPUS_AUDITOR_SERVICE_TIMEOUT_SECONDS) as response:
-            body = response.read(_MAX_REMOTE_RESPONSE_BYTES + 1)
-            if len(body) > _MAX_REMOTE_RESPONSE_BYTES:
-                raise ParallelAuditError("Remote auditor response exceeds the allowed size.")
-    except urlerror.HTTPError as exc:
-        detail = exc.read(4096).decode("utf-8", errors="replace")
-        if exc.code in {408, 429, 500, 502, 503, 504}:
-            raise RetryableParallelAuditError(f"Remote auditor returned HTTP {exc.code}: {detail}") from exc
-        raise ParallelAuditError(f"Remote auditor rejected request with HTTP {exc.code}: {detail}") from exc
-    except (urlerror.URLError, TimeoutError, OSError) as exc:
-        raise RetryableParallelAuditError(f"Remote auditor is unavailable: {exc}") from exc
-    try:
-        decoded = json.loads(body.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        raise ParallelAuditError("Remote auditor returned invalid JSON.") from exc
-    if not isinstance(decoded, dict):
-        raise ParallelAuditError("Remote auditor response must be an object.")
-    return decoded
-
-
-@transaction.atomic
-def _persist_submission(audit_id, payload: dict[str, Any]) -> None:
-    audit = ParallelAudit.objects.select_for_update().get(pk=audit_id)
-    job_id = str(payload.get("id", ""))
-    state = str(payload.get("state", ""))
-    if job_id != str(audit.pk) or state not in {"queued", "running", "succeeded", "failed", "cancelled"}:
-        raise ParallelAuditError("Remote auditor returned an invalid submission response.")
-    audit.remote_job_id = job_id
-    audit.remote_state = state
-    audit.remote_attempt = _bounded_int(payload.get("attempt"), maximum=10_000)
-    audit.save(update_fields=["remote_job_id", "remote_state", "remote_attempt", "updated_at"])
-
-
-def _validate_remote_payload(audit: ParallelAudit, payload: dict[str, Any]) -> None:
+def _validate_worker_payload(audit: ParallelAudit, payload: dict[str, Any]) -> None:
     if str(payload.get("id", "")) != str(audit.pk):
-        raise ParallelAuditError("Remote callback job ID does not match the audit.")
-    if audit.remote_job_id and audit.remote_job_id != str(payload["id"]):
-        raise ParallelAuditError("Remote callback conflicts with the submitted job ID.")
-    if str(payload.get("state", "")) not in _TERMINAL_REMOTE_STATES:
-        raise ParallelAuditError("Remote callback must contain a terminal job state.")
+        raise ParallelAuditError("Worker result ID does not match the audit.")
+    if audit.worker_job_id and audit.worker_job_id != str(payload["id"]):
+        raise ParallelAuditError("Worker result conflicts with the audit job ID.")
+    if payload.get("schema_version") != 1:
+        raise ParallelAuditError("Worker result schema version is not supported.")
+    if str(payload.get("state", "")) not in _TERMINAL_WORKER_STATES:
+        raise ParallelAuditError("Worker result must contain a terminal job state.")
 
 
 def _audit_paths(audit: ParallelAudit) -> tuple[Path, Path, Path]:
@@ -407,16 +344,16 @@ def _audit_paths(audit: ParallelAudit) -> tuple[Path, Path, Path]:
     )
 
 
-def _remote_ref_path(corpus_id, reference: Any, suffix: str) -> Path:
+def _worker_ref_path(corpus_id, audit_id, reference: Any, suffix: str) -> Path:
     if not isinstance(reference, str):
-        raise ParallelAuditError("Remote auditor output reference is invalid.")
+        raise ParallelAuditError("Worker output reference is invalid.")
     root = Path(settings.DATA_ROOT).resolve()
-    expected = (root / "processed" / str(corpus_id) / "audits").resolve()
+    expected = (root / "processed" / str(corpus_id) / "audits" / str(audit_id)).resolve()
     candidate = (root / reference).resolve()
     if not reference or not candidate.is_relative_to(expected) or candidate.suffix != suffix:
-        raise ParallelAuditError("Remote auditor output reference is invalid.")
+        raise ParallelAuditError("Worker output reference is invalid.")
     if not candidate.is_file():
-        raise ParallelAuditError("Remote auditor output is not available on the shared data volume.")
+        raise ParallelAuditError("Worker output is not available on the shared data volume.")
     return candidate
 
 
@@ -425,6 +362,13 @@ def _read_report(path: Path) -> dict[str, Any]:
     if not isinstance(decoded, dict):
         raise ValueError("report must be an object")
     return decoded
+
+
+def result_payload_hash(payload: dict[str, Any]) -> str:
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    if len(encoded) > _MAX_RESULT_PAYLOAD_BYTES:
+        raise ParallelAuditError("Worker result exceeds the allowed size.")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _bounded_int(value: Any, *, maximum: int) -> int:

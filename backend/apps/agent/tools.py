@@ -9,6 +9,8 @@ from django.conf import settings
 from django.core.exceptions import PermissionDenied
 
 from apps.audits.models import ParallelAudit, ParallelAuditStatus
+from apps.audits.services import create_parallel_audit, dispatch_parallel_audit
+from apps.processing.models import ProcessingTask, ProcessingTaskStatus
 from apps.corpora.models import Corpus, CorpusLanguage
 from apps.corpora.services import visible_corpora_for
 from apps.exports.services import create_export_job
@@ -58,6 +60,7 @@ class CorpusToolRegistry:
             "search_kwic": self._search_kwic,
             "search_parallel": self._search_parallel,
             "get_latest_quality_report": self._get_latest_quality_report,
+            "request_quality_audit": self._request_quality_audit,
             "prepare_export": self._prepare_export,
         }
 
@@ -186,6 +189,35 @@ class CorpusToolRegistry:
             "summary": _bounded_mapping(summary),
         }]
         return ToolResult(output={"audit_id": str(audit.pk), "summary": _bounded_mapping(summary)}, evidence=evidence)
+
+    def _request_quality_audit(self, context: ToolContext, input: dict[str, Any]) -> ToolResult:
+        if input:
+            raise AgentToolInputError("request_quality_audit does not accept arguments.")
+        task = (
+            ProcessingTask.objects.filter(
+                corpus=context.corpus,
+                status=ProcessingTaskStatus.SUCCESS,
+            )
+            .order_by("-finished_at", "-created_at")
+            .first()
+        )
+        if task is None:
+            raise AgentToolUnavailable("No completed processing task is available for quality auditing.")
+        audit = create_parallel_audit(corpus=context.corpus, processing_task=task)
+        dispatch_parallel_audit(audit)
+        return ToolResult(
+            output={
+                "audit_id": str(audit.pk),
+                "status": audit.status,
+                "execution_mode": audit.execution_mode,
+            },
+            evidence=[{
+                "citation_id": f"audit-request:{audit.pk}",
+                "audit_id": str(audit.pk),
+                "status": audit.status,
+                "execution_mode": audit.execution_mode,
+            }],
+        )
 
     def _prepare_export(self, context: ToolContext, input: dict[str, Any]) -> ToolResult:
         kind = str(input.get("kind", ""))

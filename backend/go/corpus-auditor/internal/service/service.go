@@ -1,16 +1,10 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,23 +14,19 @@ import (
 	"corpus-platform/corpus-auditor/internal/audit"
 )
 
-// Config is deliberately small. The service shares only the read/write data
-// volume with Django; it has no database credentials and no ambient network
-// access beyond its fixed callback endpoint.
+// Config is deliberately small. The service shares a data volume and a broker
+// with Django, but never receives database credentials.
 type Config struct {
-	DataRoot               string
-	StateDirectory         string
-	CallbackBaseURL        string
-	CallbackToken          string
-	WorkerCount            int
-	QueueCapacity          int
-	CallbackTimeout        time.Duration
-	CallbackMaxAttempts    int
-	CallbackRetryBase      time.Duration
-	AuditTimeout           time.Duration
-	MaxPendingCallbackScan int
-	HTTPClient             *http.Client
-	Now                    func() time.Time
+	DataRoot             string
+	StateDirectory       string
+	WorkerCount          int
+	QueueCapacity        int
+	ResultMaxAttempts    int
+	ResultRetryBase      time.Duration
+	AuditTimeout         time.Duration
+	MaxPendingResultScan int
+	ResultPublisher      ResultPublisher
+	Now                  func() time.Time
 }
 
 func (config Config) withDefaults() Config {
@@ -46,23 +36,17 @@ func (config Config) withDefaults() Config {
 	if config.QueueCapacity < 1 {
 		config.QueueCapacity = 100
 	}
-	if config.CallbackTimeout <= 0 {
-		config.CallbackTimeout = 10 * time.Second
+	if config.ResultMaxAttempts < 1 {
+		config.ResultMaxAttempts = 8
 	}
-	if config.CallbackMaxAttempts < 1 {
-		config.CallbackMaxAttempts = 8
-	}
-	if config.CallbackRetryBase <= 0 {
-		config.CallbackRetryBase = 5 * time.Second
+	if config.ResultRetryBase <= 0 {
+		config.ResultRetryBase = 5 * time.Second
 	}
 	if config.AuditTimeout <= 0 {
 		config.AuditTimeout = 10 * time.Minute
 	}
-	if config.MaxPendingCallbackScan < 1 {
-		config.MaxPendingCallbackScan = 100
-	}
-	if config.HTTPClient == nil {
-		config.HTTPClient = &http.Client{Timeout: config.CallbackTimeout}
+	if config.MaxPendingResultScan < 1 {
+		config.MaxPendingResultScan = 100
 	}
 	if config.Now == nil {
 		config.Now = time.Now
@@ -74,8 +58,8 @@ func (config Config) validate() error {
 	if config.DataRoot == "" || config.StateDirectory == "" {
 		return errors.New("data root and state directory are required")
 	}
-	if config.CallbackBaseURL == "" || config.CallbackToken == "" {
-		return errors.New("callback base URL and callback token are required")
+	if config.ResultPublisher == nil {
+		return errors.New("result publisher is required")
 	}
 	return nil
 }
@@ -298,25 +282,25 @@ func (service *Service) Cancel(id string) (Job, error) {
 	}
 	result := *job
 	service.mu.Unlock()
-	go service.deliverCallback(id)
+	go service.publishResult(id)
 	return result, nil
 }
 
-func (service *Service) RetryPendingCallbacks() int {
+func (service *Service) RetryPendingResults() int {
 	service.mu.Lock()
-	ids := make([]string, 0, service.config.MaxPendingCallbackScan)
+	ids := make([]string, 0, service.config.MaxPendingResultScan)
 	for id, job := range service.jobs {
-		if len(ids) == service.config.MaxPendingCallbackScan {
+		if len(ids) == service.config.MaxPendingResultScan {
 			break
 		}
-		if job.terminal() && !job.Callback.Delivered && job.Callback.Attempts < service.config.CallbackMaxAttempts && (job.Callback.NextAt.IsZero() || !job.Callback.NextAt.After(service.config.Now())) {
+		if job.terminal() && !job.Result.Delivered && job.Result.Attempts < service.config.ResultMaxAttempts && (job.Result.NextAt.IsZero() || !job.Result.NextAt.After(service.config.Now())) {
 			ids = append(ids, id)
 		}
 	}
 	service.mu.Unlock()
 	sort.Strings(ids)
 	for _, id := range ids {
-		service.deliverCallback(id)
+		service.publishResult(id)
 	}
 	return len(ids)
 }
@@ -386,7 +370,7 @@ func (service *Service) execute(id string) {
 		delete(service.cancel, id)
 		service.mu.Unlock()
 		cancel()
-		go service.deliverCallback(id)
+		go service.publishResult(id)
 		return
 	}
 	request := job.Request
@@ -445,67 +429,44 @@ func (service *Service) execute(id string) {
 		job.ErrorMessage = err.Error()
 		_ = service.store.Save(*job)
 	}
-	go service.deliverCallback(id)
+	go service.publishResult(id)
 }
 
-func (service *Service) deliverCallback(id string) {
+func (service *Service) publishResult(id string) {
 	service.mu.Lock()
 	job := service.jobs[id]
-	if job == nil || !job.terminal() || job.Callback.Delivered || job.Callback.Attempts >= service.config.CallbackMaxAttempts || (!job.Callback.NextAt.IsZero() && job.Callback.NextAt.After(service.config.Now())) {
+	if job == nil || !job.terminal() || job.Result.Delivered || job.Result.Attempts >= service.config.ResultMaxAttempts || (!job.Result.NextAt.IsZero() && job.Result.NextAt.After(service.config.Now())) {
 		service.mu.Unlock()
 		return
 	}
 	payload, err := json.Marshal(job.Public())
-	if err != nil {
-		service.mu.Unlock()
-		return
-	}
-	callbackURL := service.config.CallbackBaseURL + job.Request.CallbackPath
 	service.mu.Unlock()
-
-	request, err := http.NewRequest(http.MethodPost, callbackURL, bytes.NewReader(payload))
 	if err == nil {
-		timestamp := fmt.Sprintf("%d", service.config.Now().Unix())
-		request.Header.Set("Content-Type", "application/json")
-		request.Header.Set("X-Corpus-Auditor-Job-Id", id)
-		request.Header.Set("X-Corpus-Auditor-Timestamp", timestamp)
-		request.Header.Set("X-Corpus-Auditor-Signature", service.signature(timestamp, payload))
-		response, requestErr := service.config.HTTPClient.Do(request)
-		if requestErr == nil {
-			_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 4096))
-			response.Body.Close()
-			if response.StatusCode >= 200 && response.StatusCode < 300 {
-				service.markCallback(id, true, "")
-				return
-			}
-			err = fmt.Errorf("callback returned HTTP %d", response.StatusCode)
-		} else {
-			err = requestErr
-		}
+		err = service.config.ResultPublisher.Publish(payload)
 	}
-	service.markCallback(id, false, errorText(err))
+	service.markResult(id, err == nil, errorText(err))
 }
 
-func (service *Service) markCallback(id string, delivered bool, message string) {
+func (service *Service) markResult(id string, delivered bool, message string) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	job := service.jobs[id]
-	if job == nil || job.Callback.Delivered {
+	if job == nil || job.Result.Delivered {
 		return
 	}
-	job.Callback.Attempts++
-	job.Callback.Delivered = delivered
-	job.Callback.LastError = ""
-	job.Callback.NextAt = time.Time{}
+	job.Result.Attempts++
+	job.Result.Delivered = delivered
+	job.Result.LastError = ""
+	job.Result.NextAt = time.Time{}
 	if !delivered {
-		job.Callback.LastError = message
-		if job.Callback.Attempts < service.config.CallbackMaxAttempts {
-			exponent := min(job.Callback.Attempts-1, 10)
-			job.Callback.NextAt = service.config.Now().UTC().Add(service.config.CallbackRetryBase * time.Duration(1<<exponent))
+		job.Result.LastError = message
+		if job.Result.Attempts < service.config.ResultMaxAttempts {
+			exponent := min(job.Result.Attempts-1, 10)
+			job.Result.NextAt = service.config.Now().UTC().Add(service.config.ResultRetryBase * time.Duration(1<<exponent))
 		}
 	}
-	if job.Callback.Attempts >= service.config.CallbackMaxAttempts && !delivered {
-		job.Callback.NextAt = time.Time{}
+	if job.Result.Attempts >= service.config.ResultMaxAttempts && !delivered {
+		job.Result.NextAt = time.Time{}
 	}
 	job.UpdatedAt = service.config.Now().UTC()
 	_ = service.store.Save(*job)
@@ -520,17 +481,9 @@ func (service *Service) dataPath(reference string) string {
 	return candidate
 }
 
-func (service *Service) signature(timestamp string, payload []byte) string {
-	mac := hmac.New(sha256.New, []byte(service.config.CallbackToken))
-	_, _ = mac.Write([]byte(timestamp))
-	_, _ = mac.Write([]byte("\n"))
-	_, _ = mac.Write(payload)
-	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
-}
-
 func errorText(err error) string {
 	if err == nil {
-		return "callback request could not be created"
+		return "result publish could not be created"
 	}
 	return err.Error()
 }

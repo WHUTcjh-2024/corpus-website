@@ -127,7 +127,7 @@ func fromProtoRequest(request *auditorv1.SubmitAuditRequest) service.SubmitReque
 		options = &auditorv1.AuditOptions{}
 	}
 	return service.SubmitRequest{
-		JobID: request.GetJobId(), InputRef: request.GetInputRef(), OutputPrefix: request.GetOutputPrefix(), CallbackPath: request.GetCallbackPath(),
+		JobID: request.GetJobId(), InputRef: request.GetInputRef(), OutputPrefix: request.GetOutputPrefix(),
 		Options: service.AuditOptions{
 			LowConfidence: options.GetLowConfidence(), MinLengthRatio: options.GetMinLengthRatio(),
 			MaxLengthRatio: options.GetMaxLengthRatio(), MaxAnomalyRecords: int(options.GetMaxAnomalies()),
@@ -141,8 +141,8 @@ func toProtoJob(job service.Job) (*auditorv1.AuditJob, error) {
 		OutputPrefix: job.Request.OutputPrefix, ReportRef: job.ReportRef, AnomaliesRef: job.AnomaliesRef,
 		ErrorCode: job.ErrorCode, ErrorMessage: job.ErrorMessage,
 		Callback: &auditorv1.CallbackDelivery{
-			Delivered: job.Callback.Delivered, Attempts: int32(job.Callback.Attempts),
-			NextAt: formatTime(job.Callback.NextAt), LastError: job.Callback.LastError,
+			Delivered: job.Result.Delivered, Attempts: int32(job.Result.Attempts),
+			NextAt: formatTime(job.Result.NextAt), LastError: job.Result.LastError,
 		},
 		CreatedAt: formatTime(job.CreatedAt), UpdatedAt: formatTime(job.UpdatedAt),
 	}

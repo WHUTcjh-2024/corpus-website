@@ -21,16 +21,16 @@ if UPLOAD_SCANNER_BACKEND == "apps.corpora.scanners.DisabledUploadScanner":  # n
 if not METRICS_BEARER_TOKEN:  # noqa: F405
     raise ImproperlyConfigured("METRICS_BEARER_TOKEN must be set in production.")
 
-if not CORPUS_AUDITOR_SERVICE_ENABLED:  # noqa: F405
-    raise ImproperlyConfigured("CORPUS_AUDITOR_SERVICE_ENABLED must be true in production.")
+if not CORPUS_AUDITOR_QUEUE_ENABLED:  # noqa: F405
+    raise ImproperlyConfigured("CORPUS_AUDITOR_QUEUE_ENABLED must be true in production.")
 
 if not (  # noqa: F405
-    CORPUS_AUDITOR_SERVICE_BASE_URL  # noqa: F405
-    and CORPUS_AUDITOR_SERVICE_TOKEN  # noqa: F405
-    and CORPUS_AUDITOR_CALLBACK_TOKEN  # noqa: F405
+    CORPUS_AUDITOR_QUEUE_URL  # noqa: F405
+    and CORPUS_AUDITOR_COMMAND_STREAM  # noqa: F405
+    and CORPUS_AUDITOR_RESULT_STREAM  # noqa: F405
 ):
     raise ImproperlyConfigured(
-        "CORPUS_AUDITOR_SERVICE_BASE_URL, CORPUS_AUDITOR_SERVICE_TOKEN, and CORPUS_AUDITOR_CALLBACK_TOKEN are required in production."
+        "CORPUS_AUDITOR_QUEUE_URL, CORPUS_AUDITOR_COMMAND_STREAM, and CORPUS_AUDITOR_RESULT_STREAM are required in production."
     )
 
 if AGENT_MODEL_ENABLED and (  # noqa: F405

@@ -1,7 +1,6 @@
 from django.urls import include, path
 
 from . import views
-from apps.audits import views as audit_views
 
 app_name = "api"
 
@@ -15,9 +14,4 @@ urlpatterns = [
     path("corpora/", views.CorpusListView.as_view(), name="corpora-list"),
     path("corpora/<uuid:pk>/", views.CorpusDetailView.as_view(), name="corpora-detail"),
     path("agent/", include("apps.agent.urls")),
-    path(
-        "internal/audits/<uuid:audit_id>/callback/",
-        audit_views.remote_auditor_callback,
-        name="auditor-callback",
-    ),
 ]

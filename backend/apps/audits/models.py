@@ -16,7 +16,7 @@ class ParallelAuditStatus(models.TextChoices):
 
 
 class ParallelAuditExecutionMode(models.TextChoices):
-    REMOTE = "remote", "Go service"
+    QUEUE = "queue", "Redis Streams + Go worker"
     LOCAL = "local", "Local fallback"
 
 
@@ -47,19 +47,20 @@ class ParallelAudit(models.Model):
         "Execution mode",
         max_length=20,
         choices=ParallelAuditExecutionMode.choices,
-        default=ParallelAuditExecutionMode.REMOTE,
+        default=ParallelAuditExecutionMode.QUEUE,
     )
-    remote_job_id = models.CharField(
-        "Remote job ID", max_length=64, blank=True, unique=True, null=True
+    worker_job_id = models.CharField(
+        "Worker job ID", max_length=64, blank=True, unique=True, null=True
     )
-    remote_state = models.CharField("Remote state", max_length=32, blank=True)
-    remote_attempt = models.PositiveIntegerField("Remote attempt", default=0)
-    remote_callback_received_at = models.DateTimeField(
-        "Remote callback received at", null=True, blank=True
+    worker_state = models.CharField("Worker state", max_length=32, blank=True)
+    worker_attempt = models.PositiveIntegerField("Worker attempt", default=0)
+    command_message_id = models.CharField("Command stream message ID", max_length=64, blank=True)
+    command_published_at = models.DateTimeField("Command published at", null=True, blank=True)
+    result_message_id = models.CharField(
+        "Result stream message ID", max_length=64, blank=True, unique=True, null=True
     )
-    remote_callback_payload_hash = models.CharField(
-        "Remote callback payload hash", max_length=64, blank=True
-    )
+    result_received_at = models.DateTimeField("Result received at", null=True, blank=True)
+    result_payload_hash = models.CharField("Result payload hash", max_length=64, blank=True)
     report_path = models.CharField("报告路径", max_length=1500, blank=True)
     anomalies_path = models.CharField("异常明细路径", max_length=1500, blank=True)
     summary = models.JSONField("审计摘要", default=dict, blank=True)

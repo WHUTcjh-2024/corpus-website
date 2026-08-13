@@ -68,13 +68,12 @@ func (options AuditOptions) validate() error {
 	return nil
 }
 
-// SubmitRequest has only data-root-relative references. The Go service never
-// accepts host paths or arbitrary callback URLs from the control plane.
+// SubmitRequest has only data-root-relative references. It is accepted by the
+// compatibility API and mapped from the Redis Streams command event.
 type SubmitRequest struct {
 	JobID        string       `json:"job_id"`
 	InputRef     string       `json:"input_ref"`
 	OutputPrefix string       `json:"output_prefix"`
-	CallbackPath string       `json:"callback_path"`
 	Options      AuditOptions `json:"options"`
 }
 
@@ -91,13 +90,8 @@ func (request SubmitRequest) normalized() (SubmitRequest, error) {
 	if err != nil {
 		return SubmitRequest{}, fmt.Errorf("%w: output_prefix: %v", ErrInvalidRequest, err)
 	}
-	callback := strings.TrimSpace(request.CallbackPath)
-	if !strings.HasPrefix(callback, "/") || strings.Contains(callback, "?") || strings.Contains(callback, "#") || strings.Contains(callback, "//") {
-		return SubmitRequest{}, fmt.Errorf("%w: callback_path must be an absolute path without query or fragment", ErrInvalidRequest)
-	}
 	request.InputRef = input
 	request.OutputPrefix = output
-	request.CallbackPath = callback
 	if path.Base(request.OutputPrefix) != request.JobID {
 		return SubmitRequest{}, fmt.Errorf(
 			"%w: output_prefix must end with job_id to prevent cross-job output collisions",
@@ -118,12 +112,6 @@ func (request SubmitRequest) normalized() (SubmitRequest, error) {
 		return SubmitRequest{}, fmt.Errorf(
 			"%w: references must target one processed corpus and its audit output directory",
 			ErrInvalidRequest,
-		)
-	}
-	expectedCallback := "/api/internal/audits/" + request.JobID + "/callback/"
-	if request.CallbackPath != expectedCallback {
-		return SubmitRequest{}, fmt.Errorf(
-			"%w: callback_path must be %q", ErrInvalidRequest, expectedCallback,
 		)
 	}
 	request.Options = request.Options.withDefaults()
@@ -160,32 +148,31 @@ func cleanReference(reference string) (string, error) {
 	return cleaned, nil
 }
 
-type CallbackDelivery struct {
+type ResultDelivery struct {
 	Delivered bool      `json:"delivered"`
 	Attempts  int       `json:"attempts"`
 	NextAt    time.Time `json:"next_at,omitempty"`
 	LastError string    `json:"last_error,omitempty"`
 }
 
-// Job is persisted as an atomic JSON document. A single service instance owns
-// its state directory; the durable documents make queued work and callbacks
-// recoverable across a process restart without coupling the executor to Django.
+// Job is persisted as an atomic JSON document. The durable documents make
+// work and result publication recoverable without Go database credentials.
 type Job struct {
-	ID           string           `json:"id"`
-	Request      SubmitRequest    `json:"request"`
-	Fingerprint  string           `json:"fingerprint"`
-	State        string           `json:"state"`
-	Attempt      int              `json:"attempt"`
-	ReportRef    string           `json:"report_ref,omitempty"`
-	AnomaliesRef string           `json:"anomalies_ref,omitempty"`
-	Report       *audit.Report    `json:"report,omitempty"`
-	ErrorCode    string           `json:"error_code,omitempty"`
-	ErrorMessage string           `json:"error_message,omitempty"`
-	Callback     CallbackDelivery `json:"callback"`
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
-	StartedAt    *time.Time       `json:"started_at,omitempty"`
-	FinishedAt   *time.Time       `json:"finished_at,omitempty"`
+	ID           string         `json:"id"`
+	Request      SubmitRequest  `json:"request"`
+	Fingerprint  string         `json:"fingerprint"`
+	State        string         `json:"state"`
+	Attempt      int            `json:"attempt"`
+	ReportRef    string         `json:"report_ref,omitempty"`
+	AnomaliesRef string         `json:"anomalies_ref,omitempty"`
+	Report       *audit.Report  `json:"report,omitempty"`
+	ErrorCode    string         `json:"error_code,omitempty"`
+	ErrorMessage string         `json:"error_message,omitempty"`
+	Result       ResultDelivery `json:"result"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+	StartedAt    *time.Time     `json:"started_at,omitempty"`
+	FinishedAt   *time.Time     `json:"finished_at,omitempty"`
 }
 
 func (job Job) terminal() bool {
@@ -194,18 +181,19 @@ func (job Job) terminal() bool {
 
 func (job Job) Public() map[string]any {
 	value := map[string]any{
-		"id":            job.ID,
-		"state":         job.State,
-		"attempt":       job.Attempt,
-		"input_ref":     job.Request.InputRef,
-		"output_prefix": job.Request.OutputPrefix,
-		"report_ref":    job.ReportRef,
-		"anomalies_ref": job.AnomaliesRef,
-		"error_code":    job.ErrorCode,
-		"error_message": job.ErrorMessage,
-		"callback":      job.Callback,
-		"created_at":    job.CreatedAt,
-		"updated_at":    job.UpdatedAt,
+		"id":             job.ID,
+		"state":          job.State,
+		"attempt":        job.Attempt,
+		"input_ref":      job.Request.InputRef,
+		"output_prefix":  job.Request.OutputPrefix,
+		"report_ref":     job.ReportRef,
+		"anomalies_ref":  job.AnomaliesRef,
+		"error_code":     job.ErrorCode,
+		"error_message":  job.ErrorMessage,
+		"schema_version": 1,
+		"result":         job.Result,
+		"created_at":     job.CreatedAt,
+		"updated_at":     job.UpdatedAt,
 	}
 	if job.Report != nil {
 		value["summary"] = job.Report.Summary

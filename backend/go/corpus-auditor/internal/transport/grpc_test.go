@@ -20,7 +20,7 @@ func TestGeneratedGRPCContractRequiresControlToken(t *testing.T) {
 	t.Parallel()
 	auditor, err := service.New(service.Config{
 		DataRoot: t.TempDir(), StateDirectory: filepath.Join(t.TempDir(), "jobs"),
-		CallbackBaseURL: "http://localhost", CallbackToken: "callback", WorkerCount: 1,
+		ResultPublisher: discardPublisher{}, WorkerCount: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -54,3 +54,7 @@ func TestGeneratedGRPCContractRequiresControlToken(t *testing.T) {
 		t.Fatalf("typed gRPC status = %v", err)
 	}
 }
+
+type discardPublisher struct{}
+
+func (discardPublisher) Publish([]byte) error { return nil }

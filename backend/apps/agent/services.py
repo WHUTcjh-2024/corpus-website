@@ -627,6 +627,14 @@ def _evidence_from_step(step: AgentStep) -> list[dict[str, Any]]:
         summary = step.output.get("summary")
         if audit_id and isinstance(summary, dict):
             return [{"citation_id": f"audit:{audit_id}", "audit_id": str(audit_id), "summary": summary}]
+    if step.tool_name == "request_quality_audit":
+        audit_id = step.output.get("audit_id")
+        if audit_id:
+            return [{
+                "citation_id": f"audit-request:{audit_id}",
+                "audit_id": str(audit_id),
+                "status": str(step.output.get("status", "pending")),
+            }]
     return []
 
 

@@ -3,8 +3,6 @@ package service
 import (
 	"bytes"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,91 +10,64 @@ import (
 	"time"
 )
 
-func TestServiceExecutesIdempotentJobAndDeliversSignedCallback(t *testing.T) {
+func TestServiceExecutesIdempotentJobAndPublishesTerminalResult(t *testing.T) {
 	t.Parallel()
-	var mutex sync.Mutex
-	callbacks := make([]callbackPayload, 0, 1)
-	callback := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		payload := callbackPayload{Signature: request.Header.Get("X-Corpus-Auditor-Signature"), Timestamp: request.Header.Get("X-Corpus-Auditor-Timestamp")}
-		if err := json.NewDecoder(request.Body).Decode(&payload.Body); err != nil {
-			t.Errorf("decode callback: %v", err)
-		}
-		mutex.Lock()
-		callbacks = append(callbacks, payload)
-		mutex.Unlock()
-		writer.WriteHeader(http.StatusNoContent)
-	}))
-	defer callback.Close()
-
+	publisher := &memoryPublisher{}
 	dataRoot := t.TempDir()
 	writePairs(t, dataRoot, "processed/corpus-one/parallel_pairs.jsonl")
-	service, err := New(Config{
+	auditor, err := New(Config{
 		DataRoot: dataRoot, StateDirectory: filepath.Join(t.TempDir(), "jobs"),
-		CallbackBaseURL: callback.URL, CallbackToken: "callback-secret", WorkerCount: 1,
+		ResultPublisher: publisher, WorkerCount: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
-	request := testRequest("job-one")
-	job, created, err := service.Submit(request)
+	defer auditor.Close()
+	job, created, err := auditor.Submit(testRequest("job-one"))
 	if err != nil || !created || job.State != StateQueued {
 		t.Fatalf("submit = %#v, %t, %v", job, created, err)
 	}
-	duplicate, created, err := service.Submit(request)
+	duplicate, created, err := auditor.Submit(testRequest("job-one"))
 	if err != nil || created || duplicate.ID != job.ID {
 		t.Fatalf("idempotent submit = %#v, %t, %v", duplicate, created, err)
 	}
 
-	completed := waitFor(t, service, job.ID, StateSucceeded)
+	completed := waitFor(t, auditor, job.ID, StateSucceeded)
 	if completed.Report == nil || completed.Report.Summary.TotalPairs != 2 {
 		t.Fatalf("unexpected completed job: %#v", completed)
 	}
 	if _, err := os.Stat(filepath.Join(dataRoot, "processed/corpus-one/audits/job-one/quality_report.json")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(dataRoot, "processed/corpus-one/audits/job-one/anomalies.jsonl")); err != nil {
+	payload := publisher.waitForPayload(t)
+	var result map[string]any
+	if err := json.Unmarshal(payload, &result); err != nil {
 		t.Fatal(err)
 	}
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		mutex.Lock()
-		count := len(callbacks)
-		mutex.Unlock()
-		if count == 1 {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	mutex.Lock()
-	defer mutex.Unlock()
-	if len(callbacks) != 1 || callbacks[0].Body["state"] != StateSucceeded {
-		t.Fatalf("callbacks = %#v", callbacks)
-	}
-	if callbacks[0].Signature == "" || callbacks[0].Timestamp == "" {
-		t.Fatalf("callback signature missing: %#v", callbacks[0])
+	if result["id"] != "job-one" || result["state"] != StateSucceeded || result["schema_version"] != float64(1) {
+		t.Fatalf("unexpected result payload: %#v", result)
 	}
 }
 
 func TestServiceRejectsPathTraversalAndBatchAtomically(t *testing.T) {
 	t.Parallel()
-	service, err := New(Config{DataRoot: t.TempDir(), StateDirectory: filepath.Join(t.TempDir(), "jobs"), CallbackBaseURL: "http://localhost", CallbackToken: "token", WorkerCount: 1})
+	auditor, err := New(Config{DataRoot: t.TempDir(), StateDirectory: filepath.Join(t.TempDir(), "jobs"), ResultPublisher: &memoryPublisher{}, WorkerCount: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
+	defer auditor.Close()
 	bad := testRequest("bad")
 	bad.InputRef = "../secrets.jsonl"
-	if _, _, err := service.Submit(bad); err == nil {
+	if _, _, err := auditor.Submit(bad); err == nil {
 		t.Fatal("path traversal accepted")
 	}
 	first := testRequest("first")
 	second := testRequest("second")
 	second.OutputPrefix = "processed/other-corpus/audits/second"
-	if _, err := service.SubmitBatch([]SubmitRequest{first, second}); err == nil {
+	if _, err := auditor.SubmitBatch([]SubmitRequest{first, second}); err == nil {
 		t.Fatal("invalid batch accepted")
 	}
-	if _, err := service.Get("first"); err != ErrJobNotFound {
+	if _, err := auditor.Get("first"); err != ErrJobNotFound {
 		t.Fatalf("partial batch persisted: %v", err)
 	}
 }
@@ -105,35 +76,56 @@ func TestCancelledQueuedJobDoesNotWriteOutputs(t *testing.T) {
 	t.Parallel()
 	dataRoot := t.TempDir()
 	writePairs(t, dataRoot, "processed/corpus-one/parallel_pairs.jsonl")
-	service, err := New(Config{DataRoot: dataRoot, StateDirectory: filepath.Join(t.TempDir(), "jobs"), CallbackBaseURL: "http://127.0.0.1:1", CallbackToken: "token", WorkerCount: 1, QueueCapacity: 2})
+	auditor, err := New(Config{DataRoot: dataRoot, StateDirectory: filepath.Join(t.TempDir(), "jobs"), ResultPublisher: &memoryPublisher{}, WorkerCount: 1, QueueCapacity: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
-	job, _, err := service.Submit(testRequest("cancel-me"))
+	defer auditor.Close()
+	job, _, err := auditor.Submit(testRequest("cancel-me"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Cancel(job.ID); err != nil {
+	if _, err := auditor.Cancel(job.ID); err != nil {
 		t.Fatal(err)
 	}
-	completed := waitFor(t, service, job.ID, StateCancelled)
-	if completed.State != StateCancelled {
+	if completed := waitFor(t, auditor, job.ID, StateCancelled); completed.State != StateCancelled {
 		t.Fatalf("job state = %s", completed.State)
 	}
 }
 
-type callbackPayload struct {
-	Signature string
-	Timestamp string
-	Body      map[string]any
+type memoryPublisher struct {
+	mutex    sync.Mutex
+	payloads [][]byte
+}
+
+func (publisher *memoryPublisher) Publish(payload []byte) error {
+	publisher.mutex.Lock()
+	defer publisher.mutex.Unlock()
+	publisher.payloads = append(publisher.payloads, append([]byte(nil), payload...))
+	return nil
+}
+
+func (publisher *memoryPublisher) waitForPayload(t *testing.T) []byte {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		publisher.mutex.Lock()
+		if len(publisher.payloads) > 0 {
+			payload := append([]byte(nil), publisher.payloads[0]...)
+			publisher.mutex.Unlock()
+			return payload
+		}
+		publisher.mutex.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("no terminal result was published")
+	return nil
 }
 
 func testRequest(id string) SubmitRequest {
 	return SubmitRequest{
 		JobID: id, InputRef: "processed/corpus-one/parallel_pairs.jsonl",
 		OutputPrefix: "processed/corpus-one/audits/" + id,
-		CallbackPath: "/api/internal/audits/" + id + "/callback/",
 	}
 }
 
@@ -149,11 +141,11 @@ func writePairs(t *testing.T, root, reference string) {
 	}
 }
 
-func waitFor(t *testing.T, service *Service, id, expected string) Job {
+func waitFor(t *testing.T, auditor *Service, id, expected string) Job {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		job, err := service.Get(id)
+		job, err := auditor.Get(id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +154,7 @@ func waitFor(t *testing.T, service *Service, id, expected string) Job {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	job, _ := service.Get(id)
+	job, _ := auditor.Get(id)
 	t.Fatalf("job %s did not reach %s; current=%s", id, expected, job.State)
 	return Job{}
 }
