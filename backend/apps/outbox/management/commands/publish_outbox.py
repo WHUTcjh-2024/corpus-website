@@ -5,6 +5,7 @@ import time
 
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.agent.services import expire_pending_approvals
 from apps.outbox.services import publish_pending_events, purge_published_events
 
 
@@ -19,6 +20,7 @@ class Command(BaseCommand):
         parser.add_argument("--loop", action="store_true")
         parser.add_argument("--interval", type=float, default=5.0)
         parser.add_argument("--cleanup-interval", type=float, default=3600.0)
+        parser.add_argument("--approval-cleanup-interval", type=float, default=60.0)
 
     def handle(self, *args, **options) -> None:
         if options["limit"] < 1:
@@ -27,8 +29,11 @@ class Command(BaseCommand):
             raise CommandError("--interval must be greater than zero")
         if options["cleanup_interval"] <= 0:
             raise CommandError("--cleanup-interval must be greater than zero")
+        if options["approval_cleanup_interval"] <= 0:
+            raise CommandError("--approval-cleanup-interval must be greater than zero")
 
         next_cleanup_at = time.monotonic()
+        next_approval_cleanup_at = time.monotonic()
         while True:
             try:
                 summary = publish_pending_events(limit=options["limit"])
@@ -45,11 +50,17 @@ class Command(BaseCommand):
                             skipped=summary.skipped,
                         )
                     )
-                if time.monotonic() >= next_cleanup_at:
+                current_time = time.monotonic()
+                if current_time >= next_cleanup_at:
                     deleted = purge_published_events()
                     if deleted:
                         self.stdout.write(f"purged={deleted}")
-                    next_cleanup_at = time.monotonic() + options["cleanup_interval"]
+                    next_cleanup_at = current_time + options["cleanup_interval"]
+                if current_time >= next_approval_cleanup_at:
+                    expired = expire_pending_approvals()
+                    if expired:
+                        self.stdout.write(f"expired_agent_approvals={expired}")
+                    next_approval_cleanup_at = current_time + options["approval_cleanup_interval"]
             except Exception as exc:
                 if not options["loop"]:
                     raise CommandError(f"Unable to publish outbox events: {exc}") from exc

@@ -22,3 +22,17 @@ groups:
           severity: warning
         annotations:
           summary: The pending outbox backlog is growing.
+      - alert: CorpusAgentRunFailed
+        expr: corpus_agent_runs{status="failed"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: One or more corpus Agent runs failed and require inspection.
+      - alert: CorpusAgentApprovalBacklog
+        expr: corpus_agent_runs{status="waiting_approval"} > 20
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Corpus Agent approval backlog exceeds the expected operating threshold.

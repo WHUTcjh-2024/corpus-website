@@ -4,15 +4,16 @@ from django.test import SimpleTestCase
 
 
 class CeleryTaskRoutingTests(SimpleTestCase):
-    def test_declares_isolated_processing_and_export_queues(self):
+    def test_declares_isolated_processing_export_and_agent_queues(self):
         queues = {queue.name for queue in settings.CELERY_TASK_QUEUES}
 
-        self.assertEqual(queues, {"default", "processing", "exports"})
+        self.assertEqual(queues, {"default", "processing", "exports", "agent"})
 
     def test_routes_each_durable_task_to_its_dedicated_queue(self):
         expected_routes = {
             "processing.process_corpus": "processing",
             "exports.build_export": "exports",
+            "agent.run_corpus_agent": "agent",
         }
 
         for task_name, expected_queue in expected_routes.items():

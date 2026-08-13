@@ -4,7 +4,7 @@ import uuid
 
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
-from django.db import models
+from django.db import connections, models
 from django.db.models import Q
 from django.db.models.expressions import RawSQL
 
@@ -61,11 +61,16 @@ class ProcessingTask(models.Model):
     started_at = models.DateTimeField("开始时间", null=True, blank=True)
     finished_at = models.DateTimeField("结束时间", null=True, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
-    created_sequence = models.BigIntegerField(
-        db_default=RawSQL("nextval('processing_task_created_sequence_seq')", []),
-        editable=False,
-        unique=True,
-    )
+    if settings.DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3":
+        # SQLite is used only by the isolated test settings. It has no
+        # PostgreSQL sequence primitive, so save() assigns the test sequence.
+        created_sequence = models.BigIntegerField(default=0, editable=False, unique=True)
+    else:
+        created_sequence = models.BigIntegerField(
+            db_default=RawSQL("nextval('processing_task_created_sequence_seq')", []),
+            editable=False,
+            unique=True,
+        )
     updated_at = models.DateTimeField("更新时间", auto_now=True)
 
     class Meta:
@@ -100,3 +105,16 @@ class ProcessingTask(models.Model):
 
     def __str__(self) -> str:
         return f"{self.corpus.name}: {self.get_status_display()}"
+
+    def save(self, *args, **kwargs):
+        using = kwargs.get("using") or self._state.db or "default"
+        if (
+            self._state.adding
+            and connections[using].vendor == "sqlite"
+            and self.created_sequence in {None, 0}
+        ):
+            maximum = type(self).objects.using(using).aggregate(
+                maximum=models.Max("created_sequence")
+            )["maximum"]
+            self.created_sequence = int(maximum or 0) + 1
+        return super().save(*args, **kwargs)

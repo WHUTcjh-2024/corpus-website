@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 
 from . import views
 
@@ -13,4 +13,5 @@ urlpatterns = [
     path("dashboard/", views.DashboardView.as_view(), name="dashboard"),
     path("corpora/", views.CorpusListView.as_view(), name="corpora-list"),
     path("corpora/<uuid:pk>/", views.CorpusDetailView.as_view(), name="corpora-detail"),
+    path("agent/", include("apps.agent.urls")),
 ]

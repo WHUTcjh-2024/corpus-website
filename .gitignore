@@ -12,6 +12,7 @@ data/manifests/*
 # Generated artifacts
 *.docx
 artifacts/
+backend/agent-evaluation-report.json
 backend/runserver.*.log
 backend/backend-startup.log
 frontend/vite-startup.log

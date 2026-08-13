@@ -40,6 +40,13 @@ Use `PROCESSING_WORKER_CONCURRENCY` and `EXPORT_WORKER_CONCURRENCY` to bound
 parallelism within one replica. Keep export concurrency low unless storage and
 database load have been measured; exports can read many indexed rows at once.
 
+The `agent` queue is consumed by `processing-worker` because Agent tools access
+the same immutable corpus indexes and audit artifacts. Agent runs are durable
+state machines, not long-lived HTTP requests: inspect an `AgentRun` and its
+step trace before replaying any dead-letter Outbox event. A run in
+`waiting_approval` is healthy and must never be replayed to bypass the user
+confirmation boundary. See [CORPUS_AGENT_HARNESS.md](CORPUS_AGENT_HARNESS.md).
+
 ## Metrics and alerting
 
 `GET /metrics` returns Prometheus text metrics only when the request includes
@@ -51,6 +58,10 @@ Create alerts for:
 - `corpus_outbox_events{status="dead_letter"} > 0` for 5 minutes.
 - `corpus_outbox_oldest_pending_age_seconds > 300` for 10 minutes.
 - sustained growth of `corpus_outbox_events{status="pending"}`.
+- `corpus_agent_runs{status="failed"} > 0` for 10 minutes.
+- a sustained `corpus_agent_runs{status="waiting_approval"}` backlog above the
+  operating threshold; expired approvals should be allowed to age out rather
+  than auto-approved.
 
 The default retention is seven days for successfully published events. Dead
 letters are retained for investigation and manual replay.

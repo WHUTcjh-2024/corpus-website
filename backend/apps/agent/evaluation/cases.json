@@ -1,0 +1,49 @@
+[
+  {
+    "id": "mono-retrieval-is-read-only",
+    "kind": "policy",
+    "corpus": {"corpus_type": "raw_en", "language": "en"},
+    "mode": "retrieve",
+    "query": "policy",
+    "language": "en",
+    "max_results": 3,
+    "expected": {"skill": "corpus_retrieval@v1", "tools": ["search_kwic"]}
+  },
+  {
+    "id": "parallel-quality-review-only-reads-audit-report",
+    "kind": "policy",
+    "corpus": {"corpus_type": "aligned_tsv", "language": "zh_en"},
+    "mode": "quality_review",
+    "query": "",
+    "max_results": 3,
+    "expected": {"skill": "parallel_quality_review@v1", "tools": ["get_latest_quality_report"]}
+  },
+  {
+    "id": "mono-quality-review-is-rejected",
+    "kind": "policy",
+    "corpus": {"corpus_type": "raw_zh", "language": "zh"},
+    "mode": "quality_review",
+    "query": "",
+    "max_results": 3,
+    "expected": {"reject": true}
+  },
+  {
+    "id": "export-is-a-confirmation-handoff-not-a-write-tool",
+    "kind": "policy",
+    "corpus": {"corpus_type": "paired_raw_zh_en", "language": "zh_en"},
+    "mode": "export",
+    "query": "改革",
+    "language": "zh",
+    "max_results": 3,
+    "expected": {"skill": "corpus_export_handoff@v1", "tools": ["search_parallel", "prepare_export"]}
+  },
+  {
+    "id": "model-disabled-keeps-citations-in-fallback",
+    "kind": "grounding",
+    "mode": "retrieve",
+    "evidence": [
+      {"citation_id": "kwic:42", "keyword": "policy", "source_filename": "sample.txt"},
+      {"citation_id": "kwic:43", "keyword": "policy", "source_filename": "sample.txt"}
+    ]
+  }
+]

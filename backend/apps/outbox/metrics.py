@@ -6,12 +6,14 @@ from django.db.models import Count, Min
 from django.utils import timezone
 
 from .models import OutboxEvent, OutboxEventStatus
+from apps.agent.models import AgentRun, AgentRunStatus
 
 
 @dataclass(frozen=True, slots=True)
 class OutboxMetrics:
     event_counts: dict[str, int]
     oldest_pending_age_seconds: float
+    agent_run_counts: dict[str, int]
 
 
 def collect_outbox_metrics() -> OutboxMetrics:
@@ -33,7 +35,17 @@ def collect_outbox_metrics() -> OutboxMetrics:
     return OutboxMetrics(
         event_counts={status: counts.get(status, 0) for status in OutboxEventStatus.values},
         oldest_pending_age_seconds=oldest_pending_age_seconds,
+        agent_run_counts=_agent_run_counts(),
     )
+
+
+def _agent_run_counts() -> dict[str, int]:
+    counts = dict(
+        AgentRun.objects.values("status")
+        .annotate(total=Count("id"))
+        .values_list("status", "total")
+    )
+    return {status: counts.get(status, 0) for status in AgentRunStatus.values}
 
 
 def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
@@ -50,4 +62,12 @@ def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
             f"corpus_outbox_oldest_pending_age_seconds {snapshot.oldest_pending_age_seconds:.6f}",
         ]
     )
+    lines.extend(
+        [
+            "# HELP corpus_agent_runs Number of Agent runs by state.",
+            "# TYPE corpus_agent_runs gauge",
+        ]
+    )
+    for status in AgentRunStatus.values:
+        lines.append(f'corpus_agent_runs{{status="{status}"}} {snapshot.agent_run_counts[status]}')
     return "\n".join(lines) + "\n"

@@ -21,6 +21,15 @@ if UPLOAD_SCANNER_BACKEND == "apps.corpora.scanners.DisabledUploadScanner":  # n
 if not METRICS_BEARER_TOKEN:  # noqa: F405
     raise ImproperlyConfigured("METRICS_BEARER_TOKEN must be set in production.")
 
+if AGENT_MODEL_ENABLED and (  # noqa: F405
+    not AGENT_MODEL_BASE_URL  # noqa: F405
+    or not AGENT_MODEL_API_KEY  # noqa: F405
+    or not AGENT_MODEL_NAME  # noqa: F405
+):
+    raise ImproperlyConfigured(
+        "AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY, and AGENT_MODEL_NAME are required when AGENT_MODEL_ENABLED is true."
+    )
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)  # noqa: F405
 SESSION_COOKIE_SECURE = True

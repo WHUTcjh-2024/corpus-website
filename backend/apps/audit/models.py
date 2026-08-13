@@ -24,6 +24,15 @@ class AuditEventType(models.TextChoices):
     ADMIN_ACTION = "admin.action", "管理员操作"
 
 
+    AGENT_RUN_CREATED = "agent.run.created", "Agent run created"
+    AGENT_RUN_COMPLETED = "agent.run.completed", "Agent run completed"
+    AGENT_RUN_FAILED = "agent.run.failed", "Agent run failed"
+    AGENT_RUN_CANCELLED = "agent.run.cancelled", "Agent run cancelled"
+    AGENT_APPROVAL_REQUESTED = "agent.approval.requested", "Agent approval requested"
+    AGENT_APPROVAL_APPROVED = "agent.approval.approved", "Agent approval approved"
+    AGENT_APPROVAL_EXPIRED = "agent.approval.expired", "Agent approval expired"
+
+
 class AuditEvent(models.Model):
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

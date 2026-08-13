@@ -28,6 +28,7 @@ def readyz(request: HttpRequest) -> JsonResponse:
         "database": _database_ready(),
         "redis": _redis_ready(),
         "data_root": settings.DATA_ROOT.exists(),
+        "agent_model": _agent_model_ready(),
     }
     status_code = 200 if all(checks.values()) else 503
     return JsonResponse({"status": "ready" if status_code == 200 else "not_ready", "checks": checks}, status=status_code)
@@ -59,3 +60,14 @@ def _redis_ready() -> bool:
         return bool(client.ping())
     except Exception:
         return False
+
+
+def _agent_model_ready() -> bool:
+    """A model is optional: deterministic grounded mode remains production-ready."""
+    if not settings.AGENT_MODEL_ENABLED:
+        return True
+    return bool(
+        settings.AGENT_MODEL_BASE_URL
+        and settings.AGENT_MODEL_API_KEY
+        and settings.AGENT_MODEL_NAME
+    )

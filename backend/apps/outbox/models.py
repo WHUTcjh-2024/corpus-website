@@ -22,6 +22,9 @@ class OutboxTaskName(models.TextChoices):
     AUDIT_PARALLEL_CORPUS = "audits.audit_parallel_corpus", "平行语料审计"
 
 
+    RUN_CORPUS_AGENT = "agent.run_corpus_agent", "Run corpus Agent"
+
+
 class OutboxEvent(models.Model):
     """A durable command that is published to Celery after its DB transaction commits."""
 

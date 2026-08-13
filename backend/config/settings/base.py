@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "apps.parallel",
     "apps.statistics",
     "apps.exports",
+    "apps.agent",
     "apps.outbox",
     "apps.audit",
     "apps.feedback",
@@ -199,11 +200,13 @@ CELERY_TASK_QUEUES = (
     Queue("default"),
     Queue("processing"),
     Queue("exports"),
+    Queue("agent"),
 )
 CELERY_TASK_ROUTES = {
     "processing.process_corpus": {"queue": "processing"},
     "audits.audit_parallel_corpus": {"queue": "processing"},
     "exports.build_export": {"queue": "exports"},
+    "agent.run_corpus_agent": {"queue": "agent"},
 }
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "visibility_timeout": int(os.getenv("CELERY_VISIBILITY_TIMEOUT_SECONDS", 60 * 60)),
@@ -218,6 +221,33 @@ OUTBOX_MAX_ATTEMPTS = int(os.getenv("OUTBOX_MAX_ATTEMPTS", "12"))
 OUTBOX_PUBLISHED_RETENTION_DAYS = int(
     os.getenv("OUTBOX_PUBLISHED_RETENTION_DAYS", "7")
 )
+
+# Agent runs persist a policy-validated plan before they reach Celery. The
+# lease enables at-least-once recovery; write actions require human approval.
+AGENT_RUN_LEASE_SECONDS = int(os.getenv("AGENT_RUN_LEASE_SECONDS", "300"))
+AGENT_APPROVAL_TTL_SECONDS = int(os.getenv("AGENT_APPROVAL_TTL_SECONDS", "600"))
+AGENT_APPROVAL_CLEANUP_BATCH_SIZE = int(os.getenv("AGENT_APPROVAL_CLEANUP_BATCH_SIZE", "100"))
+AGENT_MAX_RUNS_PER_HOUR = int(os.getenv("AGENT_MAX_RUNS_PER_HOUR", "30"))
+AGENT_MODEL_ENABLED = env_bool("AGENT_MODEL_ENABLED", False)
+AGENT_MODEL_BASE_URL = os.getenv("AGENT_MODEL_BASE_URL", "")
+AGENT_MODEL_API_KEY = os.getenv("AGENT_MODEL_API_KEY", "")
+AGENT_MODEL_NAME = os.getenv("AGENT_MODEL_NAME", "")
+AGENT_MODEL_TIMEOUT_SECONDS = float(os.getenv("AGENT_MODEL_TIMEOUT_SECONDS", "20"))
+AGENT_MODEL_MAX_OUTPUT_TOKENS = int(os.getenv("AGENT_MODEL_MAX_OUTPUT_TOKENS", "600"))
+AGENT_MODEL_INPUT_USD_PER_1M = float(os.getenv("AGENT_MODEL_INPUT_USD_PER_1M", "0"))
+AGENT_MODEL_OUTPUT_USD_PER_1M = float(os.getenv("AGENT_MODEL_OUTPUT_USD_PER_1M", "0"))
+
+if (
+    AGENT_RUN_LEASE_SECONDS < 1
+    or AGENT_APPROVAL_TTL_SECONDS < 1
+    or AGENT_APPROVAL_CLEANUP_BATCH_SIZE < 1
+    or AGENT_MAX_RUNS_PER_HOUR < 1
+    or AGENT_MODEL_TIMEOUT_SECONDS <= 0
+    or not 1 <= AGENT_MODEL_MAX_OUTPUT_TOKENS <= 4_096
+    or AGENT_MODEL_INPUT_USD_PER_1M < 0
+    or AGENT_MODEL_OUTPUT_USD_PER_1M < 0
+):
+    raise ValueError("Agent runtime settings must use positive bounded values.")
 
 # The Go auditor is an offline executable, not a network service. Django owns
 # task orchestration and persistence; the executable only exchanges files.
