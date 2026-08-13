@@ -31,6 +31,9 @@ class AuditEventType(models.TextChoices):
     AGENT_APPROVAL_REQUESTED = "agent.approval.requested", "Agent approval requested"
     AGENT_APPROVAL_APPROVED = "agent.approval.approved", "Agent approval approved"
     AGENT_APPROVAL_EXPIRED = "agent.approval.expired", "Agent approval expired"
+    AGENT_EXTERNAL_WAITING = "agent.external.waiting", "Agent external wait started"
+    AGENT_EXTERNAL_RESUMED = "agent.external.resumed", "Agent external wait resumed"
+    AGENT_EXTERNAL_FAILED = "agent.external.failed", "Agent external wait failed"
 
 
 class AuditEvent(models.Model):

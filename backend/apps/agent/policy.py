@@ -38,6 +38,17 @@ SKILLS = {
         version="v1",
         allowed_tools=frozenset({"search_kwic", "search_parallel"}),
     ),
+    "parallel_quality_review@v2": SkillDefinition(
+        name="parallel_quality_review",
+        version="v2",
+        allowed_tools=frozenset({
+            "request_quality_audit",
+            "get_latest_quality_report",
+            "search_parallel",
+        }),
+    ),
+    # Read compatibility for plans persisted before the resumable Saga rollout.
+    # New requests always use v2; old runs remain replayable during deployment.
     "parallel_quality_review@v1": SkillDefinition(
         name="parallel_quality_review",
         version="v1",
@@ -107,14 +118,15 @@ def plan_run(
     elif mode == AgentRunMode.QUALITY_REVIEW:
         if not parallel:
             raise AgentPolicyError("Quality review is available only for processed parallel corpora.")
-        has_report = corpus.parallel_audits.filter(status="success").exists()
-        skill = SKILLS["parallel_quality_review@v1"] if has_report else SKILLS["parallel_quality_audit@v1"]
-        steps = ([
+        skill = SKILLS["parallel_quality_review@v2"]
+        # This is deliberately a fixed two-stage Saga.  The first step either
+        # reuses a completed report or creates/joins a durable audit.  In the
+        # latter case the runtime pauses until the worker result resumes it.
+        steps = [
+            {"node": "ensure_quality_audit", "tool": "request_quality_audit", "input": {}},
             {"node": "load_quality_report", "tool": "get_latest_quality_report", "input": {}},
-        ] if has_report else [
-            {"node": "create_quality_audit", "tool": "request_quality_audit", "input": {}},
-        ])
-        if query and has_report:
+        ]
+        if query:
             steps.append({"node": "inspect_evidence", "tool": "search_parallel", "input": retrieval_input})
     else:
         skill = SKILLS["corpus_export_handoff@v1"]

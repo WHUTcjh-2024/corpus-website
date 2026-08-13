@@ -25,6 +25,9 @@ class OutboxTaskName(models.TextChoices):
     RUN_CORPUS_AGENT = "agent.run_corpus_agent", "Run corpus Agent"
 
 
+    RESUME_CORPUS_AGENT = "agent.resume_corpus_agent", "Resume corpus Agent"
+
+
     PUBLISH_AUDIT_COMMAND = "audits.publish_parallel_audit_command", "Publish parallel audit command"
 
 

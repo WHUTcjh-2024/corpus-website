@@ -195,6 +195,10 @@ def apply_parallel_audit_result(
             "result_received_at", "result_payload_hash", "finished_at", "updated_at",
         ]
     )
+    # Keep the Agent Saga inside the same database transaction as this
+    # projection. A completed report can therefore never be committed without
+    # either a durable continuation command or an explicit Agent failure.
+    _advance_waiting_agents(audit)
     return True
 
 
@@ -310,6 +314,7 @@ def _mark_success(audit_id, report_path: Path, anomalies_path: Path, summary: di
     audit.error_message = ""
     audit.finished_at = timezone.now()
     audit.save(update_fields=["status", "report_path", "anomalies_path", "summary", "error_message", "finished_at", "updated_at"])
+    _advance_waiting_agents(audit)
 
 
 @transaction.atomic
@@ -322,6 +327,14 @@ def _mark_failed(audit_id, message: str, *, worker_state: str = "") -> None:
     audit.error_message = message[:4000]
     audit.finished_at = timezone.now()
     audit.save(update_fields=["status", "worker_state", "error_message", "finished_at", "updated_at"])
+    _advance_waiting_agents(audit)
+
+
+def _advance_waiting_agents(audit: ParallelAudit) -> None:
+    """Keep every terminal audit path consistent with the Agent Saga."""
+    from apps.agent.services import advance_waiting_agent_runs_for_parallel_audit
+
+    advance_waiting_agent_runs_for_parallel_audit(audit=audit)
 
 
 def _validate_worker_payload(audit: ParallelAudit, payload: dict[str, Any]) -> None:

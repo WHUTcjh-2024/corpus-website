@@ -29,6 +29,7 @@ from .models import (
     AgentApproval,
     AgentApprovalAction,
     AgentApprovalStatus,
+    AgentExternalWaitKind,
     AgentRun,
     AgentRunMode,
     AgentRunStatus,
@@ -214,6 +215,16 @@ def _enqueue_run(run: AgentRun):
     )
 
 
+def _enqueue_resumed_run(*, run: AgentRun, audit_id):
+    """Create exactly one durable continuation command for an audit result."""
+    return enqueue_task(
+        task_name=OutboxTaskName.RESUME_CORPUS_AGENT,
+        aggregate_id=run.pk,
+        payload={"run_id": str(run.pk)},
+        deduplication_key=f"agent-resume:{run.pk}:parallel-audit:{audit_id}",
+    )
+
+
 def execute_agent_run(run_id: str) -> dict[str, Any]:
     run = _claim_run(run_id)
     if run is None:
@@ -243,10 +254,21 @@ def execute_agent_run(run_id: str) -> dict[str, Any]:
                         "status": AgentRunStatus.WAITING_APPROVAL,
                         "approval_id": str(approval.pk),
                     }
+                if step.tool_name == "request_quality_audit":
+                    if _synchronize_parallel_audit_wait(run_id=run.pk, step_id=step.pk) == "waiting":
+                        return {
+                            "run_id": str(run.pk),
+                            "status": AgentRunStatus.WAITING_EXTERNAL,
+                            "audit_id": str(step.output["audit_id"]),
+                        }
                 continue
             _mark_step_running(step.pk)
             if step.tool_name == "prepare_export":
-                prepared = registry.execute(context=context, tool_name=step.tool_name, input=step.input)
+                prepared = registry.execute(
+                    context=context,
+                    tool_name=step.tool_name,
+                    input=_resolved_step_input(run_id=run.pk, step=step),
+                )
                 _mark_step_success(step.pk, output=prepared.output)
                 approval, approval_created = _pause_for_approval(
                     run_id=run.pk,
@@ -261,9 +283,20 @@ def execute_agent_run(run_id: str) -> dict[str, Any]:
                     "status": AgentRunStatus.WAITING_APPROVAL,
                     "approval_id": str(approval.pk),
                 }
-            result = registry.execute(context=context, tool_name=step.tool_name, input=step.input)
+            result = registry.execute(
+                context=context,
+                tool_name=step.tool_name,
+                input=_resolved_step_input(run_id=run.pk, step=step),
+            )
             evidence.extend(result.evidence)
             _mark_step_success(step.pk, output=result.output)
+            if step.tool_name == "request_quality_audit":
+                if _synchronize_parallel_audit_wait(run_id=run.pk, step_id=step.pk) == "waiting":
+                    return {
+                        "run_id": str(run.pk),
+                        "status": AgentRunStatus.WAITING_EXTERNAL,
+                        "audit_id": str(result.output["audit_id"]),
+                    }
 
         summary = summarize_grounded_evidence(mode=run.mode, evidence=evidence)
         completed = _mark_run_success(
@@ -376,9 +409,15 @@ def cancel_agent_run(*, run_id, user, request=None) -> AgentRun:
     run.error_code = "CANCELLED_BY_USER"
     run.error_message = "Cancelled by the requester."
     run.locked_until = None
+    run.external_wait_kind = ""
+    run.external_wait_id = None
+    run.external_wait_expires_at = None
     run.finished_at = timezone.now()
     run.save(
-        update_fields=["status", "error_code", "error_message", "locked_until", "finished_at", "updated_at"]
+        update_fields=[
+            "status", "error_code", "error_message", "locked_until", "external_wait_kind",
+            "external_wait_id", "external_wait_expires_at", "finished_at", "updated_at",
+        ]
     )
     AgentApproval.objects.filter(run=run, status=AgentApprovalStatus.PENDING).update(
         status=AgentApprovalStatus.REJECTED, resolved_at=timezone.now()
@@ -414,6 +453,23 @@ def expire_pending_approvals(*, limit: int | None = None) -> int:
         .values_list("pk", flat=True)[:batch_size]
     )
     return sum(1 for run_id in run_ids if _expire_pending_approval(run_id=run_id, now=now))
+
+
+def expire_external_waits(*, limit: int | None = None) -> int:
+    """Fail abandoned waits without reissuing the independently durable audit."""
+    batch_size = limit if limit is not None else settings.AGENT_EXTERNAL_WAIT_CLEANUP_BATCH_SIZE
+    if batch_size < 1:
+        return 0
+    now = timezone.now()
+    run_ids = list(
+        AgentRun.objects.filter(
+            status=AgentRunStatus.WAITING_EXTERNAL,
+            external_wait_expires_at__lte=now,
+        )
+        .order_by("external_wait_expires_at")
+        .values_list("pk", flat=True)[:batch_size]
+    )
+    return sum(1 for run_id in run_ids if _expire_external_wait(run_id=run_id, now=now))
 
 
 @transaction.atomic
@@ -473,6 +529,89 @@ def _mark_step_success(step_id, *, output: dict[str, Any]) -> None:
     )
 
 
+def _resolved_step_input(*, run_id, step: AgentStep) -> dict[str, Any]:
+    """Derive bounded cross-step input without allowing the model to mutate plans."""
+    input = dict(step.input)
+    if step.tool_name != "get_latest_quality_report" or "audit_id" in input:
+        return input
+    predecessor = (
+        AgentStep.objects.filter(
+            run_id=run_id,
+            tool_name="request_quality_audit",
+            status=AgentStepStatus.SUCCEEDED,
+            sequence__lt=step.sequence,
+        )
+        .order_by("-sequence")
+        .first()
+    )
+    if predecessor is None:
+        return input
+    audit_id = predecessor.output.get("audit_id")
+    if audit_id:
+        input["audit_id"] = str(audit_id)
+    return input
+
+
+@transaction.atomic
+def _synchronize_parallel_audit_wait(*, run_id, step_id) -> str:
+    """Atomically decide whether an audit step must park its Agent run.
+
+    The audit is rechecked while holding the Agent lock because a Go result can
+    be projected between tool execution and this transition.
+    """
+    from apps.audits.models import ParallelAudit, ParallelAuditStatus
+
+    saved_step = AgentStep.objects.select_related("run").get(pk=step_id, run_id=run_id)
+    output = dict(saved_step.output)
+    audit_id = output.get("audit_id")
+    if not audit_id:
+        raise AgentToolError("Quality audit step did not return an audit ID.")
+    try:
+        audit = ParallelAudit.objects.select_for_update().get(
+            pk=audit_id,
+            corpus_id=saved_step.run.corpus_id,
+        )
+    except (ParallelAudit.DoesNotExist, ValueError) as exc:
+        raise AgentToolError("Quality audit step refers to an invalid audit.") from exc
+    run = AgentRun.objects.select_for_update().get(pk=run_id)
+    step = AgentStep.objects.select_for_update().get(pk=step_id, run=run)
+
+    if audit.status == ParallelAuditStatus.FAILED:
+        step.status = AgentStepStatus.FAILED
+        step.error_code = "EXTERNAL_AUDIT_FAILED"
+        step.error_message = (audit.error_message or "The quality audit failed.")[:4000]
+        step.finished_at = timezone.now()
+        step.save(
+            update_fields=["status", "error_code", "error_message", "finished_at", "updated_at"]
+        )
+        raise AgentToolError("The quality audit failed before the Agent could resume.")
+    if audit.status == ParallelAuditStatus.SUCCESS:
+        if output.get("await_external_result"):
+            output["await_external_result"] = False
+            output["status"] = audit.status
+            step.output = output
+            step.save(update_fields=["output", "updated_at"])
+        return "ready"
+    if run.status != AgentRunStatus.RUNNING:
+        raise AgentRunCancelled("The Agent run is no longer active.")
+
+    run.status = AgentRunStatus.WAITING_EXTERNAL
+    run.locked_until = None
+    run.external_wait_kind = AgentExternalWaitKind.PARALLEL_AUDIT
+    run.external_wait_id = audit.pk
+    run.external_wait_expires_at = timezone.now() + timedelta(
+        seconds=settings.AGENT_EXTERNAL_WAIT_TTL_SECONDS
+    )
+    run.save(
+        update_fields=[
+            "status", "locked_until", "external_wait_kind", "external_wait_id",
+            "external_wait_expires_at", "updated_at",
+        ]
+    )
+    _record_external_wait(run=run, audit_id=audit.pk)
+    return "waiting"
+
+
 @transaction.atomic
 def _mark_current_step_failed(run_id, *, code: str, message: str) -> None:
     step = (
@@ -511,7 +650,15 @@ def _pause_for_approval(*, run_id, payload: dict[str, Any]) -> tuple[AgentApprov
     )
     run.status = AgentRunStatus.WAITING_APPROVAL
     run.locked_until = None
-    run.save(update_fields=["status", "locked_until", "updated_at"])
+    run.external_wait_kind = ""
+    run.external_wait_id = None
+    run.external_wait_expires_at = None
+    run.save(
+        update_fields=[
+            "status", "locked_until", "external_wait_kind", "external_wait_id",
+            "external_wait_expires_at", "updated_at",
+        ]
+    )
     return approval, created
 
 
@@ -534,12 +681,18 @@ def _expire_pending_approval(*, run_id, now) -> bool:
     run.status = AgentRunStatus.CANCELLED
     run.error_code = "APPROVAL_EXPIRED"
     run.error_message = "The approval window expired."
+    run.external_wait_kind = ""
+    run.external_wait_id = None
+    run.external_wait_expires_at = None
     run.finished_at = now
     run.save(
         update_fields=[
             "status",
             "error_code",
             "error_message",
+            "external_wait_kind",
+            "external_wait_id",
+            "external_wait_expires_at",
             "finished_at",
             "updated_at",
         ]
@@ -550,6 +703,60 @@ def _expire_pending_approval(*, run_id, now) -> bool:
         corpus=run.corpus,
         metadata={"run_id": str(run.pk), "approval_id": str(approval.pk)},
     )
+    return True
+
+
+@transaction.atomic
+def _expire_external_wait(*, run_id, now) -> bool:
+    run = (
+        AgentRun.objects.select_for_update()
+        .select_related("corpus", "requested_by")
+        .filter(pk=run_id, status=AgentRunStatus.WAITING_EXTERNAL)
+        .first()
+    )
+    if run is None or run.external_wait_expires_at is None or run.external_wait_expires_at > now:
+        return False
+    external_wait_id = run.external_wait_id
+    step = (
+        AgentStep.objects.select_for_update()
+        .filter(run=run, tool_name="request_quality_audit", status=AgentStepStatus.SUCCEEDED)
+        .order_by("-sequence")
+        .first()
+    )
+    if step is not None:
+        step.status = AgentStepStatus.FAILED
+        step.error_code = "EXTERNAL_WAIT_TIMEOUT"
+        step.error_message = "Timed out while waiting for the quality audit result."
+        step.finished_at = now
+        step.save(
+            update_fields=["status", "error_code", "error_message", "finished_at", "updated_at"]
+        )
+    run.status = AgentRunStatus.FAILED
+    run.error_code = "EXTERNAL_WAIT_TIMEOUT"
+    run.error_message = "Timed out while waiting for the quality audit result."
+    run.locked_until = None
+    run.external_wait_kind = ""
+    run.external_wait_id = None
+    run.external_wait_expires_at = None
+    run.finished_at = now
+    run.save(
+        update_fields=[
+            "status", "error_code", "error_message", "locked_until", "external_wait_kind",
+            "external_wait_id", "external_wait_expires_at", "finished_at", "updated_at",
+        ]
+    )
+    record_audit_event(
+        AuditEventType.AGENT_EXTERNAL_FAILED,
+        actor=run.requested_by,
+        corpus=run.corpus,
+        metadata={
+            "run_id": str(run.pk),
+            "request_id": run.request_id,
+            "audit_id": str(external_wait_id) if external_wait_id else "",
+            "error_code": run.error_code,
+        },
+    )
+    _record_completion(run=run, latency_ms=0, failed=True)
     return True
 
 
@@ -564,6 +771,155 @@ def _record_approval_requested(*, run: AgentRun, approval: AgentApproval) -> Non
             "action": approval.action,
         },
     )
+
+
+def _record_external_wait(*, run: AgentRun, audit_id) -> None:
+    record_audit_event(
+        AuditEventType.AGENT_EXTERNAL_WAITING,
+        actor=run.requested_by,
+        corpus=run.corpus,
+        metadata={
+            "run_id": str(run.pk),
+            "request_id": run.request_id,
+            "wait_kind": AgentExternalWaitKind.PARALLEL_AUDIT,
+            "audit_id": str(audit_id),
+        },
+    )
+    logger.info(
+        "Agent run %s is waiting for parallel audit %s (request_id=%s)",
+        run.pk,
+        audit_id,
+        run.request_id,
+    )
+
+
+@transaction.atomic
+def advance_waiting_agent_runs_for_parallel_audit(*, audit) -> int:
+    """Resume or fail Agent runs correlated with one projected terminal audit.
+
+    The caller invokes this from the same transaction that writes the terminal
+    audit. The state transition and the continuation Outbox event therefore
+    commit atomically; broker loss is handled by normal Outbox recovery.
+    """
+    from apps.audits.models import ParallelAuditStatus
+
+    if audit.status not in {ParallelAuditStatus.SUCCESS, ParallelAuditStatus.FAILED}:
+        return 0
+    runs = list(
+        AgentRun.objects.select_for_update()
+        .select_related("corpus", "requested_by")
+        .filter(
+            status=AgentRunStatus.WAITING_EXTERNAL,
+            external_wait_kind=AgentExternalWaitKind.PARALLEL_AUDIT,
+            external_wait_id=audit.pk,
+        )
+        .order_by("created_at")
+    )
+    if audit.status == ParallelAuditStatus.FAILED:
+        for run in runs:
+            _fail_parallel_audit_wait(run=run, audit=audit)
+        return len(runs)
+
+    for run in runs:
+        try:
+            _mark_parallel_audit_step_resumed(run=run, audit=audit)
+        except AgentToolError as exc:
+            _fail_parallel_audit_wait(run=run, audit=audit, reason=str(exc))
+            continue
+        run.status = AgentRunStatus.PENDING
+        run.locked_until = None
+        run.external_wait_kind = ""
+        run.external_wait_id = None
+        run.external_wait_expires_at = None
+        run.save(
+            update_fields=[
+                "status", "locked_until", "external_wait_kind", "external_wait_id",
+                "external_wait_expires_at", "updated_at",
+            ]
+        )
+        event = _enqueue_resumed_run(run=run, audit_id=audit.pk)
+        publish_event_after_commit(event.pk)
+        record_audit_event(
+            AuditEventType.AGENT_EXTERNAL_RESUMED,
+            actor=run.requested_by,
+            corpus=run.corpus,
+            metadata={
+                "run_id": str(run.pk),
+                "request_id": run.request_id,
+                "audit_id": str(audit.pk),
+                "outbox_event_id": str(event.pk),
+            },
+        )
+        logger.info(
+            "Resuming Agent run %s from parallel audit %s (request_id=%s)",
+            run.pk,
+            audit.pk,
+            run.request_id,
+        )
+    return len(runs)
+
+
+def _mark_parallel_audit_step_resumed(*, run: AgentRun, audit) -> None:
+    step = (
+        AgentStep.objects.select_for_update()
+        .filter(run=run, tool_name="request_quality_audit", status=AgentStepStatus.SUCCEEDED)
+        .order_by("-sequence")
+        .first()
+    )
+    if step is None:
+        raise AgentToolError("Waiting Agent run has no completed quality audit step.")
+    output = dict(step.output)
+    if str(output.get("audit_id", "")) != str(audit.pk):
+        raise AgentToolError("Waiting Agent run is correlated with a different quality audit.")
+    output["await_external_result"] = False
+    output["status"] = audit.status
+    output["worker_state"] = audit.worker_state
+    step.output = output
+    step.save(update_fields=["output", "updated_at"])
+
+
+def _fail_parallel_audit_wait(*, run: AgentRun, audit, reason: str | None = None) -> None:
+    now = timezone.now()
+    step = (
+        AgentStep.objects.select_for_update()
+        .filter(run=run, tool_name="request_quality_audit", status=AgentStepStatus.SUCCEEDED)
+        .order_by("-sequence")
+        .first()
+    )
+    if step is not None:
+        step.status = AgentStepStatus.FAILED
+        step.error_code = "EXTERNAL_AUDIT_FAILED" if audit.error_message else "EXTERNAL_AUDIT_CORRELATION_ERROR"
+        step.error_message = (reason or audit.error_message or "The quality audit failed.")[:4000]
+        step.finished_at = now
+        step.save(
+            update_fields=["status", "error_code", "error_message", "finished_at", "updated_at"]
+        )
+    run.status = AgentRunStatus.FAILED
+    run.error_code = "EXTERNAL_AUDIT_FAILED" if audit.error_message else "EXTERNAL_AUDIT_CORRELATION_ERROR"
+    run.error_message = (reason or audit.error_message or "The quality audit failed.")[:4000]
+    run.locked_until = None
+    run.external_wait_kind = ""
+    run.external_wait_id = None
+    run.external_wait_expires_at = None
+    run.finished_at = now
+    run.save(
+        update_fields=[
+            "status", "error_code", "error_message", "locked_until", "external_wait_kind",
+            "external_wait_id", "external_wait_expires_at", "finished_at", "updated_at",
+        ]
+    )
+    record_audit_event(
+        AuditEventType.AGENT_EXTERNAL_FAILED,
+        actor=run.requested_by,
+        corpus=run.corpus,
+        metadata={
+            "run_id": str(run.pk),
+            "request_id": run.request_id,
+            "audit_id": str(audit.pk),
+            "error_code": run.error_code,
+        },
+    )
+    _record_completion(run=run, latency_ms=0, failed=True)
 
 
 @transaction.atomic
@@ -582,6 +938,9 @@ def _mark_run_success(
         model_usage=model_usage,
         estimated_cost_usd=estimated_cost_usd,
         locked_until=None,
+        external_wait_kind="",
+        external_wait_id=None,
+        external_wait_expires_at=None,
         finished_at=timezone.now(),
         error_code="",
         error_message="",
@@ -597,6 +956,9 @@ def _mark_run_failed(run_id, *, code: str, message: str) -> bool:
         error_code=code[:80],
         error_message=message[:4000],
         locked_until=None,
+        external_wait_kind="",
+        external_wait_id=None,
+        external_wait_expires_at=None,
         finished_at=timezone.now(),
         updated_at=timezone.now(),
     )

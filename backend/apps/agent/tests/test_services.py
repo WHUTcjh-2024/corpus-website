@@ -1,5 +1,8 @@
 from django.contrib.auth import get_user_model
 from datetime import timedelta
+import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase
@@ -7,12 +10,19 @@ from django.test.utils import override_settings
 from unittest.mock import patch
 
 from apps.accounts.models import ApplicationStatus, UserProfile, UserRole
-from apps.agent.models import AgentApprovalStatus, AgentRunMode, AgentRunStatus, AgentStepStatus
+from apps.agent.models import (
+    AgentApprovalStatus,
+    AgentExternalWaitKind,
+    AgentRunMode,
+    AgentRunStatus,
+    AgentStepStatus,
+)
 from apps.agent.services import (
     AgentRunError,
     _pause_for_approval,
     approve_agent_action,
     create_agent_run,
+    expire_external_waits,
     expire_pending_approvals,
     execute_agent_run,
 )
@@ -26,6 +36,9 @@ from apps.corpora.models import (
     CorpusType,
 )
 from apps.outbox.models import OutboxEvent, OutboxTaskName
+from apps.audits.models import ParallelAudit, ParallelAuditExecutionMode, ParallelAuditStatus
+from apps.audits.services import apply_parallel_audit_result, result_payload_hash
+from apps.processing.models import ProcessingTask, ProcessingTaskStatus
 from apps.exports.models import ExportJob
 from django.utils import timezone
 
@@ -33,6 +46,8 @@ from django.utils import timezone
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=False)
 class AgentRunServiceTests(TestCase):
     def setUp(self) -> None:
+        self.temp_dir = TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
         self.user = get_user_model().objects.create_user("agent-user", password="safe-password")
         UserProfile.objects.create(
             user=self.user,
@@ -224,6 +239,114 @@ class AgentRunServiceTests(TestCase):
         self.assertIsNone(approval)
         self.assertFalse(created)
         self.assertFalse(ExportJob.objects.exists())
+
+    def test_quality_review_waits_for_audit_then_resumes_through_outbox(self):
+        self.corpus.corpus_type = CorpusType.ALIGNED_TSV
+        self.corpus.language = CorpusLanguage.ZH_EN
+        self.corpus.save(update_fields=["corpus_type", "language"])
+        processing_task = ProcessingTask.objects.create(
+            corpus=self.corpus,
+            requested_by=self.user,
+            status=ProcessingTaskStatus.SUCCESS,
+        )
+        run, _ = create_agent_run(
+            user=self.user,
+            corpus=self.corpus,
+            mode=AgentRunMode.QUALITY_REVIEW,
+            query="",
+            language=None,
+            max_results=3,
+            idempotency_key="quality-review-saga",
+        )
+
+        with patch("apps.agent.tools.dispatch_parallel_audit"):
+            outcome = execute_agent_run(str(run.pk))
+
+        run.refresh_from_db()
+        audit = ParallelAudit.objects.get(processing_task=processing_task)
+        self.assertEqual(outcome["status"], AgentRunStatus.WAITING_EXTERNAL)
+        self.assertEqual(run.status, AgentRunStatus.WAITING_EXTERNAL)
+        self.assertEqual(run.external_wait_kind, AgentExternalWaitKind.PARALLEL_AUDIT)
+        self.assertEqual(run.external_wait_id, audit.pk)
+        self.assertEqual(run.steps.count(), 2)
+
+        audit.status = ParallelAuditStatus.RUNNING
+        audit.execution_mode = ParallelAuditExecutionMode.QUEUE
+        report_path = (
+            Path(self.temp_dir.name)
+            / "processed"
+            / str(self.corpus.pk)
+            / "audits"
+            / str(audit.pk)
+            / "quality_report.json"
+        )
+        report_path.parent.mkdir(parents=True)
+        report_path.write_text(
+            json.dumps({"summary": {"total_pairs": 2, "flagged_pairs": 1}}),
+            encoding="utf-8",
+        )
+        (report_path.parent / "anomalies.jsonl").write_text("{}\n", encoding="utf-8")
+        audit.save(update_fields=["status", "execution_mode"])
+        payload = {
+            "id": str(audit.pk),
+            "schema_version": 1,
+            "state": "succeeded",
+            "attempt": 1,
+            "report_ref": f"processed/{self.corpus.pk}/audits/{audit.pk}/quality_report.json",
+            "anomalies_ref": f"processed/{self.corpus.pk}/audits/{audit.pk}/anomalies.jsonl",
+        }
+        with self.settings(DATA_ROOT=Path(self.temp_dir.name)):
+            with patch("apps.agent.services.publish_event_after_commit") as resume_publish:
+                self.assertTrue(
+                    apply_parallel_audit_result(
+                        audit_id=audit.pk,
+                        payload=payload,
+                        payload_hash=result_payload_hash(payload),
+                        message_id="1700000000001-0",
+                    )
+                )
+        resume_publish.assert_called_once()
+
+        run.refresh_from_db()
+        self.assertEqual(run.status, AgentRunStatus.PENDING)
+        self.assertIsNone(run.external_wait_id)
+        self.assertTrue(
+            OutboxEvent.objects.filter(
+                task_name=OutboxTaskName.RESUME_CORPUS_AGENT,
+                deduplication_key=f"agent-resume:{run.pk}:parallel-audit:{audit.pk}",
+            ).exists()
+        )
+
+        with self.settings(DATA_ROOT=Path(self.temp_dir.name)):
+            outcome = execute_agent_run(str(run.pk))
+        run.refresh_from_db()
+        self.assertEqual(outcome["status"], AgentRunStatus.SUCCEEDED)
+        self.assertEqual(run.status, AgentRunStatus.SUCCEEDED)
+        self.assertIn(f"audit:{audit.pk}", run.answer)
+
+    def test_external_wait_timeout_fails_run_without_reissuing_audit(self):
+        run, _ = create_agent_run(
+            user=self.user,
+            corpus=self.corpus,
+            mode=AgentRunMode.RETRIEVE,
+            query="policy",
+            language="en",
+            max_results=3,
+            idempotency_key="external-wait-timeout",
+        )
+        run.status = AgentRunStatus.WAITING_EXTERNAL
+        run.external_wait_kind = AgentExternalWaitKind.PARALLEL_AUDIT
+        run.external_wait_id = run.pk
+        run.external_wait_expires_at = timezone.now() - timedelta(seconds=1)
+        run.save(
+            update_fields=["status", "external_wait_kind", "external_wait_id", "external_wait_expires_at"]
+        )
+
+        self.assertEqual(expire_external_waits(), 1)
+        run.refresh_from_db()
+        self.assertEqual(run.status, AgentRunStatus.FAILED)
+        self.assertEqual(run.error_code, "EXTERNAL_WAIT_TIMEOUT")
+        self.assertIsNone(run.external_wait_id)
 
     def test_cancellation_wins_over_a_late_success_writeback(self):
         run, _ = create_agent_run(

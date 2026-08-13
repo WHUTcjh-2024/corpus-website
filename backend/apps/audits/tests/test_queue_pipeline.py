@@ -15,6 +15,9 @@ from apps.audits.services import (
     create_parallel_audit,
     publish_parallel_audit_command,
 )
+from apps.audits.queue import ResultEntry
+from apps.agent.models import AgentExternalWaitKind, AgentRunMode, AgentRunStatus, AgentStepStatus
+from apps.agent.services import create_agent_run, execute_agent_run
 from apps.corpora.models import (
     Corpus,
     CorpusAccessLevel,
@@ -163,3 +166,93 @@ class QueueBackedAuditTests(TestCase):
         audit.refresh_from_db()
         self.assertEqual(audit.status, ParallelAuditStatus.RUNNING)
         self.assertEqual(self.queue.acknowledgements, [])
+
+    @patch("apps.audits.services.AuditQueue")
+    def test_projected_result_resumes_waiting_agent_once(self, audit_queue) -> None:
+        audit_queue.return_value = self.queue
+        run, _ = create_agent_run(
+            user=self.user,
+            corpus=self.corpus,
+            mode=AgentRunMode.QUALITY_REVIEW,
+            query="",
+            language=None,
+            max_results=3,
+            idempotency_key="queue-result-resumes-agent",
+        )
+        with patch("apps.agent.tools.dispatch_parallel_audit"):
+            self.assertEqual(execute_agent_run(str(run.pk))["status"], AgentRunStatus.WAITING_EXTERNAL)
+        audit = ParallelAudit.objects.get(processing_task=self.processing_task)
+        run.refresh_from_db()
+        self.assertEqual(run.external_wait_kind, AgentExternalWaitKind.PARALLEL_AUDIT)
+        output = self.data_root / "processed" / str(self.corpus.pk) / "audits" / str(audit.pk)
+        output.mkdir(parents=True)
+        (output / "quality_report.json").write_text(
+            json.dumps({"summary": {"total_pairs": 2}}), encoding="utf-8"
+        )
+        (output / "anomalies.jsonl").write_text("{}\n", encoding="utf-8")
+        payload = {
+            "id": str(audit.pk), "schema_version": 1, "state": "succeeded", "attempt": 1,
+            "report_ref": f"processed/{self.corpus.pk}/audits/{audit.pk}/quality_report.json",
+            "anomalies_ref": f"processed/{self.corpus.pk}/audits/{audit.pk}/anomalies.jsonl",
+        }
+        from apps.audits.services import result_payload_hash
+
+        entry = ResultEntry("1700000000003-0", payload, result_payload_hash(payload))
+        self.queue.results = [entry]
+        with override_settings(DATA_ROOT=self.data_root):
+            self.assertEqual(consume_parallel_audit_results(), 1)
+            self.assertEqual(consume_parallel_audit_results(), 0)
+
+        run.refresh_from_db()
+        audit.refresh_from_db()
+        self.assertEqual(audit.status, ParallelAuditStatus.SUCCESS)
+        self.assertEqual(run.status, AgentRunStatus.PENDING)
+        self.assertIsNone(run.external_wait_id)
+        self.assertEqual(run.steps.first().status, AgentStepStatus.SUCCEEDED)
+        self.assertTrue(
+            OutboxEvent.objects.filter(
+                task_name=OutboxTaskName.RESUME_CORPUS_AGENT,
+                deduplication_key=f"agent-resume:{run.pk}:parallel-audit:{audit.pk}",
+            ).exists()
+        )
+
+    @patch("apps.audits.services.AuditQueue")
+    def test_failed_result_fails_waiting_agent_without_resume_command(self, audit_queue) -> None:
+        audit_queue.return_value = self.queue
+        run, _ = create_agent_run(
+            user=self.user,
+            corpus=self.corpus,
+            mode=AgentRunMode.QUALITY_REVIEW,
+            query="",
+            language=None,
+            max_results=3,
+            idempotency_key="queue-result-fails-agent",
+        )
+        with patch("apps.agent.tools.dispatch_parallel_audit"):
+            self.assertEqual(execute_agent_run(str(run.pk))["status"], AgentRunStatus.WAITING_EXTERNAL)
+        audit = ParallelAudit.objects.get(processing_task=self.processing_task)
+        from apps.audits.services import result_payload_hash
+
+        payload = {
+            "id": str(audit.pk),
+            "schema_version": 1,
+            "state": "failed",
+            "attempt": 2,
+            "error_message": "worker input was malformed",
+        }
+        self.queue.results = [ResultEntry("1700000000004-0", payload, result_payload_hash(payload))]
+
+        self.assertEqual(consume_parallel_audit_results(), 1)
+
+        run.refresh_from_db()
+        audit.refresh_from_db()
+        self.assertEqual(audit.status, ParallelAuditStatus.FAILED)
+        self.assertEqual(run.status, AgentRunStatus.FAILED)
+        self.assertEqual(run.error_code, "EXTERNAL_AUDIT_FAILED")
+        self.assertEqual(run.steps.first().status, AgentStepStatus.FAILED)
+        self.assertFalse(
+            OutboxEvent.objects.filter(
+                task_name=OutboxTaskName.RESUME_CORPUS_AGENT,
+                deduplication_key=f"agent-resume:{run.pk}:parallel-audit:{audit.pk}",
+            ).exists()
+        )

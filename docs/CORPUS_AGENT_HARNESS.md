@@ -12,6 +12,11 @@ flowchart LR
     P --> D["PostgreSQL: Run / Step / Outbox"]
     D --> Q["Celery agent 队列"]
     Q --> G["Skill 白名单 + 语料 ACL"]
+    G -->|"质检任务"| W["WAITING_EXTERNAL + audit_id"]
+    W --> S["Redis Streams → Go Auditor"]
+    S --> R["Django 结果投影"]
+    R --> O["Outbox: resume Agent"]
+    O --> Q
     G --> T["KWIC / 平行检索 / Go 审计报告"]
     T --> E["带 citation_id 的证据"]
     E --> S["可选受控模型摘要 / 确定性降级"]
@@ -61,6 +66,8 @@ POST /api/agent/runs/{run_id}/cancel/
 
 - 运行计划与 Outbox 事件在同一 PostgreSQL 事务中提交；Broker 或 Worker 故障不会丢失已接收请求。
 - Run 有租约和状态转换，Celery 至少一次投递造成的重复消费不会重复执行已成功的步骤；恢复后从已持久化的步骤输出继续，而不是重新生成计划。
+- `quality_review` 是受控的异步 Saga：Agent 创建或加入一个 `ParallelAudit` 后进入 `WAITING_EXTERNAL`。Go Worker 的终态结果由 Django 投影；报告落库和 `agent.resume_corpus_agent` Outbox 事件在同一事务中提交，恢复后再读取报告并形成带引用的最终回答。
+- 外部等待以 `audit_id` 关联，并有独立 TTL。超时只关闭 Agent 编排，不会取消或重复投递已持久化的 Go 质检任务；重复 Worker 结果不会创建第二个恢复事件。
 - 每次执行前均校验 Skill 白名单和 `visible_corpora_for(user)`；未授权语料、未注册工具和非法参数全部拒绝。
 - 高风险导出由用户绑定的一次性审批保护；审批过期、取消、重复确认不会创建第二个导出。
 - Trace 仅记录受控工具参数、摘要结果、状态与耗时；不记录模型密钥、原始 Prompt 或任意文件系统路径。

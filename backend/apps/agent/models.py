@@ -18,6 +18,7 @@ class AgentRunMode(models.TextChoices):
 class AgentRunStatus(models.TextChoices):
     PENDING = "pending", "等待执行"
     RUNNING = "running", "执行中"
+    WAITING_EXTERNAL = "waiting_external", "等待外部任务"
     WAITING_APPROVAL = "waiting_approval", "等待确认"
     SUCCEEDED = "succeeded", "已完成"
     FAILED = "failed", "失败"
@@ -41,6 +42,10 @@ class AgentApprovalStatus(models.TextChoices):
 
 class AgentApprovalAction(models.TextChoices):
     CREATE_EXPORT = "create_export", "创建导出任务"
+
+
+class AgentExternalWaitKind(models.TextChoices):
+    PARALLEL_AUDIT = "parallel_audit", "等待平行语料质检"
 
 
 class AgentRun(models.Model):
@@ -90,6 +95,16 @@ class AgentRun(models.Model):
     error_message = models.TextField("错误详情", blank=True)
     attempt_count = models.PositiveSmallIntegerField("执行尝试次数", default=0)
     locked_until = models.DateTimeField("执行租约截止", null=True, blank=True, db_index=True)
+    external_wait_kind = models.CharField(
+        "外部等待类型",
+        max_length=40,
+        choices=AgentExternalWaitKind.choices,
+        blank=True,
+    )
+    external_wait_id = models.UUIDField("外部等待任务 ID", null=True, blank=True, db_index=True)
+    external_wait_expires_at = models.DateTimeField(
+        "外部等待超时", null=True, blank=True, db_index=True
+    )
     started_at = models.DateTimeField("开始时间", null=True, blank=True)
     finished_at = models.DateTimeField("完成时间", null=True, blank=True)
     created_at = models.DateTimeField("创建时间", auto_now_add=True)
@@ -117,6 +132,10 @@ class AgentRun(models.Model):
             models.Index(
                 fields=["status", "locked_until"],
                 name="agent_run_lease_idx",
+            ),
+            models.Index(
+                fields=["status", "external_wait_id"],
+                name="agent_run_external_wait_idx",
             ),
         ]
 

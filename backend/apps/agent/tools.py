@@ -163,15 +163,17 @@ class CorpusToolRegistry:
         )
 
     def _get_latest_quality_report(self, context: ToolContext, input: dict[str, Any]) -> ToolResult:
-        if input:
-            raise AgentToolInputError("get_latest_quality_report does not accept arguments.")
-        audit = (
-            ParallelAudit.objects.filter(
-                corpus=context.corpus, status=ParallelAuditStatus.SUCCESS
-            )
-            .order_by("-finished_at", "-created_at")
-            .first()
-        )
+        if set(input) - {"audit_id"}:
+            raise AgentToolInputError("get_latest_quality_report accepts only audit_id.")
+        audit_id = input.get("audit_id")
+        audits = ParallelAudit.objects.filter(corpus=context.corpus, status=ParallelAuditStatus.SUCCESS)
+        if audit_id:
+            try:
+                audit = audits.get(pk=audit_id)
+            except (ParallelAudit.DoesNotExist, ValueError) as exc:
+                raise AgentToolUnavailable("The requested quality report is unavailable.") from exc
+        else:
+            audit = audits.order_by("-finished_at", "-created_at").first()
         if audit is None or not audit.report_path:
             raise AgentToolUnavailable("No completed parallel quality report is available.")
         report_path = _validated_audit_path(audit.report_path, context.corpus.pk)
@@ -204,18 +206,24 @@ class CorpusToolRegistry:
         if task is None:
             raise AgentToolUnavailable("No completed processing task is available for quality auditing.")
         audit = create_parallel_audit(corpus=context.corpus, processing_task=task)
-        dispatch_parallel_audit(audit)
+        if audit.status == ParallelAuditStatus.FAILED:
+            raise AgentToolUnavailable("The latest quality audit failed and must be retried before review.")
+        if audit.status != ParallelAuditStatus.SUCCESS:
+            dispatch_parallel_audit(audit)
+        waiting = audit.status != ParallelAuditStatus.SUCCESS
         return ToolResult(
             output={
                 "audit_id": str(audit.pk),
                 "status": audit.status,
                 "execution_mode": audit.execution_mode,
+                "await_external_result": waiting,
             },
             evidence=[{
                 "citation_id": f"audit-request:{audit.pk}",
                 "audit_id": str(audit.pk),
                 "status": audit.status,
                 "execution_mode": audit.execution_mode,
+                "await_external_result": waiting,
             }],
         )
 

@@ -20,6 +20,7 @@ sequenceDiagram
   G->>Q: XADD corpus:audit:results:v1
   P->>Q: XREADGROUP result
   P->>P: validate artifact refs and commit terminal state
+  P->>O: write Agent continuation Outbox event in same transaction
   P->>Q: XACK result after DB commit
 ```
 
@@ -41,6 +42,10 @@ Go request and no HTTP callback in the production workflow.
 - Django's result projector writes `ParallelAudit` terminal state transactionally
   before `XACK`. `result_message_id` and the payload hash make a crash between
   commit and acknowledgment harmless.
+- When a projected audit belongs to a waiting `quality_review` Agent, Django
+  atomically creates `agent.resume_corpus_agent` in the same transaction. The
+  resumed Agent reads the persisted report rather than trusting the queue
+  message as evidence.
 - Invalid command/result messages remain in the relevant pending-entry list for
   operational inspection; they are not silently discarded.
 

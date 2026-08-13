@@ -10,13 +10,13 @@
     "expected": {"skill": "corpus_retrieval@v1", "tools": ["search_kwic"]}
   },
   {
-    "id": "parallel-quality-review-only-reads-audit-report",
+    "id": "parallel-quality-review-is-a-resumable-saga",
     "kind": "policy",
     "corpus": {"corpus_type": "aligned_tsv", "language": "zh_en"},
     "mode": "quality_review",
     "query": "",
     "max_results": 3,
-    "expected": {"skill": "parallel_quality_review@v1", "tools": ["get_latest_quality_report"]}
+    "expected": {"skill": "parallel_quality_review@v2", "tools": ["request_quality_audit", "get_latest_quality_report"]}
   },
   {
     "id": "mono-quality-review-is-rejected",
