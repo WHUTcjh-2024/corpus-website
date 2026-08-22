@@ -341,6 +341,12 @@
   font-weight: 700;
 }
 
+/* Step cards are independent states; they never render connector lines. */
+.stepper > li::after {
+  display: none !important;
+  content: none !important;
+}
+
 .stepper li::before {
   position: absolute;
   left: 12px;
