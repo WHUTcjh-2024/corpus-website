@@ -178,11 +178,11 @@ button,
 }
 
 .btn-primary {
-  --bs-btn-bg: var(--red-650);
-  --bs-btn-border-color: var(--red-650);
-  --bs-btn-hover-bg: #9d1d1b;
-  --bs-btn-hover-border-color: #9d1d1b;
-  box-shadow: 0 10px 24px rgba(185, 39, 35, .24) !important;
+  --bs-btn-bg: #0750ae;
+  --bs-btn-border-color: #0750ae;
+  --bs-btn-hover-bg: #063b82;
+  --bs-btn-hover-border-color: #063b82;
+  box-shadow: 0 9px 20px rgba(28, 76, 122, .16);
 }
 
 .btn-primary:hover {
@@ -204,8 +204,8 @@ button,
 }
 
 .public-nav .btn-primary {
-  --bs-btn-bg: var(--red-560);
-  --bs-btn-border-color: var(--red-560);
+  --bs-btn-bg: #1769d2;
+  --bs-btn-border-color: #1769d2;
 }
 
 .app-shell {

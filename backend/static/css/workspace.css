@@ -789,14 +789,14 @@ body.public-body {
 .btn-primary {
   border-color: #0750ae;
   background: linear-gradient(135deg, #1769d2, #0750ae);
-  box-shadow: 0 9px 20px rgba(7, 80, 174, 0.18);
+  box-shadow: 0 9px 20px rgba(28, 76, 122, 0.16) !important;
 }
 
 .btn-primary:hover,
 .btn-primary:focus {
   border-color: #064193;
   background: linear-gradient(135deg, #0757bd, #063b82);
-  box-shadow: 0 12px 25px rgba(7, 80, 174, 0.24);
+  box-shadow: 0 12px 25px rgba(28, 76, 122, 0.2) !important;
 }
 
 .btn-outline-primary {
