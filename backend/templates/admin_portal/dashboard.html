@@ -1,48 +1,173 @@
 {% extends "layouts/dashboard_layout.html" %}
 
-{% block title %}管理工作台 - 在线语料库平台{% endblock %}
+{% block title %}管理后台 - 在线语料库平台{% endblock %}
 
 {% block dashboard_content %}
-<section class="management-hero">
+<section class="page-header admin-console-header">
   <div>
-    <span class="management-eyebrow">平台控制中心</span>
-    <h1>管理工作台</h1>
-    <p>在一个工作流中完成语料发布、用户授权、账号审核、公告和反馈处理。所有权限变更即时进入用户可见范围。</p>
+    <p class="page-eyebrow">平台控制中心</p>
+    <h1 class="page-title">管理后台</h1>
+    <p class="page-description">在一个页面完成平台语料发布、可见范围配置、账号审核、公告发布与反馈处理；提交成功后自动回到当前模块。</p>
   </div>
-  <div class="management-hero__actions">
-    <a class="btn btn-primary" href="{% url 'admin_portal:corpus_upload' %}">上传平台语料</a>
-    <a class="btn btn-outline-primary" href="{% url 'admin_portal:announcement_create' %}">发布公告</a>
+  <div class="page-actions">
+    <a class="btn btn-primary" href="#corpora">发布平台语料</a>
+    <a class="btn btn-outline-primary" href="#announcements">发布公告</a>
   </div>
 </section>
 
-{% include "admin_portal/_nav.html" %}
+<nav class="admin-console-jump" aria-label="管理后台模块导航">
+  <a href="#overview">总览</a>
+  <a href="#corpora">语料发布与授权</a>
+  <a href="#accounts">账号审核</a>
+  <a href="#announcements">公告管理</a>
+  <a href="#feedback">反馈处理</a>
+</nav>
 
-<section class="row g-3 mb-4" aria-label="管理概览">
-  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">平台语料</p><div class="metric-card__value">{{ corpus_count }}</div><div class="metric-card__hint">教师语料与演示语料</div></article></div>
-  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">加工队列</p><div class="metric-card__value">{{ pending_processing_count }}</div><div class="metric-card__hint">等待或正在加工</div></article></div>
-  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">待审核账号</p><div class="metric-card__value">{{ pending_account_count }}</div><div class="metric-card__hint">需要人工决定权限</div></article></div>
-  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">待处理反馈</p><div class="metric-card__value">{{ open_feedback_count }}</div><div class="metric-card__hint">当前发布中公告 {{ active_announcement_count }} 条</div></article></div>
+<section id="overview" class="admin-console-section admin-console-overview" aria-labelledby="overview-title">
+  <div class="admin-console-section__head">
+    <div><p class="admin-console-kicker">运营总览</p><h2 id="overview-title">平台状态</h2></div>
+    <p>优先处理加工队列、待审核账号和待回复反馈。</p>
+  </div>
+  <div class="row g-3">
+    <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">平台语料</p><div class="metric-card__value">{{ corpus_count }}</div><div class="metric-card__hint">教师语料与演示语料</div></article></div>
+    <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">加工队列</p><div class="metric-card__value">{{ pending_processing_count }}</div><div class="metric-card__hint">等待或正在加工</div></article></div>
+    <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">待审核账号</p><div class="metric-card__value">{{ pending_account_count }}</div><div class="metric-card__hint">需要人工决定权限</div></article></div>
+    <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">待处理反馈</p><div class="metric-card__value">{{ open_feedback_count }}</div><div class="metric-card__hint">当前发布中公告 {{ active_announcement_count }} 条</div></article></div>
+  </div>
 </section>
 
-<div class="row g-4">
-  <div class="col-xl-8">
-    <section class="platform-card h-100">
-      <header class="platform-card__header"><h2>最近发布的语料</h2><a href="{% url 'admin_portal:corpus_list' %}">管理全部</a></header>
-      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
-        <thead><tr><th>语料库</th><th>发布范围</th><th>加工状态</th><th>直接授权</th><th class="text-end">操作</th></tr></thead>
-        <tbody>{% for corpus in recent_corpora %}
-          <tr><td><strong>{{ corpus.name }}</strong><div class="table-meta">{{ corpus.get_corpus_type_display }} · {{ corpus.get_language_display }}</div></td><td>{{ corpus.get_access_level_display }}</td><td><span class="status-badge status-{{ corpus.status }}">{{ corpus.get_status_display }}</span></td><td>{{ corpus.grant_count }} 人</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'admin_portal:corpus_visibility' corpus.pk %}">授权</a></td></tr>
-        {% empty %}<tr><td colspan="5" class="empty-state">尚未发布平台语料。</td></tr>{% endfor %}</tbody>
-      </table></div>
-    </section>
+<section id="corpora" class="admin-console-section" aria-labelledby="corpora-title">
+  <div class="admin-console-section__head">
+    <div><p class="admin-console-kicker">01 · 语料资源</p><h2 id="corpora-title">语料发布与授权</h2></div>
+    <p>上传、加工状态和用户可见范围在同一处维护，保存授权后用户刷新即可看到对应语料。</p>
   </div>
-  <div class="col-xl-4">
-    <section class="platform-card mb-4"><header class="platform-card__header"><h2>待审核账号</h2><a href="{% url 'admin_portal:user_list' %}?status=pending">查看全部</a></header><div class="platform-card__body management-list">
-      {% for profile in pending_profiles %}<a href="{% url 'admin_portal:user_review' profile.pk %}"><span><strong>{{ profile.full_name }}</strong><small>{{ profile.user.username }} · {{ profile.get_requested_role_display }}</small></span><span>审核</span></a>{% empty %}<p class="text-secondary mb-0">当前没有待审核账号。</p>{% endfor %}
-    </div></section>
-    <section class="platform-card"><header class="platform-card__header"><h2>待处理反馈</h2><a href="{% url 'admin_portal:feedback_list' %}">查看全部</a></header><div class="platform-card__body management-list">
-      {% for ticket in recent_feedback %}<a href="{% url 'admin_portal:feedback_detail' ticket.pk %}"><span><strong>{{ ticket.title }}</strong><small>{{ ticket.user.username }} · {{ ticket.get_severity_display }}</small></span><span class="status-badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span></a>{% empty %}<p class="text-secondary mb-0">当前没有待处理反馈。</p>{% endfor %}
-    </div></section>
+  <div class="row g-4 align-items-stretch">
+    <div class="col-xl-8">
+      <form method="post" enctype="multipart/form-data" action="{% url 'admin_portal:corpus_upload' %}" class="platform-card admin-console-form" novalidate data-managed-upload>{% csrf_token %}
+        <header class="platform-card__header"><h3>发布新平台语料</h3><span class="admin-console-card-note">统一进入既有文本校验与异步加工链路</span></header>
+        <div class="platform-card__body">
+          {% if upload_form.non_field_errors %}<div class="alert alert-danger">{{ upload_form.non_field_errors }}</div>{% endif %}
+          <div class="row g-3">
+            <div class="col-md-7"><label class="form-label" for="{{ upload_form.name.id_for_label }}">{{ upload_form.name.label }}</label>{{ upload_form.name }}{{ upload_form.name.errors }}</div>
+            <div class="col-md-5"><label class="form-label" for="{{ upload_form.upload_mode.id_for_label }}">{{ upload_form.upload_mode.label }}</label>{{ upload_form.upload_mode }}{{ upload_form.upload_mode.errors }}</div>
+            <div class="col-md-5" data-managed-field="language"><label class="form-label" for="{{ upload_form.language.id_for_label }}">{{ upload_form.language.label }}</label>{{ upload_form.language }}{{ upload_form.language.errors }}</div>
+            <div class="col-md-7"><label class="form-label" for="{{ upload_form.publish_scope.id_for_label }}">{{ upload_form.publish_scope.label }}</label>{{ upload_form.publish_scope }}{{ upload_form.publish_scope.errors }}</div>
+            <div class="col-12" data-managed-field="recipients"><label class="form-label" for="{{ upload_form.recipients.id_for_label }}">{{ upload_form.recipients.label }}</label>{{ upload_form.recipients }}<div class="form-text">{{ upload_form.recipients.help_text }}</div>{{ upload_form.recipients.errors }}</div>
+            <div class="col-12"><label class="form-label" for="{{ upload_form.description.id_for_label }}">{{ upload_form.description.label }}</label>{{ upload_form.description }}{{ upload_form.description.errors }}</div>
+          </div>
+          <div class="upload-dropzone mt-4" data-managed-field="source"><strong>{{ upload_form.source_file.label }}</strong>{{ upload_form.source_file }}{{ upload_form.source_file.errors }}</div>
+          <div class="row g-3 mt-1" data-managed-field="parallel"><div class="col-md-6"><div class="upload-dropzone"><strong>{{ upload_form.zh_file.label }}</strong>{{ upload_form.zh_file }}{{ upload_form.zh_file.errors }}</div></div><div class="col-md-6"><div class="upload-dropzone"><strong>{{ upload_form.en_file.label }}</strong>{{ upload_form.en_file }}{{ upload_form.en_file.errors }}</div></div></div>
+        </div>
+        <footer class="platform-card__footer admin-console-form__footer"><span>指定用户模式会建立逐用户授权，不依赖用户角色。</span><button class="btn btn-primary" type="submit">上传并进入加工队列</button></footer>
+      </form>
+    </div>
+    <div class="col-xl-4">
+      <aside class="platform-card h-100 admin-console-guide"><header class="platform-card__header"><h3>发布说明</h3></header><div class="platform-card__body"><ol><li>仅支持可识别编码的 TXT 文本。</li><li>语料会经过扫描、校验和异步加工。</li><li>指定用户可见范围可随时在下方修改。</li><li>加工完成后，用户可在检索中心使用。</li></ol></div></aside>
+    </div>
   </div>
-</div>
+
+  <div class="platform-card admin-console-records">
+    <header class="platform-card__header"><h3>已发布平台语料</h3><span class="admin-console-card-note">点击任一条目配置可见范围</span></header>
+    <div class="admin-console-record-list">
+      {% for row in corpus_rows %}
+        <article class="admin-console-record">
+          <details{% if row.form.errors %} open{% endif %}>
+            <summary>
+              <span class="admin-console-record__primary"><strong>{{ row.corpus.name }}</strong><small>{{ row.corpus.get_corpus_type_display }} · {{ row.corpus.get_language_display }} · 更新于 {{ row.corpus.updated_at|date:"Y-m-d H:i" }}</small></span>
+              <span class="admin-console-record__summary"><span class="status-badge status-{{ row.corpus.status }}">{{ row.corpus.get_status_display }}</span><span>{{ row.corpus.grant_count }} 位直接授权</span><b>配置</b></span>
+            </summary>
+            <div class="admin-console-record__body">
+              <div class="admin-console-record__details"><span>当前发布范围：<b>{{ row.corpus.get_access_level_display }}</b></span><span>来源：<b>{{ row.corpus.get_source_type_display }}</b></span><span>说明：{{ row.corpus.description|default:"未填写" }}</span></div>
+              <form method="post" action="{% url 'admin_portal:corpus_visibility' row.corpus.pk %}" class="admin-inline-form" data-managed-scope>{% csrf_token %}
+                <div class="row g-3"><div class="col-md-5"><label class="form-label" for="{{ row.form.publish_scope.id_for_label }}">{{ row.form.publish_scope.label }}</label>{{ row.form.publish_scope }}{{ row.form.publish_scope.errors }}</div><div class="col-md-7" data-managed-recipients><label class="form-label" for="{{ row.form.recipients.id_for_label }}">{{ row.form.recipients.label }}</label>{{ row.form.recipients }}<div class="form-text">保存会以当前选择覆盖旧名单。</div>{{ row.form.recipients.errors }}</div></div>
+                <div class="admin-inline-form__footer"><div class="admin-console-grants">{% for grant in row.corpus.access_grants.all %}<span>{{ grant.user.account_profile.full_name|default:grant.user.username }}</span>{% empty %}<span class="is-empty">当前没有逐用户授权</span>{% endfor %}</div><button class="btn btn-sm btn-primary" type="submit">保存可见范围</button></div>
+              </form>
+            </div>
+          </details>
+        </article>
+      {% empty %}<div class="admin-console-empty">尚未发布平台语料。请从上方表单上传第一份语料。</div>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="accounts" class="admin-console-section" aria-labelledby="accounts-title">
+  <div class="admin-console-section__head"><div><p class="admin-console-kicker">02 · 用户治理</p><h2 id="accounts-title">账号审核</h2></div><p>在同页查看申请信息并保存审核结果，账号状态和可用角色即时写入平台权限。</p></div>
+  <div class="platform-card admin-console-records">
+    <header class="platform-card__header"><h3>账号申请与权限</h3><span class="admin-console-card-note">待审核账号会自动排在前方</span></header>
+    <div class="admin-console-record-list">
+      {% for row in account_rows %}
+        <article class="admin-console-record">
+          <details{% if row.profile.status == 'pending' or row.form.errors %} open{% endif %}>
+            <summary><span class="admin-console-record__primary"><strong>{{ row.profile.full_name }}</strong><small>{{ row.profile.user.username }} · {{ row.profile.organization }} · 申请于 {{ row.profile.created_at|date:"Y-m-d H:i" }}</small></span><span class="admin-console-record__summary"><span class="status-badge status-{{ row.profile.status }}">{{ row.profile.get_status_display }}</span><span>当前：{{ row.profile.get_role_display }}</span><b>审核</b></span></summary>
+            <div class="admin-console-record__body">
+              <div class="admin-console-record__details admin-console-record__details--wide"><span>申请等级：<b>{{ row.profile.get_requested_role_display|default:"未填写" }}</b></span><span>使用目的：{{ row.profile.use_purpose }}</span><span>申请理由：{{ row.profile.application_reason }}</span></div>
+              <form method="post" action="{% url 'admin_portal:user_review' row.profile.pk %}" class="admin-inline-form">{% csrf_token %}<div class="row g-3"><div class="col-md-6"><label class="form-label" for="{{ row.form.role.id_for_label }}">{{ row.form.role.label }}</label>{{ row.form.role }}{{ row.form.role.errors }}</div><div class="col-md-6"><label class="form-label" for="{{ row.form.status.id_for_label }}">{{ row.form.status.label }}</label>{{ row.form.status }}{{ row.form.status.errors }}</div></div><div class="admin-inline-form__footer"><span>保存后立即更新账号状态与角色。</span><button class="btn btn-sm btn-primary" type="submit">保存审核结果</button></div></form>
+            </div>
+          </details>
+        </article>
+      {% empty %}<div class="admin-console-empty">当前没有账号申请记录。</div>{% endfor %}
+    </div>
+  </div>
+</section>
+
+<section id="announcements" class="admin-console-section" aria-labelledby="announcements-title">
+  <div class="admin-console-section__head"><div><p class="admin-console-kicker">03 · 运营通知</p><h2 id="announcements-title">公告管理</h2></div><p>新建公告、设定展示时段和接收范围；已发布公告会在目标用户刷新工作台后展示。</p></div>
+  <div class="row g-4 align-items-start">
+    <div class="col-xl-5">
+      <form method="post" action="{% url 'admin_portal:announcement_create' %}" class="platform-card admin-console-form" novalidate data-announcement-form>{% csrf_token %}
+        <header class="platform-card__header"><h3>新建公告</h3><span class="admin-console-card-note">可先保存草稿</span></header>
+        <div class="platform-card__body">{% if announcement_form.non_field_errors %}<div class="alert alert-danger">{{ announcement_form.non_field_errors }}</div>{% endif %}<div class="row g-3"><div class="col-12"><label class="form-label" for="{{ announcement_form.title.id_for_label }}">{{ announcement_form.title.label }}</label>{{ announcement_form.title }}{{ announcement_form.title.errors }}</div><div class="col-md-6"><label class="form-label" for="{{ announcement_form.audience.id_for_label }}">{{ announcement_form.audience.label }}</label>{{ announcement_form.audience }}{{ announcement_form.audience.errors }}</div><div class="col-md-6"><label class="form-label" for="{{ announcement_form.starts_at.id_for_label }}">{{ announcement_form.starts_at.label }}</label>{{ announcement_form.starts_at }}{{ announcement_form.starts_at.errors }}</div><div class="col-12"><label class="form-label" for="{{ announcement_form.body.id_for_label }}">{{ announcement_form.body.label }}</label>{{ announcement_form.body }}{{ announcement_form.body.errors }}</div><div class="col-md-6"><label class="form-label" for="{{ announcement_form.ends_at.id_for_label }}">{{ announcement_form.ends_at.label }}</label>{{ announcement_form.ends_at }}{{ announcement_form.ends_at.errors }}</div><div class="col-md-6 d-flex align-items-end"><div class="form-check mb-2">{{ announcement_form.is_published }}<label class="form-check-label" for="{{ announcement_form.is_published.id_for_label }}">立即发布</label></div></div><div class="col-12" data-announcement-recipients><label class="form-label" for="{{ announcement_form.recipients.id_for_label }}">{{ announcement_form.recipients.label }}</label>{{ announcement_form.recipients }}{{ announcement_form.recipients.errors }}</div></div></div>
+        <footer class="platform-card__footer admin-console-form__footer"><span>指定用户公告至少需要一位接收用户。</span><button class="btn btn-primary" type="submit">保存公告</button></footer>
+      </form>
+    </div>
+    <div class="col-xl-7">
+      <div class="platform-card admin-console-records"><header class="platform-card__header"><h3>已有公告</h3><span class="admin-console-card-note">点击编辑，不跳转页面</span></header><div class="admin-console-record-list">
+        {% for row in announcement_rows %}
+          <article class="admin-console-record"><details{% if row.form.errors %} open{% endif %}><summary><span class="admin-console-record__primary"><strong>{{ row.announcement.title }}</strong><small>{{ row.announcement.starts_at|date:"Y-m-d H:i" }}{% if row.announcement.ends_at %} 至 {{ row.announcement.ends_at|date:"Y-m-d H:i" }}{% endif %}</small></span><span class="admin-console-record__summary">{% if row.announcement.is_published %}<span class="status-badge status-ready">已发布</span>{% else %}<span class="status-badge status-pending">草稿</span>{% endif %}<span>{{ row.announcement.get_audience_display }}</span><b>编辑</b></span></summary><div class="admin-console-record__body"><form method="post" action="{% url 'admin_portal:announcement_edit' row.announcement.pk %}" class="admin-inline-form" data-announcement-form>{% csrf_token %}<div class="row g-3"><div class="col-md-8"><label class="form-label" for="{{ row.form.title.id_for_label }}">{{ row.form.title.label }}</label>{{ row.form.title }}{{ row.form.title.errors }}</div><div class="col-md-4"><label class="form-label" for="{{ row.form.audience.id_for_label }}">{{ row.form.audience.label }}</label>{{ row.form.audience }}{{ row.form.audience.errors }}</div><div class="col-12"><label class="form-label" for="{{ row.form.body.id_for_label }}">{{ row.form.body.label }}</label>{{ row.form.body }}{{ row.form.body.errors }}</div><div class="col-md-6"><label class="form-label" for="{{ row.form.starts_at.id_for_label }}">{{ row.form.starts_at.label }}</label>{{ row.form.starts_at }}{{ row.form.starts_at.errors }}</div><div class="col-md-6"><label class="form-label" for="{{ row.form.ends_at.id_for_label }}">{{ row.form.ends_at.label }}</label>{{ row.form.ends_at }}{{ row.form.ends_at.errors }}</div><div class="col-12" data-announcement-recipients><label class="form-label" for="{{ row.form.recipients.id_for_label }}">{{ row.form.recipients.label }}</label>{{ row.form.recipients }}{{ row.form.recipients.errors }}</div><div class="col-12"><div class="form-check">{{ row.form.is_published }}<label class="form-check-label" for="{{ row.form.is_published.id_for_label }}">立即发布</label></div></div></div><div class="admin-inline-form__footer"><span>指定接收用户 {{ row.announcement.recipient_count }} 位。</span><button class="btn btn-sm btn-primary" type="submit">保存公告</button></div></form></div></details></article>
+        {% empty %}<div class="admin-console-empty">尚未创建公告。</div>{% endfor %}
+      </div></div>
+    </div>
+  </div>
+</section>
+
+<section id="feedback" class="admin-console-section" aria-labelledby="feedback-title">
+  <div class="admin-console-section__head"><div><p class="admin-console-kicker">04 · 服务闭环</p><h2 id="feedback-title">反馈处理</h2></div><p>查看问题上下文、记录处理备注和更新状态；处理结果对运营数据即时生效。</p></div>
+  <div class="platform-card admin-console-records">
+    <header class="platform-card__header"><h3>用户反馈</h3><span class="admin-console-card-note">未关闭问题优先显示</span></header>
+    <div class="admin-console-record-list">
+      {% for row in feedback_rows %}
+        <article class="admin-console-record"><details{% if row.ticket.status != 'resolved' and row.ticket.status != 'closed' or row.form.errors %} open{% endif %}><summary><span class="admin-console-record__primary"><strong>{{ row.ticket.title }}</strong><small>{{ row.ticket.user.username }} · {{ row.ticket.get_category_display }} · {{ row.ticket.created_at|date:"Y-m-d H:i" }}</small></span><span class="admin-console-record__summary"><span class="status-badge status-{{ row.ticket.status }}">{{ row.ticket.get_status_display }}</span><span>{{ row.ticket.get_severity_display }}</span><b>处理</b></span></summary><div class="admin-console-record__body"><div class="admin-console-record__details admin-console-record__details--wide"><span>相关页面：{{ row.ticket.page_url|default:"未填写" }}</span><span>问题描述：{{ row.ticket.description }}</span></div><form method="post" action="{% url 'admin_portal:feedback_detail' row.ticket.pk %}" class="admin-inline-form">{% csrf_token %}<div class="row g-3"><div class="col-md-4"><label class="form-label" for="{{ row.form.status.id_for_label }}">{{ row.form.status.label }}</label>{{ row.form.status }}{{ row.form.status.errors }}</div><div class="col-md-8"><label class="form-label" for="{{ row.form.admin_note.id_for_label }}">{{ row.form.admin_note.label }}</label>{{ row.form.admin_note }}{{ row.form.admin_note.errors }}</div></div><div class="admin-inline-form__footer"><span>{% if row.ticket.admin_note %}上次备注：{{ row.ticket.admin_note }}{% else %}请记录本次处理结论。{% endif %}</span><button class="btn btn-sm btn-primary" type="submit">保存处理结果</button></div></form></div></details></article>
+      {% empty %}<div class="admin-console-empty">当前没有用户反馈。</div>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(() => {
+  document.querySelectorAll('[data-managed-upload]').forEach((form) => {
+    const mode = form.querySelector('[name$="upload_mode"]');
+    const scope = form.querySelector('[name$="publish_scope"]');
+    const language = form.querySelector('[data-managed-field="language"]');
+    const source = form.querySelector('[data-managed-field="source"]');
+    const parallel = form.querySelector('[data-managed-field="parallel"]');
+    const recipients = form.querySelector('[data-managed-field="recipients"]');
+    const refresh = () => { const paired = mode.value === 'parallel'; language.hidden = paired; source.hidden = paired; parallel.hidden = !paired; recipients.hidden = scope.value !== 'selected'; };
+    mode.addEventListener('change', refresh); scope.addEventListener('change', refresh); refresh();
+  });
+  document.querySelectorAll('[data-managed-scope]').forEach((form) => {
+    const scope = form.querySelector('[name$="publish_scope"]');
+    const recipients = form.querySelector('[data-managed-recipients]');
+    const refresh = () => { recipients.hidden = scope.value !== 'selected'; };
+    scope.addEventListener('change', refresh); refresh();
+  });
+  document.querySelectorAll('[data-announcement-form]').forEach((form) => {
+    const audience = form.querySelector('[name$="audience"]');
+    const recipients = form.querySelector('[data-announcement-recipients]');
+    const refresh = () => { recipients.hidden = audience.value !== 'selected'; };
+    audience.addEventListener('change', refresh); refresh();
+  });
+})();
+</script>
 {% endblock %}

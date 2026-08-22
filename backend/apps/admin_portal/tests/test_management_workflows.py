@@ -121,7 +121,11 @@ class ManagementWorkflowTests(TestCase):
         self.client.force_login(self.admin)
         response = self.client.get(reverse("admin_portal:dashboard"))
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "管理工作台")
+        self.assertContains(response, "管理后台")
+        self.assertContains(response, "语料发布与授权")
+        self.assertContains(response, "账号审核")
+        self.assertContains(response, "公告管理")
+        self.assertContains(response, "反馈处理")
 
     def test_admin_upload_view_creates_processing_task_and_visibility_grant(self):
         with TemporaryDirectory() as temporary_dir:
@@ -147,7 +151,7 @@ class ManagementWorkflowTests(TestCase):
                 corpus = Corpus.objects.get(name="管理端上传测试")
                 self.assertRedirects(
                     response,
-                    reverse("admin_portal:corpus_visibility", kwargs={"corpus_id": corpus.pk}),
+                    f"{reverse('admin_portal:dashboard')}#corpora",
                     fetch_redirect_response=False,
                 )
                 dispatch.assert_called_once()
@@ -177,15 +181,29 @@ class ManagementWorkflowTests(TestCase):
         self.client.force_login(self.admin)
         review_response = self.client.post(
             reverse("admin_portal:user_review", kwargs={"profile_id": pending_profile.pk}),
-            data={"role": UserRole.MIDDLE, "status": ApplicationStatus.APPROVED},
+            data={
+                f"account_{pending_profile.pk}-role": UserRole.MIDDLE,
+                f"account_{pending_profile.pk}-status": ApplicationStatus.APPROVED,
+            },
         )
         feedback_response = self.client.post(
             reverse("admin_portal:feedback_detail", kwargs={"ticket_id": ticket.pk}),
-            data={"status": FeedbackStatus.RESOLVED, "admin_note": "已完成验证并处理。"},
+            data={
+                f"feedback_{ticket.pk}-status": FeedbackStatus.RESOLVED,
+                f"feedback_{ticket.pk}-admin_note": "已完成验证并处理。",
+            },
         )
 
-        self.assertRedirects(review_response, reverse("admin_portal:user_list"), fetch_redirect_response=False)
-        self.assertRedirects(feedback_response, reverse("admin_portal:feedback_list"), fetch_redirect_response=False)
+        self.assertRedirects(
+            review_response,
+            f"{reverse('admin_portal:dashboard')}#accounts",
+            fetch_redirect_response=False,
+        )
+        self.assertRedirects(
+            feedback_response,
+            f"{reverse('admin_portal:dashboard')}#feedback",
+            fetch_redirect_response=False,
+        )
         pending_profile.refresh_from_db()
         ticket.refresh_from_db()
         self.assertEqual(pending_profile.status, ApplicationStatus.APPROVED)
@@ -212,8 +230,26 @@ class ManagementWorkflowTests(TestCase):
         announcement = Announcement.objects.get(title="发布流程验证")
         self.assertRedirects(
             response,
-            reverse("admin_portal:announcement_list"),
+            f"{reverse('admin_portal:dashboard')}#announcements",
             fetch_redirect_response=False,
         )
         self.assertTrue(active_announcements_for(self.member).filter(pk=announcement.pk).exists())
         self.assertFalse(active_announcements_for(self.other_member).filter(pk=announcement.pk).exists())
+
+    def test_legacy_management_urls_return_to_the_single_console(self):
+        self.client.force_login(self.admin)
+
+        redirects = {
+            "admin_portal:corpus_list": "corpora",
+            "admin_portal:user_list": "accounts",
+            "admin_portal:announcement_list": "announcements",
+            "admin_portal:feedback_list": "feedback",
+        }
+        for url_name, section in redirects.items():
+            with self.subTest(url_name=url_name):
+                response = self.client.get(reverse(url_name))
+                self.assertRedirects(
+                    response,
+                    f"{reverse('admin_portal:dashboard')}#{section}",
+                    fetch_redirect_response=False,
+                )
