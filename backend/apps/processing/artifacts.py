@@ -9,6 +9,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, TextIO
 
+from django.conf import settings
+
 from .contracts import (
     ImportResult,
     ParallelPairRecord,
@@ -24,6 +26,7 @@ PROCESSED_JSONL_FILES = {
     "sentences": "sentences.jsonl",
     "tokens": "tokens.jsonl",
     "parallel_pairs": "parallel_pairs.jsonl",
+    "rag_chunks": "rag_chunks.jsonl",
 }
 DEFERRED_INDEX_FILES: tuple[str, ...] = ()
 
@@ -52,6 +55,7 @@ class ArtifactWriter:
             "token_count": 0,
             "type_count": 0,
             "parallel_pair_count": 0,
+            "rag_chunk_count": 0,
         }
         self.warnings: list[str] = []
 
@@ -226,6 +230,11 @@ class ArtifactWriter:
                     unit_tokens.get(pair.en_unit_id, []),
                 ),
             )
+        self._write_rag_chunks(
+            result,
+            document_filenames=document_filenames,
+            unit_documents=unit_documents,
+        )
         for token in result.tokens:
             self._write_token(token)
         self._write_ngrams(result.tokens)
@@ -430,6 +439,78 @@ class ArtifactWriter:
             documents,
         )
 
+    def _write_rag_chunks(
+        self,
+        result: ImportResult,
+        *,
+        document_filenames: dict[str, str],
+        unit_documents: dict[str, str],
+    ) -> None:
+        """Emit the immutable, citation-ready source for dense RAG indexing.
+
+        Monolingual corpora are chunked by paragraph with hard character bounds.
+        Parallel corpora additionally preserve each aligned pair as a bilingual
+        chunk, so retrieval can return context on both language sides.
+        """
+
+        for paragraph in result.paragraphs:
+            document_id = paragraph.document_id
+            source_filename = document_filenames.get(document_id, "unknown")
+            for ordinal, text in enumerate(_chunk_rag_text(paragraph.text), start=1):
+                self._write_jsonl(
+                    "rag_chunks",
+                    {
+                        "id": f"paragraph:{paragraph.id}:{ordinal}",
+                        "text": text,
+                        "language": paragraph.language,
+                        "document_id": document_id,
+                        "source_filename": source_filename,
+                        "kind": "paragraph",
+                        "metadata": {
+                            "paragraph_id": paragraph.id,
+                            "paragraph_ordinal": paragraph.ordinal,
+                            "chunk_ordinal": ordinal,
+                        },
+                    },
+                )
+                self.counts["rag_chunk_count"] += 1
+
+        for pair in result.parallel_pairs:
+            zh_document_id = unit_documents.get(pair.zh_unit_id, "")
+            en_document_id = unit_documents.get(pair.en_unit_id, "")
+            document_id = zh_document_id or en_document_id or pair.id
+            source_filename = (
+                document_filenames.get(zh_document_id)
+                or document_filenames.get(en_document_id)
+                or "unknown"
+            )
+            bilingual_text = f"[ZH] {pair.zh_text}\n[EN] {pair.en_text}"
+            for ordinal, text in enumerate(_chunk_rag_text(bilingual_text), start=1):
+                self._write_jsonl(
+                    "rag_chunks",
+                    {
+                        "id": f"parallel:{pair.id}:{ordinal}",
+                        "text": text,
+                        "language": "zh_en",
+                        "document_id": document_id,
+                        "source_filename": source_filename,
+                        "kind": "parallel_pair",
+                        "metadata": {
+                            "pair_id": pair.id,
+                            "pair_ordinal": pair.ordinal,
+                            "alignment_unit": pair.alignment_unit,
+                            "alignment_method": pair.method,
+                            "confidence": pair.confidence,
+                            "zh_document_id": zh_document_id,
+                            "en_document_id": en_document_id,
+                            "zh_filename": document_filenames.get(zh_document_id, ""),
+                            "en_filename": document_filenames.get(en_document_id, ""),
+                            "chunk_ordinal": ordinal,
+                        },
+                    },
+                )
+                self.counts["rag_chunk_count"] += 1
+
     def _write_jsonl(self, key: str, payload: dict[str, Any]) -> None:
         handle = self._handles.get(key)
         if handle is None:
@@ -626,6 +707,29 @@ class ArtifactWriter:
             json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+
+
+def _chunk_rag_text(text: str) -> list[str]:
+    """Split only on natural boundaries where possible, never losing text."""
+
+    compact = " ".join(text.split())
+    if not compact:
+        return []
+    limit = settings.RAG_CHUNK_MAX_CHARACTERS
+    chunks: list[str] = []
+    remaining = compact
+    boundaries = "。！？!?;；,， "
+    while len(remaining) > limit:
+        cut = max(remaining.rfind(marker, 0, limit + 1) for marker in boundaries)
+        if cut < max(1, limit // 3):
+            cut = limit
+        else:
+            cut += 1
+        chunks.append(remaining[:cut].strip())
+        remaining = remaining[cut:].strip()
+    if remaining:
+        chunks.append(remaining)
+    return chunks
 
 
 def _serialize_token_spans(text: str, tokens: list[TokenRecord]) -> str:

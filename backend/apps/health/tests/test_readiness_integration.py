@@ -21,6 +21,7 @@ class ReadinessIntegrationTests(TestCase):
                 "redis": True,
                 "data_root": True,
                 "agent_model": True,
+                "rag_vector_store": True,
                 "auditor_queue": True,
             },
         )
@@ -33,6 +34,20 @@ class ReadinessIntegrationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["checks"]["auditor_queue"])
+        ping.assert_called_once()
+
+    @override_settings(
+        CORPUS_AUDITOR_QUEUE_ENABLED=False,
+        RAG_INDEXING_ENABLED=True,
+        RAG_MILVUS_URI="http://milvus.test:19530",
+    )
+    @patch("apps.health.views._redis_ready", return_value=True)
+    @patch("apps.health.views.MilvusVectorStore.ping")
+    def test_readiness_checks_milvus_when_rag_indexing_is_enabled(self, ping, _redis_ready):
+        response = self.client.get("/readyz")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["checks"]["rag_vector_store"])
         ping.assert_called_once()
 
     @override_settings(CORPUS_AUDITOR_QUEUE_ENABLED=True)

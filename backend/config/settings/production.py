@@ -42,6 +42,16 @@ if AGENT_MODEL_ENABLED and (  # noqa: F405
         "AGENT_MODEL_BASE_URL, AGENT_MODEL_API_KEY, and AGENT_MODEL_NAME are required when AGENT_MODEL_ENABLED is true."
     )
 
+if RAG_INDEXING_ENABLED and (  # noqa: F405
+    not RAG_EMBEDDING_BASE_URL  # noqa: F405
+    or not RAG_EMBEDDING_API_KEY  # noqa: F405
+    or not RAG_EMBEDDING_MODEL  # noqa: F405
+    or not RAG_MILVUS_URI  # noqa: F405
+):
+    raise ImproperlyConfigured(
+        "RAG_EMBEDDING_BASE_URL, RAG_EMBEDDING_API_KEY, RAG_EMBEDDING_MODEL, and RAG_MILVUS_URI are required when RAG_INDEXING_ENABLED is true."
+    )
+
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", True)  # noqa: F405
 SESSION_COOKIE_SECURE = True

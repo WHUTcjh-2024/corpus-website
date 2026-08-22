@@ -57,3 +57,17 @@ groups:
           severity: critical
         annotations:
           summary: A parallel audit has remained pending or running for more than ten minutes.
+      - alert: CorpusRagIndexFailed
+        expr: corpus_rag_indexes{status="failed"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: One or more RAG index builds failed and require inspection.
+      - alert: CorpusRagIndexStalled
+        expr: corpus_rag_index_oldest_active_age_seconds > 900
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: A RAG index has remained pending or running for more than fifteen minutes.

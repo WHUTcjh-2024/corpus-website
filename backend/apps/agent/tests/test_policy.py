@@ -36,6 +36,20 @@ class AgentPolicyTests(SimpleTestCase):
                 max_results=5,
             )
 
+    def test_rag_plan_uses_only_the_grounded_hybrid_retrieval_tool(self):
+        plan = plan_run(
+            corpus=CorpusStub(corpus_type=CorpusType.RAW_EN, language=CorpusLanguage.EN),
+            mode=AgentRunMode.RAG,
+            query="reliable task delivery",
+            language="en",
+            max_results=4,
+        )
+
+        self.assertEqual(plan["skill"], "grounded_hybrid_rag@v1")
+        self.assertEqual(plan["steps"][0]["tool"], "search_rag")
+        self.assertEqual(plan["steps"][0]["input"]["language"], "en")
+        self.assertEqual(skill_from_plan(plan).allowed_tools, frozenset({"search_rag"}))
+
     def test_export_plan_is_an_explicit_handoff_not_a_write_tool(self):
         plan = plan_run(
             corpus=CorpusStub(corpus_type=CorpusType.RAW_EN, language=CorpusLanguage.EN),

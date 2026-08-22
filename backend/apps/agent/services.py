@@ -110,6 +110,11 @@ def create_agent_run(
         raise PermissionDenied("You are not allowed to access this corpus.")
     if locked_corpus.status != CorpusStatus.READY:
         raise AgentRunNotReady("The corpus must be processed before the Agent can use it.")
+    if mode == AgentRunMode.RAG:
+        from apps.rag.models import RagIndex, RagIndexStatus
+
+        if not RagIndex.objects.filter(corpus=locked_corpus, status=RagIndexStatus.READY).exists():
+            raise AgentRunNotReady("The corpus semantic index is not ready.")
     if (
         mode == AgentRunMode.EXPORT
         and (
@@ -991,7 +996,7 @@ def _current_run_outcome(run_id) -> dict[str, Any]:
 
 def _evidence_from_step(step: AgentStep) -> list[dict[str, Any]]:
     """Reconstruct bounded evidence if a redelivered run resumes mid-plan."""
-    if step.tool_name in {"search_kwic", "search_parallel"}:
+    if step.tool_name in {"search_kwic", "search_parallel", "search_rag"}:
         hits = step.output.get("hits", [])
         return [item for item in hits if isinstance(item, dict) and "citation_id" in item]
     if step.tool_name == "get_latest_quality_report":

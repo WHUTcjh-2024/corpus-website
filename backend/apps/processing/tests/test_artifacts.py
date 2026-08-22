@@ -36,6 +36,12 @@ class ArtifactWriterTests(SimpleTestCase):
                     encoding="utf-8"
                 )
             )
+            rag_chunks = [
+                json.loads(line)
+                for line in (root / "processed" / "corpus" / "rag_chunks.jsonl").read_text(
+                    encoding="utf-8"
+                ).splitlines()
+            ]
             hit = KwicSearchEngine(data_root=root, corpus_id="corpus").search(
                 "AI", language="en"
             ).hits[0]
@@ -54,3 +60,5 @@ class ArtifactWriterTests(SimpleTestCase):
         )
         self.assertEqual(file_view.keyword, "AI")
         self.assertEqual(file_view.filename, "en.txt")
+        self.assertEqual(report["counts"]["rag_chunk_count"], 2)
+        self.assertEqual({chunk["kind"] for chunk in rag_chunks}, {"paragraph"})

@@ -38,6 +38,11 @@ SKILLS = {
         version="v1",
         allowed_tools=frozenset({"search_kwic", "search_parallel"}),
     ),
+    "grounded_hybrid_rag@v1": SkillDefinition(
+        name="grounded_hybrid_rag",
+        version="v1",
+        allowed_tools=frozenset({"search_rag"}),
+    ),
     "parallel_quality_review@v2": SkillDefinition(
         name="parallel_quality_review",
         version="v2",
@@ -94,7 +99,7 @@ def plan_run(
     query = " ".join(query.split())
 
     parallel = is_parallel_corpus(corpus)
-    if mode in {AgentRunMode.RETRIEVE, AgentRunMode.EXPORT} and not query:
+    if mode in {AgentRunMode.RETRIEVE, AgentRunMode.RAG, AgentRunMode.EXPORT} and not query:
         raise AgentPolicyError("A retrieval or export request requires a query.")
     if language and language not in {"zh", "en"}:
         raise AgentPolicyError("language must be zh or en.")
@@ -115,6 +120,12 @@ def plan_run(
     if mode == AgentRunMode.RETRIEVE:
         skill = SKILLS["corpus_retrieval@v1"]
         steps = [{"node": "retrieve", "tool": retrieval_tool, "input": retrieval_input}]
+    elif mode == AgentRunMode.RAG:
+        skill = SKILLS["grounded_hybrid_rag@v1"]
+        rag_input: dict[str, Any] = {"query": query, "max_results": max_results}
+        if language:
+            rag_input["language"] = language
+        steps = [{"node": "hybrid_retrieve", "tool": "search_rag", "input": rag_input}]
     elif mode == AgentRunMode.QUALITY_REVIEW:
         if not parallel:
             raise AgentPolicyError("Quality review is available only for processed parallel corpora.")

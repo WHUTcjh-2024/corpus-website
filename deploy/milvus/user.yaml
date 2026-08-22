@@ -1,0 +1,2 @@
+# Extra Milvus settings belong here. Keep this file checked in only for
+# non-secret, deployment-wide defaults; provide credentials through env vars.

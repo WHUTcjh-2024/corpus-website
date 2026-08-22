@@ -89,7 +89,7 @@ def summarize_grounded_evidence(*, mode: str, evidence: list[dict[str, Any]]) ->
                 "output_tokens": output_tokens,
                 "fallback": False,
             },
-            estimated_cost=round(estimated_cost, 8),
+            estimated_cost_usd=round(estimated_cost, 8),
         )
     except (KeyError, TypeError, ValueError, UnicodeError, HTTPError, URLError, TimeoutError, OSError):
         return SummaryResult(

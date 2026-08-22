@@ -25,6 +25,7 @@ from apps.processing.services import (
 )
 from apps.processing.tasks import process_corpus_task
 from apps.outbox.models import OutboxEvent, OutboxEventStatus, OutboxTaskName
+from apps.rag.models import RagIndex, RagIndexStatus
 
 
 class ProcessingTaskDeliveryIntegrationTests(TestCase):
@@ -140,3 +141,17 @@ class ProcessingTaskDeliveryIntegrationTests(TestCase):
         self.assertEqual(task.status, ProcessingTaskStatus.PENDING)
         self.assertEqual(event.status, OutboxEventStatus.PENDING)
         self.assertEqual(event.task_name, OutboxTaskName.PROCESS_CORPUS)
+
+    def test_successful_processing_durably_queues_rag_indexing_when_enabled(self):
+        with self.settings(RAG_INDEXING_ENABLED=True), patch(
+            "apps.rag.services.publish_event_after_commit"
+        ) as publish:
+            process_task(self.task.pk)
+
+        index = RagIndex.objects.get(corpus=self.corpus)
+        event = OutboxEvent.objects.get(deduplication_key=f"rag-index:{self.task.pk}")
+        self.assertEqual(index.status, RagIndexStatus.PENDING)
+        self.assertEqual(index.processing_task_id, self.task.pk)
+        self.assertEqual(event.task_name, OutboxTaskName.BUILD_RAG_INDEX)
+        self.assertEqual(event.payload, {"index_id": str(index.pk)})
+        publish.assert_called_once_with(event.pk)

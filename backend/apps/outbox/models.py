@@ -16,6 +16,7 @@ class OutboxEventStatus(models.TextChoices):
 
 class OutboxTaskName(models.TextChoices):
     PROCESS_CORPUS = "processing.process_corpus", "加工语料"
+    BUILD_RAG_INDEX = "rag.build_vector_index", "构建 RAG 向量索引"
     BUILD_EXPORT = "exports.build_export", "生成导出"
 
 

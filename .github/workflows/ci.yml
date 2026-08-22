@@ -76,6 +76,7 @@ jobs:
       CELERY_BROKER_URL: redis://127.0.0.1:6379/0
       CELERY_RESULT_BACKEND: redis://127.0.0.1:6379/1
       REQUIRE_REDIS_INTEGRATION: "true"
+      RAG_MILVUS_INTEGRATION_URI: http://127.0.0.1:19530
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
@@ -91,6 +92,26 @@ jobs:
             backend/requirements-dev.txt
       - name: Install dependencies
         run: python -m pip install -r requirements-dev.txt
+      - name: Start Milvus Standalone for RAG integration
+        run: |
+          docker run -d --name ci-milvus -p 19530:19530 -p 9091:9091 \
+            --security-opt seccomp:unconfined \
+            -e ETCD_USE_EMBED=true \
+            -e ETCD_DATA_DIR=/var/lib/milvus/etcd \
+            -e ETCD_CONFIG_PATH=/milvus/configs/embedEtcd.yaml \
+            -e COMMON_STORAGETYPE=local \
+            -e DEPLOY_MODE=STANDALONE \
+            -v "$GITHUB_WORKSPACE/deploy/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml:ro" \
+            -v "$GITHUB_WORKSPACE/deploy/milvus/user.yaml:/milvus/configs/user.yaml:ro" \
+            milvusdb/milvus:v2.5.5 milvus run standalone
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:9091/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs ci-milvus
+          exit 1
       - name: Validate Django configuration
         run: python manage.py check
       - name: Validate production security configuration

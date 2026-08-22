@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "apps.statistics",
     "apps.exports",
     "apps.agent",
+    "apps.rag",
     "apps.outbox",
     "apps.audit",
     "apps.feedback",
@@ -201,6 +202,7 @@ CELERY_TASK_QUEUES = (
     Queue("processing"),
     Queue("exports"),
     Queue("agent"),
+    Queue("rag"),
     Queue("audit_commands"),
 )
 CELERY_TASK_ROUTES = {
@@ -208,6 +210,7 @@ CELERY_TASK_ROUTES = {
     "audits.publish_parallel_audit_command": {"queue": "audit_commands"},
     "exports.build_export": {"queue": "exports"},
     "agent.run_corpus_agent": {"queue": "agent"},
+    "rag.build_vector_index": {"queue": "rag"},
 }
 CELERY_BROKER_TRANSPORT_OPTIONS = {
     "visibility_timeout": int(os.getenv("CELERY_VISIBILITY_TIMEOUT_SECONDS", 60 * 60)),
@@ -255,6 +258,54 @@ if (
     or AGENT_MODEL_OUTPUT_USD_PER_1M < 0
 ):
     raise ValueError("Agent runtime settings must use positive bounded values.")
+
+# RAG embeddings are independently configured because chat and embedding
+# models have different API contracts, cost profiles and access policies.
+RAG_INDEXING_ENABLED = env_bool("RAG_INDEXING_ENABLED", False)
+RAG_EMBEDDING_BASE_URL = os.getenv("RAG_EMBEDDING_BASE_URL", "")
+RAG_EMBEDDING_API_KEY = os.getenv("RAG_EMBEDDING_API_KEY", "")
+RAG_EMBEDDING_MODEL = os.getenv("RAG_EMBEDDING_MODEL", "")
+RAG_EMBEDDING_TIMEOUT_SECONDS = float(os.getenv("RAG_EMBEDDING_TIMEOUT_SECONDS", "30"))
+RAG_EMBEDDING_BATCH_SIZE = int(os.getenv("RAG_EMBEDDING_BATCH_SIZE", "32"))
+RAG_EMBEDDING_MAX_DIMENSION = int(os.getenv("RAG_EMBEDDING_MAX_DIMENSION", "4096"))
+RAG_EMBEDDING_RESPONSE_MAX_BYTES = int(
+    os.getenv("RAG_EMBEDDING_RESPONSE_MAX_BYTES", str(8 * 1024 * 1024))
+)
+RAG_MILVUS_URI = os.getenv("RAG_MILVUS_URI", "")
+RAG_MILVUS_TOKEN = os.getenv("RAG_MILVUS_TOKEN", "")
+RAG_MILVUS_DATABASE = os.getenv("RAG_MILVUS_DATABASE", "default")
+RAG_MILVUS_TIMEOUT_SECONDS = float(os.getenv("RAG_MILVUS_TIMEOUT_SECONDS", "10"))
+RAG_MILVUS_COLLECTION_PREFIX = os.getenv("RAG_MILVUS_COLLECTION_PREFIX", "rag_")
+RAG_MILVUS_HNSW_M = int(os.getenv("RAG_MILVUS_HNSW_M", "16"))
+RAG_MILVUS_HNSW_EF_CONSTRUCTION = int(
+    os.getenv("RAG_MILVUS_HNSW_EF_CONSTRUCTION", "200")
+)
+RAG_MILVUS_HNSW_EF_SEARCH = int(os.getenv("RAG_MILVUS_HNSW_EF_SEARCH", "64"))
+RAG_MILVUS_CANDIDATE_MULTIPLIER = int(
+    os.getenv("RAG_MILVUS_CANDIDATE_MULTIPLIER", "10")
+)
+RAG_CHUNK_MAX_CHARACTERS = int(os.getenv("RAG_CHUNK_MAX_CHARACTERS", "1800"))
+RAG_MAX_CHUNKS = int(os.getenv("RAG_MAX_CHUNKS", "200000"))
+RAG_INDEX_LEASE_SECONDS = int(os.getenv("RAG_INDEX_LEASE_SECONDS", "900"))
+
+if (
+    RAG_EMBEDDING_TIMEOUT_SECONDS <= 0
+    or not 1 <= RAG_EMBEDDING_BATCH_SIZE <= 256
+    or not 1 <= RAG_EMBEDDING_MAX_DIMENSION <= 16_384
+    or not 1_024 <= RAG_EMBEDDING_RESPONSE_MAX_BYTES <= 64 * 1024 * 1024
+    or RAG_MILVUS_TIMEOUT_SECONDS <= 0
+    or not RAG_MILVUS_DATABASE.replace("_", "").isalnum()
+    or not RAG_MILVUS_COLLECTION_PREFIX.endswith("_")
+    or not RAG_MILVUS_COLLECTION_PREFIX[:-1].replace("_", "").isalnum()
+    or not 4 <= RAG_MILVUS_HNSW_M <= 64
+    or not 32 <= RAG_MILVUS_HNSW_EF_CONSTRUCTION <= 2_048
+    or not 8 <= RAG_MILVUS_HNSW_EF_SEARCH <= 2_048
+    or not 1 <= RAG_MILVUS_CANDIDATE_MULTIPLIER <= 100
+    or not 128 <= RAG_CHUNK_MAX_CHARACTERS <= 16_000
+    or not 1 <= RAG_MAX_CHUNKS <= 2_000_000
+    or RAG_INDEX_LEASE_SECONDS < 30
+):
+    raise ValueError("RAG indexing settings must use safe bounded values.")
 
 # The Go auditor is a separate data-plane service. Django owns authorization,
 # durable orchestration and callback persistence; the service receives only

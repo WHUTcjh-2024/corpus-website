@@ -18,6 +18,9 @@ from apps.parallel.contracts import ParallelIndexCorrupt, ParallelIndexUnavailab
 from apps.parallel.engine import ParallelQuery, ParallelSearchEngine
 from apps.search.contracts import KwicIndexCorrupt, KwicIndexUnavailable, KwicQueryError
 from apps.search.kwic import KwicSearchEngine
+from apps.rag.providers import EmbeddingProviderError, OpenAICompatibleEmbeddingProvider
+from apps.rag.retrieval import HybridRagIndex, RagIndexUnavailable, RagQueryError
+from apps.rag.vector_store import MilvusVectorStoreUnavailable
 
 from .policy import AgentPolicyError, ensure_tool_allowed
 
@@ -59,6 +62,7 @@ class CorpusToolRegistry:
         self._tools: dict[str, Callable[[ToolContext, dict[str, Any]], ToolResult]] = {
             "search_kwic": self._search_kwic,
             "search_parallel": self._search_parallel,
+            "search_rag": self._search_rag,
             "get_latest_quality_report": self._get_latest_quality_report,
             "request_quality_audit": self._request_quality_audit,
             "prepare_export": self._prepare_export,
@@ -159,6 +163,56 @@ class CorpusToolRegistry:
         ]
         return ToolResult(
             output={"query": query, "total": result.total, "hits": hits},
+            evidence=hits,
+        )
+
+    def _search_rag(self, context: ToolContext, input: dict[str, Any]) -> ToolResult:
+        query = _query(input)
+        max_results = _max_results(input)
+        language = str(input.get("language", "") or "")
+        if language and language not in {CorpusLanguage.ZH, CorpusLanguage.EN}:
+            raise AgentToolInputError("language must be zh or en.")
+        try:
+            result = HybridRagIndex(
+                data_root=settings.DATA_ROOT,
+                corpus_id=str(context.corpus.pk),
+            ).search(
+                query=query,
+                provider=OpenAICompatibleEmbeddingProvider.from_settings(),
+                max_results=max_results,
+                language=language or None,
+            )
+        except EmbeddingProviderError as exc:
+            raise AgentToolUnavailable("The RAG embedding provider is unavailable.") from exc
+        except (RagIndexUnavailable, MilvusVectorStoreUnavailable) as exc:
+            raise AgentToolUnavailable("The RAG index is unavailable or stale.") from exc
+        except RagQueryError as exc:
+            raise AgentToolInputError(str(exc)) from exc
+
+        hits = [
+            {
+                "citation_id": hit.citation_id,
+                "chunk_id": hit.chunk_id,
+                "document_id": hit.document_id,
+                "source_filename": hit.source_filename,
+                "language": hit.language,
+                "kind": hit.kind,
+                "text": _clip(hit.text),
+                "semantic_score": hit.semantic_score,
+                "lexical_score": hit.lexical_score,
+                "fused_score": hit.fused_score,
+                "metadata": _bounded_mapping(hit.metadata),
+            }
+            for hit in result.hits
+        ]
+        return ToolResult(
+            output={
+                "query": query,
+                "total": result.total,
+                "embedding_model": result.embedding_model,
+                "vector_dimension": result.vector_dimension,
+                "hits": hits,
+            },
             evidence=hits,
         )
 

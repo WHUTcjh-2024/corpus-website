@@ -27,6 +27,30 @@ services:
       timeout: 3s
       retries: 20
 
+  milvus:
+    image: milvusdb/milvus:v2.5.5
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
+      COMMON_STORAGETYPE: local
+      DEPLOY_MODE: STANDALONE
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - milvus_data:/var/lib/milvus
+      - ./deploy/milvus/embedEtcd.yaml:/milvus/configs/embedEtcd.yaml:ro
+      - ./deploy/milvus/user.yaml:/milvus/configs/user.yaml:ro
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
   corpus-auditor:
     build:
       context: ./backend/go/corpus-auditor
@@ -103,6 +127,25 @@ services:
       AGENT_MODEL_MAX_OUTPUT_TOKENS: ${AGENT_MODEL_MAX_OUTPUT_TOKENS:-600}
       AGENT_MODEL_INPUT_USD_PER_1M: ${AGENT_MODEL_INPUT_USD_PER_1M:-0}
       AGENT_MODEL_OUTPUT_USD_PER_1M: ${AGENT_MODEL_OUTPUT_USD_PER_1M:-0}
+      RAG_INDEXING_ENABLED: ${RAG_INDEXING_ENABLED:-false}
+      RAG_EMBEDDING_BASE_URL: ${RAG_EMBEDDING_BASE_URL:-}
+      RAG_EMBEDDING_API_KEY: ${RAG_EMBEDDING_API_KEY:-}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-}
+      RAG_EMBEDDING_TIMEOUT_SECONDS: ${RAG_EMBEDDING_TIMEOUT_SECONDS:-30}
+      RAG_EMBEDDING_BATCH_SIZE: ${RAG_EMBEDDING_BATCH_SIZE:-32}
+      RAG_EMBEDDING_MAX_DIMENSION: ${RAG_EMBEDDING_MAX_DIMENSION:-4096}
+      RAG_MILVUS_URI: ${RAG_MILVUS_URI:-http://milvus:19530}
+      RAG_MILVUS_TOKEN: ${RAG_MILVUS_TOKEN:-}
+      RAG_MILVUS_DATABASE: ${RAG_MILVUS_DATABASE:-default}
+      RAG_MILVUS_TIMEOUT_SECONDS: ${RAG_MILVUS_TIMEOUT_SECONDS:-10}
+      RAG_MILVUS_COLLECTION_PREFIX: ${RAG_MILVUS_COLLECTION_PREFIX:-rag_}
+      RAG_MILVUS_HNSW_M: ${RAG_MILVUS_HNSW_M:-16}
+      RAG_MILVUS_HNSW_EF_CONSTRUCTION: ${RAG_MILVUS_HNSW_EF_CONSTRUCTION:-200}
+      RAG_MILVUS_HNSW_EF_SEARCH: ${RAG_MILVUS_HNSW_EF_SEARCH:-64}
+      RAG_MILVUS_CANDIDATE_MULTIPLIER: ${RAG_MILVUS_CANDIDATE_MULTIPLIER:-10}
+      RAG_CHUNK_MAX_CHARACTERS: ${RAG_CHUNK_MAX_CHARACTERS:-1800}
+      RAG_MAX_CHUNKS: ${RAG_MAX_CHUNKS:-200000}
+      RAG_INDEX_LEASE_SECONDS: ${RAG_INDEX_LEASE_SECONDS:-900}
       CORPUS_AUDITOR_QUEUE_ENABLED: "true"
       CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
       CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
@@ -118,6 +161,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      milvus:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=3).read()\""]
       interval: 10s
@@ -127,7 +172,7 @@ services:
   processing-worker:
     build:
       context: ./backend
-    command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
+    command: celery -A config worker --loglevel=info --queues=processing,default,agent,rag,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
@@ -164,6 +209,25 @@ services:
       AGENT_MODEL_MAX_OUTPUT_TOKENS: ${AGENT_MODEL_MAX_OUTPUT_TOKENS:-600}
       AGENT_MODEL_INPUT_USD_PER_1M: ${AGENT_MODEL_INPUT_USD_PER_1M:-0}
       AGENT_MODEL_OUTPUT_USD_PER_1M: ${AGENT_MODEL_OUTPUT_USD_PER_1M:-0}
+      RAG_INDEXING_ENABLED: ${RAG_INDEXING_ENABLED:-false}
+      RAG_EMBEDDING_BASE_URL: ${RAG_EMBEDDING_BASE_URL:-}
+      RAG_EMBEDDING_API_KEY: ${RAG_EMBEDDING_API_KEY:-}
+      RAG_EMBEDDING_MODEL: ${RAG_EMBEDDING_MODEL:-}
+      RAG_EMBEDDING_TIMEOUT_SECONDS: ${RAG_EMBEDDING_TIMEOUT_SECONDS:-30}
+      RAG_EMBEDDING_BATCH_SIZE: ${RAG_EMBEDDING_BATCH_SIZE:-32}
+      RAG_EMBEDDING_MAX_DIMENSION: ${RAG_EMBEDDING_MAX_DIMENSION:-4096}
+      RAG_MILVUS_URI: ${RAG_MILVUS_URI:-http://milvus:19530}
+      RAG_MILVUS_TOKEN: ${RAG_MILVUS_TOKEN:-}
+      RAG_MILVUS_DATABASE: ${RAG_MILVUS_DATABASE:-default}
+      RAG_MILVUS_TIMEOUT_SECONDS: ${RAG_MILVUS_TIMEOUT_SECONDS:-10}
+      RAG_MILVUS_COLLECTION_PREFIX: ${RAG_MILVUS_COLLECTION_PREFIX:-rag_}
+      RAG_MILVUS_HNSW_M: ${RAG_MILVUS_HNSW_M:-16}
+      RAG_MILVUS_HNSW_EF_CONSTRUCTION: ${RAG_MILVUS_HNSW_EF_CONSTRUCTION:-200}
+      RAG_MILVUS_HNSW_EF_SEARCH: ${RAG_MILVUS_HNSW_EF_SEARCH:-64}
+      RAG_MILVUS_CANDIDATE_MULTIPLIER: ${RAG_MILVUS_CANDIDATE_MULTIPLIER:-10}
+      RAG_CHUNK_MAX_CHARACTERS: ${RAG_CHUNK_MAX_CHARACTERS:-1800}
+      RAG_MAX_CHUNKS: ${RAG_MAX_CHUNKS:-200000}
+      RAG_INDEX_LEASE_SECONDS: ${RAG_INDEX_LEASE_SECONDS:-900}
       CORPUS_AUDITOR_QUEUE_ENABLED: "true"
       CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
       CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
@@ -287,4 +351,5 @@ services:
 
 volumes:
   postgres_data:
+  milvus_data:
   auditor_state:

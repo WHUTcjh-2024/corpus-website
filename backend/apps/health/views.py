@@ -8,6 +8,7 @@ from redis import Redis
 
 from apps.audits.queue import AuditQueue, AuditQueueUnavailable
 from apps.outbox.metrics import collect_outbox_metrics, render_prometheus_metrics
+from apps.rag.vector_store import MilvusVectorStore, MilvusVectorStoreError
 
 
 def home(request: HttpRequest):
@@ -31,6 +32,7 @@ def readyz(request: HttpRequest) -> JsonResponse:
         "redis": _redis_ready(),
         "data_root": settings.DATA_ROOT.exists(),
         "agent_model": _agent_model_ready(),
+        "rag_vector_store": _rag_vector_store_ready(),
         "auditor_queue": _auditor_queue_ready(),
     }
     status_code = 200 if all(checks.values()) else 503
@@ -74,6 +76,17 @@ def _agent_model_ready() -> bool:
         and settings.AGENT_MODEL_API_KEY
         and settings.AGENT_MODEL_NAME
     )
+
+
+def _rag_vector_store_ready() -> bool:
+    """Milvus is required only when this deployment accepts RAG indexing work."""
+    if not settings.RAG_INDEXING_ENABLED:
+        return True
+    try:
+        MilvusVectorStore.from_settings().ping()
+        return True
+    except MilvusVectorStoreError:
+        return False
 
 
 def _auditor_queue_ready() -> bool:

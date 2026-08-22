@@ -40,10 +40,11 @@ Use `PROCESSING_WORKER_CONCURRENCY` and `EXPORT_WORKER_CONCURRENCY` to bound
 parallelism within one replica. Keep export concurrency low unless storage and
 database load have been measured; exports can read many indexed rows at once.
 
-The `agent` queue is consumed by `processing-worker` because Agent tools access
-the same immutable corpus indexes and audit artifacts. Agent runs are durable
-state machines, not long-lived HTTP requests: inspect an `AgentRun` and its
-step trace before replaying any dead-letter Outbox event. A run in
+The `agent` and `rag` queues are consumed by `processing-worker` because their
+tools access the same immutable corpus artifacts. They remain separately routed
+so a dedicated RAG worker can be introduced without changing producers. Agent
+runs are durable state machines, not long-lived HTTP requests: inspect an
+`AgentRun` and its step trace before replaying any dead-letter Outbox event. A run in
 `waiting_approval` is healthy and must never be replayed to bypass the user
 confirmation boundary. See [CORPUS_AGENT_HARNESS.md](CORPUS_AGENT_HARNESS.md).
 
@@ -66,11 +67,15 @@ Create alerts for:
   detects an Agent Saga blocked after issuing an audit command.
 - `corpus_parallel_audit_oldest_active_age_seconds > 600` for 10 minutes. This
   detects a stuck Redis Streams command, worker, or result projection path.
+- `corpus_rag_indexes{status="failed"} > 0` for 10 minutes.
+- `corpus_rag_index_oldest_active_age_seconds > 900` for 10 minutes. This
+  detects an embedding request, RAG worker, or lease-recovery problem.
 
 `/healthz` is liveness only: it answers whether the Django process is alive.
 Container orchestration must use `/readyz`, which additionally checks PostgreSQL,
 Redis, the mounted data directory, optional model configuration, and the Redis
-Streams dependency used by the Go auditor. Likewise, the Go auditor's `/readyz`
+Streams dependency used by the Go auditor. When `RAG_INDEXING_ENABLED=true`, it
+also verifies the Milvus control-plane connection before accepting work. Likewise, the Go auditor's `/readyz`
 checks Redis before it accepts traffic, while `/healthz` remains available during
 a transient broker outage for diagnosis.
 

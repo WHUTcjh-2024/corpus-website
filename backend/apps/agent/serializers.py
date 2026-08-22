@@ -9,7 +9,7 @@ from .models import AgentApproval, AgentRun, AgentStep
 
 class AgentRunCreateSerializer(serializers.Serializer):
     corpus_id = serializers.UUIDField()
-    mode = serializers.ChoiceField(choices=("retrieve", "quality_review", "export"))
+    mode = serializers.ChoiceField(choices=("retrieve", "rag", "quality_review", "export"))
     query = serializers.CharField(required=False, allow_blank=True, max_length=200)
     language = serializers.ChoiceField(choices=("zh", "en"), required=False, allow_null=True)
     max_results = serializers.IntegerField(required=False, default=5, min_value=1, max_value=10)
@@ -21,7 +21,7 @@ class AgentRunCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("Corpus does not exist.") from exc
 
     def validate(self, attrs):
-        if attrs["mode"] in {"retrieve", "export"} and not attrs.get("query", "").strip():
+        if attrs["mode"] in {"retrieve", "rag", "export"} and not attrs.get("query", "").strip():
             raise serializers.ValidationError({"query": "This mode requires a query."})
         return attrs
 

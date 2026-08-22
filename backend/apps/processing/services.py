@@ -206,6 +206,13 @@ def _mark_success(
             error_message="",
             updated_at=timezone.now(),
         )
+    if settings.RAG_INDEXING_ENABLED:
+        # Dense indexing has its own durable command and worker route. A model
+        # provider outage therefore cannot roll back the successfully built
+        # lexical corpus index or make the corpus unavailable.
+        from apps.rag.services import queue_rag_index
+
+        queue_rag_index(corpus=task.corpus, processing_task=task)
     if task.corpus.corpus_type in {
         CorpusType.ALIGNED_TSV,
         CorpusType.PAIRED_RAW_ZH_EN,

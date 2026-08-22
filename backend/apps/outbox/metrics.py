@@ -9,6 +9,7 @@ from django.utils import timezone
 from .models import OutboxEvent, OutboxEventStatus
 from apps.agent.models import AgentRun, AgentRunStatus
 from apps.audits.models import ParallelAudit, ParallelAuditStatus
+from apps.rag.models import RagIndex, RagIndexStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +18,10 @@ class OutboxMetrics:
     oldest_pending_age_seconds: float
     agent_run_counts: dict[str, int]
     parallel_audit_counts: dict[str, int]
+    rag_index_counts: dict[str, int]
     oldest_agent_external_wait_age_seconds: float
     oldest_parallel_audit_age_seconds: float
+    oldest_rag_index_age_seconds: float
     model_fallback_run_count: int
     estimated_model_cost_usd: float
 
@@ -44,8 +47,10 @@ def collect_outbox_metrics() -> OutboxMetrics:
         oldest_pending_age_seconds=oldest_pending_age_seconds,
         agent_run_counts=_agent_run_counts(),
         parallel_audit_counts=_parallel_audit_counts(),
+        rag_index_counts=_rag_index_counts(),
         oldest_agent_external_wait_age_seconds=_oldest_agent_external_wait_age_seconds(),
         oldest_parallel_audit_age_seconds=_oldest_parallel_audit_age_seconds(),
+        oldest_rag_index_age_seconds=_oldest_rag_index_age_seconds(),
         model_fallback_run_count=_model_fallback_run_count(),
         estimated_model_cost_usd=float(
             AgentRun.objects.aggregate(total=Sum("estimated_cost_usd"))["total"] or 0
@@ -71,6 +76,15 @@ def _parallel_audit_counts() -> dict[str, int]:
     return {status: counts.get(status, 0) for status in ParallelAuditStatus.values}
 
 
+def _rag_index_counts() -> dict[str, int]:
+    counts = dict(
+        RagIndex.objects.values("status")
+        .annotate(total=Count("id"))
+        .values_list("status", "total")
+    )
+    return {status: counts.get(status, 0) for status in RagIndexStatus.values}
+
+
 def _oldest_agent_external_wait_age_seconds() -> float:
     oldest = AgentRun.objects.filter(status=AgentRunStatus.WAITING_EXTERNAL).aggregate(
         oldest=Min(Coalesce("external_wait_started_at", "created_at"))
@@ -81,6 +95,13 @@ def _oldest_agent_external_wait_age_seconds() -> float:
 def _oldest_parallel_audit_age_seconds() -> float:
     oldest = ParallelAudit.objects.filter(
         status__in=(ParallelAuditStatus.PENDING, ParallelAuditStatus.RUNNING)
+    ).aggregate(oldest=Min(Coalesce("started_at", "created_at")))["oldest"]
+    return _age_seconds(oldest)
+
+
+def _oldest_rag_index_age_seconds() -> float:
+    oldest = RagIndex.objects.filter(
+        status__in=(RagIndexStatus.PENDING, RagIndexStatus.RUNNING)
     ).aggregate(oldest=Min(Coalesce("started_at", "created_at")))["oldest"]
     return _age_seconds(oldest)
 
@@ -145,6 +166,21 @@ def render_prometheus_metrics(snapshot: OutboxMetrics) -> str:
             "# HELP corpus_parallel_audit_oldest_active_age_seconds Age of the oldest pending or running parallel audit.",
             "# TYPE corpus_parallel_audit_oldest_active_age_seconds gauge",
             f"corpus_parallel_audit_oldest_active_age_seconds {snapshot.oldest_parallel_audit_age_seconds:.6f}",
+        ]
+    )
+    lines.extend(
+        [
+            "# HELP corpus_rag_indexes Number of RAG index manifests by state.",
+            "# TYPE corpus_rag_indexes gauge",
+        ]
+    )
+    for status in RagIndexStatus.values:
+        lines.append(f'corpus_rag_indexes{{status="{status}"}} {snapshot.rag_index_counts[status]}')
+    lines.extend(
+        [
+            "# HELP corpus_rag_index_oldest_active_age_seconds Age of the oldest pending or running RAG index.",
+            "# TYPE corpus_rag_index_oldest_active_age_seconds gauge",
+            f"corpus_rag_index_oldest_active_age_seconds {snapshot.oldest_rag_index_age_seconds:.6f}",
         ]
     )
     return "\n".join(lines) + "\n"
