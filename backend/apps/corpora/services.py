@@ -15,7 +15,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.files.uploadedfile import UploadedFile
 from django.db import transaction
-from django.db.models import Q, QuerySet, Sum
+from django.db.models import Exists, OuterRef, Q, QuerySet, Sum
 
 from apps.accounts.models import UserRole
 from apps.accounts.permissions import AccessScope, get_user_profile, workspace_access_scope
@@ -127,6 +127,35 @@ def visible_corpora_for(user: Any) -> QuerySet[Corpus]:
         )
         | Q(source_type=CorpusSourceType.USER, owner=user)
     ).distinct()
+
+
+def catalog_corpora_for(user: Any) -> QuerySet[Corpus]:
+    """Return metadata a workspace user may discover in the corpus catalog.
+
+    Platform corpora remain discoverable even when their content is not
+    authorized for the current account.  Personal corpora are deliberately not
+    discoverable outside their owner.  Callers must still use
+    ``visible_corpora_for`` before returning corpus content or running tools.
+    """
+
+    queryset = Corpus.objects.select_related("owner").all()
+    scope = workspace_access_scope(user)
+    if scope == AccessScope.NONE:
+        return queryset.none()
+    if scope == AccessScope.ADMIN:
+        return queryset
+
+    return queryset.exclude(status=CorpusStatus.DISABLED).filter(
+        Q(source_type__in=[CorpusSourceType.TEACHER, CorpusSourceType.DEMO])
+        | Q(source_type=CorpusSourceType.USER, owner=user)
+    )
+
+
+def catalog_corpora_with_access_for(user: Any) -> QuerySet[Corpus]:
+    """Annotate catalog records with whether the current account can use them."""
+
+    allowed = visible_corpora_for(user).filter(pk=OuterRef("pk"))
+    return catalog_corpora_for(user).annotate(has_access=Exists(allowed))
 
 
 def can_create_personal_corpus(user: Any) -> bool:

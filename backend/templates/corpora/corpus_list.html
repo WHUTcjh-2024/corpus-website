@@ -4,7 +4,7 @@
 
 {% block dashboard_content %}
 <div class="page-header">
-  <div><h1 class="page-title">语料库资源</h1><p class="page-description">可见范围已根据账号角色、访问等级与语料所有权在后端完成过滤。</p></div>
+  <div><h1 class="page-title">语料库资源</h1><p class="page-description">所有平台语料均会展示；可访问语料可直接进入研究工具，未获授权的语料以锁定状态提示。</p></div>
   <div class="page-actions">
     <a class="btn btn-outline-secondary" href="{% url 'corpora:mine' %}">我的语料</a>
     {% if can_create_personal %}<a class="btn btn-outline-primary" href="{% url 'corpora:create' %}">登记元数据</a>{% endif %}
@@ -16,10 +16,16 @@
   <div class="alert alert-info">请先选择一个状态为“可用”的语料库，再进入 {% if request.GET.tool == 'parallel' %}平行检索{% elif request.GET.tool == 'statistics' %}统计分析{% else %}KWIC 检索{% endif %}。</div>
 {% endif %}
 
+<div class="corpus-access-notice alert alert-warning" id="corpusAccessNotice" hidden role="status" aria-live="polite">
+  <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+  <div><strong>您暂无权限访问该语料</strong><span id="corpusAccessNoticeText">请联系管理员申请授权后再使用。</span></div>
+  <button type="button" class="btn-close" aria-label="关闭提示" data-dismiss-corpus-notice></button>
+</div>
+
 <section class="filter-card">
   <div class="row g-3 align-items-end">
     <div class="col-md-4"><label class="form-label" for="corpusFilter">检索语料库</label><input class="form-control" id="corpusFilter" type="search" placeholder="输入名称、类型或语言" data-table-filter="#corpusTable"></div>
-    <div class="col-md-8 text-md-end"><span class="small text-secondary">共 {{ corpora|length }} 个可访问语料库</span></div>
+    <div class="col-md-8 text-md-end"><span class="small text-secondary">共 {{ corpora|length }} 个平台语料，其中 {{ accessible_corpus_count }} 个可直接访问</span></div>
   </div>
 </section>
 
@@ -28,17 +34,28 @@
     <thead><tr><th>语料库名称</th><th>来源</th><th>语料类型</th><th>语言</th><th>状态</th><th class="text-end">研究工具</th></tr></thead>
     <tbody>
       {% for corpus in corpora %}
-        <tr>
-          <td><a class="table-link" href="{% url 'corpora:documentation' corpus.pk %}">{{ corpus.name }}</a><div class="table-meta">更新于 {{ corpus.updated_at|date:"Y-m-d H:i" }}</div></td>
+        <tr{% if not corpus.has_access %} class="corpus-row--locked"{% endif %}>
+          <td>
+            {% if corpus.has_access %}
+              <a class="table-link" href="{% url 'corpora:documentation' corpus.pk %}">{{ corpus.name }}</a>
+            {% else %}
+              <button class="corpus-locked-link" type="button" data-locked-corpus="{{ corpus.name }}" aria-controls="corpusAccessNotice"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><span>{{ corpus.name }}</span></button>
+            {% endif %}
+            <div class="table-meta">更新于 {{ corpus.updated_at|date:"Y-m-d H:i" }}{% if not corpus.has_access %} · 未获授权{% endif %}</div>
+          </td>
           <td>{{ corpus.get_source_type_display }}</td><td>{{ corpus.get_corpus_type_display }}</td><td>{{ corpus.get_language_display }}</td>
           <td><span class="status-badge status-{{ corpus.status }}">{{ corpus.get_status_display }}</span>{% with task=corpus.task_history.0 %}{% if task and task.status == "running" %}<div class="table-meta mt-1">加工进度 {{ task.progress }}%</div>{% endif %}{% endwith %}</td>
           <td class="text-end">
             <span class="table-actions">
-              <a class="btn btn-sm btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">说明</a>
-              {% if corpus.status == "ready" %}
+              {% if corpus.has_access %}
+                <a class="btn btn-sm btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">说明</a>
+                {% if corpus.status == "ready" %}
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a>
                 <a class="btn btn-sm btn-outline-primary" href="{% url 'statistics:word_list' corpus.pk %}">统计</a>
                 {% if corpus.corpus_type == "aligned_tsv" or corpus.corpus_type == "paired_raw_zh_en" or corpus.corpus_type == "paired_tagged_zh_en" %}<a class="btn btn-sm btn-primary" href="{% url 'parallel:search' corpus.pk %}">平行检索</a>{% endif %}
+                {% endif %}
+              {% else %}
+                <button class="btn btn-sm corpus-locked-action" type="button" data-locked-corpus="{{ corpus.name }}" aria-controls="corpusAccessNotice"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>暂无权限</button>
               {% endif %}
             </span>
           </td>
@@ -47,4 +64,24 @@
     </tbody>
   </table>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(() => {
+  const notice = document.getElementById("corpusAccessNotice");
+  const text = document.getElementById("corpusAccessNoticeText");
+  const close = document.querySelector("[data-dismiss-corpus-notice]");
+  if (!notice || !text) return;
+
+  document.querySelectorAll("[data-locked-corpus]").forEach((trigger) => {
+    trigger.addEventListener("click", () => {
+      text.textContent = `您的账号尚未获得“${trigger.dataset.lockedCorpus}”的访问权限，请联系管理员申请授权。`;
+      notice.hidden = false;
+      notice.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  });
+  close?.addEventListener("click", () => { notice.hidden = true; });
+})();
+</script>
 {% endblock %}

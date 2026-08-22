@@ -1482,6 +1482,119 @@ textarea.form-control {
   line-height: 1.7;
 }
 
+/* Discoverable-but-locked corpus records */
+.corpus-access-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  border: 1px solid #e3d8bc;
+  border-left: 4px solid #d3a74e;
+  border-radius: 13px;
+  color: #745d32;
+  background: #fffaf0;
+  box-shadow: 0 8px 18px rgba(137, 105, 48, .08);
+}
+
+.corpus-access-notice[hidden] {
+  display: none;
+}
+
+.corpus-access-notice > svg {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: #b9892f;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.corpus-access-notice strong,
+.corpus-access-notice span {
+  display: block;
+}
+
+.corpus-access-notice strong {
+  color: #705523;
+  font-size: .79rem;
+  font-weight: 850;
+}
+
+.corpus-access-notice span {
+  margin-top: 2px;
+  color: #8e784c;
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+.corpus-access-notice .btn-close {
+  margin-left: auto;
+}
+
+.corpus-row--locked > * {
+  background: #fbfcfe !important;
+}
+
+.corpus-row--locked:hover > * {
+  background: #f7faff !important;
+}
+
+.corpus-locked-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  color: #7188a0;
+  background: transparent;
+  font-size: .8rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.corpus-locked-link:hover,
+.corpus-locked-link:focus-visible {
+  color: #3c688f;
+}
+
+.corpus-locked-link svg,
+.corpus-locked-action svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.corpus-locked-link span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.corpus-locked-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid #dce6f0;
+  color: #7891a8;
+  background: #f7faff;
+  font-weight: 750;
+}
+
+.corpus-locked-action:hover,
+.corpus-locked-action:focus-visible {
+  border-color: #bfcee0;
+  color: #4f769c;
+  background: #eff6fd;
+}
+
 /* Single-page management console */
 .admin-console-header {
   min-height: 0;

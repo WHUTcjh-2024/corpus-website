@@ -30,6 +30,7 @@ from .models import Corpus, CorpusStatus, CorpusType
 from .services import (
     can_create_personal_corpus,
     can_upload_personal_corpus,
+    catalog_corpora_with_access_for,
     delete_user_corpus,
     retry_user_corpus,
     upload_limits_for,
@@ -50,11 +51,13 @@ def _with_latest_tasks(queryset):
 
 @approved_user_required
 def corpus_list(request: HttpRequest) -> HttpResponse:
+    corpora = list(_with_latest_tasks(catalog_corpora_with_access_for(request.user)))
     return render(
         request,
         "corpora/corpus_list.html",
         {
-            "corpora": _with_latest_tasks(visible_corpora_for(request.user)),
+            "corpora": corpora,
+            "accessible_corpus_count": sum(corpus.has_access for corpus in corpora),
             "can_create_personal": can_create_personal_corpus(request.user),
             "can_upload_personal": can_upload_personal_corpus(request.user),
         },
@@ -147,9 +150,12 @@ def corpus_upload(request: HttpRequest) -> HttpResponse:
 @approved_user_required
 def corpus_documentation(request: HttpRequest, corpus_id) -> HttpResponse:
     corpus = get_object_or_404(
-        visible_corpora_for(request.user).select_related("documentation"),
+        catalog_corpora_with_access_for(request.user).select_related("documentation"),
         pk=corpus_id,
     )
+    if not corpus.has_access:
+        messages.warning(request, f"您暂无权限访问“{corpus.name}”，请联系管理员申请授权。")
+        return redirect("corpora:list")
     latest_task = corpus.processing_tasks.order_by("-created_at").first()
     latest_audit = corpus.parallel_audits.order_by("-created_at").first()
     alignment_preview = ()
