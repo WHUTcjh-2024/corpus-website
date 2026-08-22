@@ -116,6 +116,13 @@ class OutboxIntegrationTests(TestCase):
         event.refresh_from_db()
         self.assertEqual(event.status, OutboxEventStatus.PENDING)
 
+    def test_publish_command_runs_with_queue_backed_audits(self):
+        output = StringIO()
+
+        call_command("publish_outbox", "--limit", "1", stdout=output)
+
+        self.assertEqual(output.getvalue(), "")
+
     @patch("apps.outbox.services.current_app.send_task")
     def test_expired_publish_lease_is_recovered(self, send_task):
         event = self.create_event()
