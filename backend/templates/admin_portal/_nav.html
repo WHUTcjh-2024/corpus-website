@@ -1,0 +1,8 @@
+<nav class="management-nav" aria-label="管理工作台导航">
+  <a class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" href="{% url 'admin_portal:dashboard' %}">总览</a>
+  <a class="{% if request.resolver_match.url_name == 'corpus_list' or request.resolver_match.url_name == 'corpus_upload' or request.resolver_match.url_name == 'corpus_visibility' %}active{% endif %}" href="{% url 'admin_portal:corpus_list' %}">语料与授权</a>
+  <a class="{% if request.resolver_match.url_name == 'user_list' or request.resolver_match.url_name == 'user_review' %}active{% endif %}" href="{% url 'admin_portal:user_list' %}">账号审核</a>
+  <a class="{% if request.resolver_match.url_name == 'announcement_list' or request.resolver_match.url_name == 'announcement_create' or request.resolver_match.url_name == 'announcement_edit' %}active{% endif %}" href="{% url 'admin_portal:announcement_list' %}">公告</a>
+  <a class="{% if request.resolver_match.url_name == 'feedback_list' or request.resolver_match.url_name == 'feedback_detail' %}active{% endif %}" href="{% url 'admin_portal:feedback_list' %}">反馈处理</a>
+  <a href="{% url 'admin:index' %}">原始数据</a>
+</nav>

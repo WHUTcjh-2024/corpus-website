@@ -44,6 +44,7 @@ export default defineConfig(({ command }) => ({
       "/statistics": "http://127.0.0.1:8010",
       "/exports": "http://127.0.0.1:8010",
       "/feedback": "http://127.0.0.1:8010",
+      "/management": "http://127.0.0.1:8010",
       "/static": "http://127.0.0.1:8010",
     },
   },

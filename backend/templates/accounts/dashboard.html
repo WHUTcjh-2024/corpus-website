@@ -18,6 +18,17 @@
   <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">账号权限</p><div class="metric-card__value" style="font-size:1.25rem">{{ profile.get_role_display|default:"管理员" }}</div><div class="metric-card__hint">{{ profile.get_status_display|default:"已通过" }}</div><span class="metric-card__icon"><svg viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 2.9 8 7 10 4.1-2 7-5.5 7-10V6zM9 12l2 2 4-4"/></svg></span></article></div>
 </section>
 
+{% if announcements %}
+  <section class="user-announcements" aria-label="平台公告">
+    {% for announcement in announcements %}
+      <article class="user-announcement">
+        <header><h2>{{ announcement.title }}</h2><time datetime="{{ announcement.starts_at|date:'c' }}">{{ announcement.starts_at|date:"Y-m-d" }}</time></header>
+        <p>{{ announcement.body|linebreaksbr }}</p>
+      </article>
+    {% endfor %}
+  </section>
+{% endif %}
+
 <div class="row g-4">
   <div class="col-xl-8">
     <section class="platform-card h-100">

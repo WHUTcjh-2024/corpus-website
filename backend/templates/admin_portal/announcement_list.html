@@ -1,0 +1,7 @@
+{% extends "layouts/dashboard_layout.html" %}
+{% block title %}公告管理 - 管理工作台{% endblock %}
+{% block dashboard_content %}
+<div class="page-header"><div><h1 class="page-title">公告管理</h1><p class="page-description">已发布且处于展示时间内的公告，会出现在目标用户刷新后的工作台。</p></div><div class="page-actions"><a class="btn btn-primary" href="{% url 'admin_portal:announcement_create' %}">新建公告</a></div></div>
+{% include "admin_portal/_nav.html" %}
+<section class="platform-card"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>公告</th><th>范围</th><th>状态</th><th>开始展示</th><th>结束展示</th><th>接收人</th><th class="text-end">操作</th></tr></thead><tbody>{% for announcement in announcements %}<tr><td><strong>{{ announcement.title }}</strong><div class="table-meta">{{ announcement.body|truncatechars:70 }}</div></td><td>{{ announcement.get_audience_display }}</td><td>{% if announcement.is_published %}<span class="status-badge status-ready">已发布</span>{% else %}<span class="status-badge status-created">草稿</span>{% endif %}</td><td>{{ announcement.starts_at|date:"Y-m-d H:i" }}</td><td>{{ announcement.ends_at|date:"Y-m-d H:i"|default:"长期展示" }}</td><td>{% if announcement.audience == 'selected' %}{{ announcement.recipient_count }} 人{% else %}—{% endif %}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'admin_portal:announcement_edit' announcement.pk %}">编辑</a></td></tr>{% empty %}<tr><td colspan="7" class="empty-state">还没有公告。</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "apps.outbox",
     "apps.audit",
     "apps.feedback",
+    "apps.admin_portal",
 ]
 
 MIDDLEWARE = [
@@ -153,6 +154,7 @@ DATA_SUBDIRS = [
     "dev_sample",
     "teacher_private",
     "user_uploads",
+    "managed_uploads",
     "processed",
     "indexes",
     "exports",

@@ -14,6 +14,7 @@ from django.db.models import Sum
 from apps.corpora.models import CorpusStatus
 from apps.corpora.services import upload_limits_for, visible_corpora_for
 from apps.exports.models import ExportJob
+from apps.admin_portal.services import active_announcements_for
 
 from .forms import (
     AccountApplicationForm,
@@ -73,6 +74,7 @@ def dashboard(request: HttpRequest) -> HttpResponse:
             "export_count": export_jobs.count(),
             "recent_corpora": recent_corpora,
             "recent_exports": list(export_jobs[:5]),
+            "announcements": active_announcements_for(request.user),
         },
     )
 

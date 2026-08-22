@@ -1252,6 +1252,236 @@ textarea.form-control {
   box-shadow: var(--workspace-shadow-soft);
 }
 
+/* Management workspace */
+.management-hero {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 22px;
+  padding: 34px 36px;
+  border: 1px solid #d7e7fa;
+  border-left: 7px solid #2585f5;
+  border-radius: 26px;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.98), rgba(237, 247, 255, 0.9));
+  box-shadow: var(--workspace-shadow-soft);
+}
+
+.management-eyebrow {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #1670cb;
+  font-size: .75rem;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
+.management-hero h1 {
+  margin: 0;
+  color: #092e67;
+  font-size: clamp(1.85rem, 3vw, 2.7rem);
+  font-weight: 900;
+}
+
+.management-hero p {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: #547496;
+  font-weight: 650;
+}
+
+.management-hero__actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.management-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 22px;
+  padding: 8px;
+  border: 1px solid #d9e7f5;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .82);
+}
+
+.management-nav a {
+  padding: 8px 13px;
+  border-radius: 10px;
+  color: #55789e;
+  font-size: .82rem;
+  font-weight: 780;
+}
+
+.management-nav a:hover,
+.management-nav a.active {
+  color: #084a9e;
+  background: #e8f3ff;
+}
+
+.management-filter {
+  align-items: center;
+}
+
+.management-filter form,
+.management-filter label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: #6985a4;
+  font-size: .76rem;
+  font-weight: 750;
+}
+
+.management-filter select {
+  min-width: 132px;
+}
+
+.management-guide,
+.management-callout {
+  border: 1px solid #cfe5fb;
+  border-radius: 16px;
+  color: #557594;
+  background: linear-gradient(145deg, #f7fbff, #edf7ff);
+}
+
+.management-guide {
+  padding: 22px;
+}
+
+.management-guide h2 {
+  margin: 0 0 14px;
+  color: #0b407f;
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.management-guide ol {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.management-callout {
+  margin-bottom: 20px;
+  padding: 12px 14px;
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+.management-list {
+  display: grid;
+  gap: 2px;
+}
+
+.management-list > a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #edf2f7;
+  color: #29609c;
+  font-size: .78rem;
+  font-weight: 750;
+}
+
+.management-list > a:last-child {
+  border-bottom: 0;
+}
+
+.management-list strong,
+.management-list small {
+  display: block;
+}
+
+.management-list small {
+  margin-top: 3px;
+  color: #8398af;
+  font-size: .7rem;
+  font-weight: 600;
+}
+
+.management-recipient-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.management-recipient-list li {
+  padding: 10px 12px;
+  border: 1px solid #e1ebf5;
+  border-radius: 11px;
+  background: #fbfdff;
+}
+
+.management-recipient-list strong,
+.management-recipient-list span {
+  display: block;
+}
+
+.management-recipient-list strong {
+  color: #184d88;
+  font-size: .84rem;
+}
+
+.management-recipient-list span {
+  margin-top: 3px;
+  color: #8298b0;
+  font-size: .72rem;
+}
+
+.user-announcements {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.user-announcement {
+  padding: 14px 17px;
+  border: 1px solid #cfe5fb;
+  border-left: 4px solid #2485f6;
+  border-radius: 14px;
+  background: #f8fcff;
+}
+
+.user-announcement header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #12477f;
+}
+
+.user-announcement h2 {
+  margin: 0;
+  font-size: .92rem;
+  font-weight: 850;
+}
+
+.user-announcement time {
+  color: #7b94ad;
+  font-size: .7rem;
+  font-weight: 650;
+}
+
+.user-announcement p {
+  margin: 7px 0 0;
+  color: #527391;
+  font-size: .82rem;
+  line-height: 1.7;
+}
+
 @media (max-width: 1180px) {
   .platform-navbar .platform-brand {
     --workspace-brand-logo-width: clamp(300px, 41vw, 370px);

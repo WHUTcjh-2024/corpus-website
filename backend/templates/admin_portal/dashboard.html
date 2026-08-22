@@ -1,0 +1,48 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}管理工作台 - 在线语料库平台{% endblock %}
+
+{% block dashboard_content %}
+<section class="management-hero">
+  <div>
+    <span class="management-eyebrow">平台控制中心</span>
+    <h1>管理工作台</h1>
+    <p>在一个工作流中完成语料发布、用户授权、账号审核、公告和反馈处理。所有权限变更即时进入用户可见范围。</p>
+  </div>
+  <div class="management-hero__actions">
+    <a class="btn btn-primary" href="{% url 'admin_portal:corpus_upload' %}">上传平台语料</a>
+    <a class="btn btn-outline-primary" href="{% url 'admin_portal:announcement_create' %}">发布公告</a>
+  </div>
+</section>
+
+{% include "admin_portal/_nav.html" %}
+
+<section class="row g-3 mb-4" aria-label="管理概览">
+  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">平台语料</p><div class="metric-card__value">{{ corpus_count }}</div><div class="metric-card__hint">教师语料与演示语料</div></article></div>
+  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">加工队列</p><div class="metric-card__value">{{ pending_processing_count }}</div><div class="metric-card__hint">等待或正在加工</div></article></div>
+  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">待审核账号</p><div class="metric-card__value">{{ pending_account_count }}</div><div class="metric-card__hint">需要人工决定权限</div></article></div>
+  <div class="col-sm-6 col-xl-3"><article class="metric-card"><p class="metric-card__label">待处理反馈</p><div class="metric-card__value">{{ open_feedback_count }}</div><div class="metric-card__hint">当前发布中公告 {{ active_announcement_count }} 条</div></article></div>
+</section>
+
+<div class="row g-4">
+  <div class="col-xl-8">
+    <section class="platform-card h-100">
+      <header class="platform-card__header"><h2>最近发布的语料</h2><a href="{% url 'admin_portal:corpus_list' %}">管理全部</a></header>
+      <div class="table-responsive"><table class="table table-hover align-middle mb-0">
+        <thead><tr><th>语料库</th><th>发布范围</th><th>加工状态</th><th>直接授权</th><th class="text-end">操作</th></tr></thead>
+        <tbody>{% for corpus in recent_corpora %}
+          <tr><td><strong>{{ corpus.name }}</strong><div class="table-meta">{{ corpus.get_corpus_type_display }} · {{ corpus.get_language_display }}</div></td><td>{{ corpus.get_access_level_display }}</td><td><span class="status-badge status-{{ corpus.status }}">{{ corpus.get_status_display }}</span></td><td>{{ corpus.grant_count }} 人</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'admin_portal:corpus_visibility' corpus.pk %}">授权</a></td></tr>
+        {% empty %}<tr><td colspan="5" class="empty-state">尚未发布平台语料。</td></tr>{% endfor %}</tbody>
+      </table></div>
+    </section>
+  </div>
+  <div class="col-xl-4">
+    <section class="platform-card mb-4"><header class="platform-card__header"><h2>待审核账号</h2><a href="{% url 'admin_portal:user_list' %}?status=pending">查看全部</a></header><div class="platform-card__body management-list">
+      {% for profile in pending_profiles %}<a href="{% url 'admin_portal:user_review' profile.pk %}"><span><strong>{{ profile.full_name }}</strong><small>{{ profile.user.username }} · {{ profile.get_requested_role_display }}</small></span><span>审核</span></a>{% empty %}<p class="text-secondary mb-0">当前没有待审核账号。</p>{% endfor %}
+    </div></section>
+    <section class="platform-card"><header class="platform-card__header"><h2>待处理反馈</h2><a href="{% url 'admin_portal:feedback_list' %}">查看全部</a></header><div class="platform-card__body management-list">
+      {% for ticket in recent_feedback %}<a href="{% url 'admin_portal:feedback_detail' ticket.pk %}"><span><strong>{{ ticket.title }}</strong><small>{{ ticket.user.username }} · {{ ticket.get_severity_display }}</small></span><span class="status-badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span></a>{% empty %}<p class="text-secondary mb-0">当前没有待处理反馈。</p>{% endfor %}
+    </div></section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,7 @@
+{% extends "layouts/dashboard_layout.html" %}
+{% block title %}反馈处理 - 管理工作台{% endblock %}
+{% block dashboard_content %}
+<div class="page-header"><div><h1 class="page-title">反馈处理</h1><p class="page-description">集中确认、跟进和关闭用户反馈；处理备注会在用户自己的反馈详情页展示。</p></div></div>
+{% include "admin_portal/_nav.html" %}
+<section class="platform-card"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>反馈</th><th>提交用户</th><th>类型</th><th>影响程度</th><th>状态</th><th>更新时间</th><th class="text-end">操作</th></tr></thead><tbody>{% for ticket in tickets %}<tr><td><strong>{{ ticket.title }}</strong><div class="table-meta">{{ ticket.description|truncatechars:70 }}</div></td><td>{{ ticket.user.username }}</td><td>{{ ticket.get_category_display }}</td><td>{{ ticket.get_severity_display }}</td><td><span class="status-badge status-{{ ticket.status }}">{{ ticket.get_status_display }}</span></td><td>{{ ticket.updated_at|date:"Y-m-d H:i" }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{% url 'admin_portal:feedback_detail' ticket.pk %}">处理</a></td></tr>{% empty %}<tr><td colspan="7" class="empty-state">暂无用户反馈。</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

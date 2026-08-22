@@ -158,6 +158,53 @@ class Corpus(models.Model):
             raise ValidationError({"owner": "教师语料和演示语料不能指定个人所有者。"})
 
 
+class CorpusAccessGrant(models.Model):
+    """An explicit, auditable visibility grant for a managed corpus."""
+
+    corpus = models.ForeignKey(
+        Corpus,
+        on_delete=models.CASCADE,
+        related_name="access_grants",
+        verbose_name="语料库",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="corpus_access_grants",
+        verbose_name="获授权用户",
+    )
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="granted_corpus_accesses",
+        null=True,
+        blank=True,
+        verbose_name="授权管理员",
+    )
+    created_at = models.DateTimeField("授权时间", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "语料可见授权"
+        verbose_name_plural = "语料可见授权"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["corpus", "user"],
+                name="unique_corpus_access_grant",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "corpus"], name="corpus_grant_user_corpus_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.corpus.name} → {self.user.get_username()}"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.corpus.source_type != CorpusSourceType.TEACHER:
+            raise ValidationError({"corpus": "仅教师语料支持逐用户可见授权。"})
+
+
 class CorpusDocumentation(models.Model):
     corpus = models.OneToOneField(
         Corpus,

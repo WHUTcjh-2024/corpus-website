@@ -32,7 +32,7 @@
             <li><a class="dropdown-item" href="{% url 'accounts:dashboard' %}">个人工作台</a></li>
             <li><a class="dropdown-item" href="{% url 'exports:list' %}">我的导出</a></li>
             <li><a class="dropdown-item" href="{% url 'feedback:list' %}">反馈与问题</a></li>
-            {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin:index' %}">管理后台</a></li>{% endif %}
+            {% if user.is_staff %}<li><a class="dropdown-item" href="{% url 'admin_portal:dashboard' %}">管理工作台</a></li><li><a class="dropdown-item" href="{% url 'admin:index' %}">原始数据后台</a></li>{% endif %}
             <li><hr class="dropdown-divider"></li>
             <li>
               <form method="post" action="{% url 'accounts:logout' %}">

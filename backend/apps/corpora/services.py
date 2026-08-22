@@ -7,7 +7,7 @@ import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterable
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -26,6 +26,7 @@ from .scanners import scan_uploaded_file
 from .models import (
     Corpus,
     CorpusAccessLevel,
+    CorpusAccessGrant,
     CorpusDocumentation,
     CorpusFile,
     CorpusFileStatus,
@@ -85,6 +86,18 @@ class UploadedCorpusData:
     description: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class ManagedUploadedCorpusData:
+    """Validated metadata for a corpus uploaded by a platform administrator."""
+
+    name: str
+    corpus_type: str
+    language: str
+    source_type: str
+    access_level: str
+    description: str = ""
+
+
 def visible_corpora_for(user: Any) -> QuerySet[Corpus]:
     queryset = Corpus.objects.select_related("owner").all()
     scope = workspace_access_scope(user)
@@ -108,8 +121,12 @@ def visible_corpora_for(user: Any) -> QuerySet[Corpus]:
             source_type=CorpusSourceType.TEACHER,
             access_level__in=allowed_levels,
         )
+        | Q(
+            source_type=CorpusSourceType.TEACHER,
+            access_grants__user=user,
+        )
         | Q(source_type=CorpusSourceType.USER, owner=user)
-    )
+    ).distinct()
 
 
 def can_create_personal_corpus(user: Any) -> bool:
@@ -301,6 +318,143 @@ def _create_uploaded_corpus(
             from apps.processing.services import create_processing_task
 
             task = create_processing_task(corpus=corpus, requested_by=user)
+        return corpus, task
+    except Exception:
+        for path in temporary_paths:
+            path.unlink(missing_ok=True)
+        for path in persisted_paths:
+            path.unlink(missing_ok=True)
+        _remove_empty_parents(upload_dir, stop=upload_root)
+        raise
+
+
+@transaction.atomic
+def replace_corpus_access_grants(
+    *,
+    corpus: Corpus,
+    recipients: Iterable[AbstractBaseUser],
+    granted_by: AbstractBaseUser,
+) -> int:
+    """Replace direct visibility recipients atomically for one managed corpus."""
+
+    if not getattr(granted_by, "is_active", False) or not getattr(granted_by, "is_staff", False):
+        raise PermissionDenied("只有启用的管理员可以调整语料可见范围。")
+
+    locked_corpus = Corpus.objects.select_for_update().get(pk=corpus.pk)
+    if locked_corpus.source_type != CorpusSourceType.TEACHER:
+        raise ValidationError("仅教师语料支持指定用户可见。")
+
+    recipient_ids = {item.pk for item in recipients if getattr(item, "pk", None)}
+    users = list(get_user_model().objects.filter(pk__in=recipient_ids, is_active=True))
+    if len(users) != len(recipient_ids):
+        raise ValidationError("所选用户中存在已停用或不存在的账号。")
+    if any(workspace_access_scope(item) == AccessScope.NONE for item in users):
+        raise ValidationError("只能授权给已审核通过的用户。")
+
+    locked_corpus.access_grants.all().delete()
+    CorpusAccessGrant.objects.bulk_create(
+        [
+            CorpusAccessGrant(
+                corpus=locked_corpus,
+                user=item,
+                granted_by=granted_by,
+            )
+            for item in users
+        ]
+    )
+    return len(users)
+
+
+def create_managed_uploaded_corpus(
+    *,
+    actor: AbstractBaseUser,
+    data: ManagedUploadedCorpusData,
+    files: tuple[tuple[UploadedFile, str], ...],
+    recipients: Iterable[AbstractBaseUser] = (),
+) -> tuple[Corpus, "ProcessingTask"]:
+    """Store an administrator-provided corpus and enqueue the normal pipeline.
+
+    Managed files use a dedicated subtree and the same validation, virus scan,
+    processing task, and transactional outbox path as personal uploads.
+    """
+
+    if not getattr(actor, "is_active", False) or not getattr(actor, "is_staff", False):
+        raise PermissionDenied("只有启用的管理员可以上传平台语料。")
+    if data.source_type not in {CorpusSourceType.TEACHER, CorpusSourceType.DEMO}:
+        raise ValidationError("平台语料只能发布为教师语料或演示语料。")
+    if data.corpus_type not in CorpusType.values or data.language not in CorpusLanguage.values:
+        raise ValidationError("语料类型或语言配置无效。")
+    if not files:
+        raise ValidationError("请至少选择一个语料文件。")
+
+    upload_limits = UploadLimits(
+        max_file_bytes=settings.USER_UPLOAD_MAX_FILE_BYTES,
+        total_bytes=settings.USER_UPLOAD_MAX_FILE_BYTES,
+    )
+    for uploaded_file, _ in files:
+        _validate_upload_declaration(uploaded_file, upload_limits)
+
+    corpus_id = uuid.uuid4()
+    upload_root = (settings.DATA_ROOT / "managed_uploads").resolve()
+    upload_dir = (upload_root / str(corpus_id)).resolve()
+    if not upload_dir.is_relative_to(upload_root):
+        raise ValidationError("上传路径无效。")
+
+    persisted_paths: list[Path] = []
+    temporary_paths: list[Path] = []
+    try:
+        with transaction.atomic():
+            upload_dir.mkdir(parents=True, exist_ok=True)
+            stored: list[tuple[UploadedFile, str, Path, int, str]] = []
+            for uploaded_file, language in files:
+                final_path = upload_dir / f"{uuid.uuid4().hex}.txt"
+                temporary_path = upload_dir / f".{uuid.uuid4().hex}.uploading"
+                temporary_paths.append(temporary_path)
+                actual_size, encoding = _persist_text_upload(
+                    uploaded_file=uploaded_file,
+                    temporary_path=temporary_path,
+                    final_path=final_path,
+                    max_file_bytes=upload_limits.max_file_bytes,
+                )
+                persisted_paths.append(final_path)
+                stored.append((uploaded_file, language, final_path, actual_size, encoding))
+
+            corpus = Corpus.objects.create(
+                id=corpus_id,
+                name=data.name,
+                source_type=data.source_type,
+                corpus_type=data.corpus_type,
+                language=data.language,
+                access_level=data.access_level,
+                status=CorpusStatus.CREATED,
+                stage="uploaded",
+                description=data.description,
+            )
+            for uploaded_file, language, final_path, actual_size, encoding in stored:
+                CorpusFile.objects.create(
+                    corpus=corpus,
+                    original_filename=Path(str(uploaded_file.name)).name,
+                    stored_path=str(final_path),
+                    detected_type=data.corpus_type,
+                    language=language,
+                    size_bytes=actual_size,
+                    encoding=encoding,
+                    status=CorpusFileStatus.PENDING,
+                )
+            CorpusDocumentation.objects.update_or_create(
+                corpus=corpus,
+                defaults={"file_count": len(stored)},
+            )
+            if data.source_type == CorpusSourceType.TEACHER:
+                replace_corpus_access_grants(
+                    corpus=corpus,
+                    recipients=recipients,
+                    granted_by=actor,
+                )
+
+            from apps.processing.services import create_processing_task
+
+            task = create_processing_task(corpus=corpus, requested_by=actor)
         return corpus, task
     except Exception:
         for path in temporary_paths:
