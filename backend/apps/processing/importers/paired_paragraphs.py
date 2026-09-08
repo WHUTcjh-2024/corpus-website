@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from ..contracts import ImportResult, ParallelPairRecord, ParagraphRecord, SourceFile, stable_id
 from ..exceptions import ProcessingError
-from .base import BaseImporter
+from .base import BaseImporter, iter_language_pairs
 from .raw_mono import import_raw_source
 
 
@@ -31,21 +31,22 @@ class PairedParagraphImporter(BaseImporter):
     name = "paired_paragraphs_length_dp"
 
     def iter_import(self, sources: Sequence[SourceFile]) -> Iterator[ImportResult]:
-        zh_sources = [source for source in sources if source.language == "zh"]
-        en_sources = [source for source in sources if source.language == "en"]
-        if len(zh_sources) != 1 or len(en_sources) != 1:
-            raise ProcessingError(
-                "PairedParagraphImporter requires exactly one zh file and one en file."
-            )
+        try:
+            pairs = iter_language_pairs(sources)
+            for zh_source, en_source in pairs:
+                yield self._import_pair(zh_source, en_source)
+        except ValueError as exc:
+            raise ProcessingError(str(exc)) from exc
 
-        zh_result = import_raw_source(zh_sources[0])
-        en_result = import_raw_source(en_sources[0])
+    def _import_pair(self, zh_source: SourceFile, en_source: SourceFile) -> ImportResult:
+        zh_result = import_raw_source(zh_source)
+        en_result = import_raw_source(en_source)
         if not zh_result.paragraphs or not en_result.paragraphs:
             raise ProcessingError("候选双语文件至少有一侧不包含可用段落。")
 
         alignments = _align_paragraphs(zh_result.paragraphs, en_result.paragraphs)
         result = ImportResult(
-            source_file_ids=[zh_sources[0].id, en_sources[0].id],
+            source_file_ids=[zh_source.id, en_source.id],
             documents=[*zh_result.documents, *en_result.documents],
             paragraphs=[*zh_result.paragraphs, *en_result.paragraphs],
             sentences=[*zh_result.sentences, *en_result.sentences],
@@ -68,8 +69,8 @@ class PairedParagraphImporter(BaseImporter):
                 ParallelPairRecord(
                     id=stable_id(
                         "pair",
-                        zh_sources[0].id,
-                        en_sources[0].id,
+                        zh_source.id,
+                        en_source.id,
                         "paragraph",
                         ordinal,
                     ),
@@ -94,7 +95,7 @@ class PairedParagraphImporter(BaseImporter):
             result.warnings.append(
                 f"{low_confidence}/{len(alignments)} 个候选段对置信度低于 0.65。"
             )
-        yield result
+        return result
 
 
 def _align_paragraphs(

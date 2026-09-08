@@ -301,6 +301,7 @@ def _to_source_file(corpus: Corpus, corpus_file: CorpusFile) -> SourceFile:
         encoding=corpus_file.encoding,
         size_bytes=corpus_file.size_bytes,
         actual_type=classification.detected_type,
+        pair_id=corpus_file.pair_id,
     )
 
 

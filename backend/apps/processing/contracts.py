@@ -25,6 +25,7 @@ class SourceFile:
     encoding: str = ""
     size_bytes: int = 0
     actual_type: str = ""
+    pair_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
