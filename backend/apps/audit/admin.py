@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import AuditEvent
+from .models import AuditEvent, SavedSearch
+
+
+@admin.register(SavedSearch)
+class SavedSearchAdmin(admin.ModelAdmin):
+    list_display = ("updated_at", "name", "kind", "user", "corpus")
+    list_filter = ("kind", "updated_at")
+    search_fields = ("name", "user__username", "corpus__name")
+    readonly_fields = ("created_at", "updated_at")
 
 
 @admin.register(AuditEvent)

@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.core.exceptions import PermissionDenied, ValidationError
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.permissions import approved_user_required
 from apps.api.permissions import HasWorkspaceAccess
+from apps.corpora.models import CorpusStatus
 from apps.corpora.services import visible_corpora_for
 
 from .models import AgentRun
@@ -18,6 +21,47 @@ from .services import (
     create_agent_run,
     dispatch_agent_run,
 )
+
+
+@approved_user_required
+def agent_workspace(request):
+    """Render the human-facing entry point for controlled Agent and RAG runs."""
+
+    accessible_corpora = visible_corpora_for(request.user).filter(status=CorpusStatus.READY)
+    # visible_corpora_for() joins ownership metadata for permission checks; do
+    # not defer those fields here or Django rejects the combined query.
+    corpora = list(accessible_corpora)
+    rag_ready_ids: set[object] = set()
+    if settings.RAG_INDEXING_ENABLED and corpora:
+        from apps.rag.models import RagIndex, RagIndexStatus
+
+        rag_ready_ids = set(
+            RagIndex.objects.filter(
+                corpus_id__in=[corpus.pk for corpus in corpora],
+                status=RagIndexStatus.READY,
+            ).values_list("corpus_id", flat=True)
+        )
+    for corpus in corpora:
+        corpus.rag_ready = corpus.pk in rag_ready_ids
+
+    runs = (
+        AgentRun.objects.filter(requested_by=request.user, corpus__in=accessible_corpora)
+        .select_related("corpus")
+        .prefetch_related("steps")[:8]
+    )
+    return render(
+        request,
+        "agent/workspace.html",
+        {
+            "corpora": corpora,
+            "runs": runs,
+            "rag_ready_count": len(rag_ready_ids),
+            "agent_model_enabled": settings.AGENT_MODEL_ENABLED,
+            "agent_model_name": settings.AGENT_MODEL_NAME,
+            "rag_enabled": settings.RAG_INDEXING_ENABLED,
+            "embedding_model_name": settings.RAG_EMBEDDING_MODEL,
+        },
+    )
 
 
 class AgentRunListCreateView(APIView):

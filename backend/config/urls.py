@@ -17,6 +17,8 @@ urlpatterns = [
     path("search/", include("apps.search.urls")),
     path("parallel/", include("apps.parallel.urls")),
     path("statistics/", include("apps.statistics.urls")),
+    path("history/", include("apps.audit.urls")),
+    path("agent/", include("apps.agent.pages_urls")),
     path("exports/", include("apps.exports.urls")),
     path("feedback/", include("apps.feedback.urls")),
     path("management/", include("apps.admin_portal.urls")),

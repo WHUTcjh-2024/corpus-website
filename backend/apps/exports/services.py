@@ -21,10 +21,10 @@ from apps.audit.services import record_audit_event
 from apps.corpora.models import (
     Corpus,
     CorpusLanguage,
-    CorpusSourceType,
     CorpusStatus,
     CorpusType,
 )
+from apps.corpora.services import visible_corpora_for
 from apps.outbox.models import OutboxTaskName
 from apps.outbox.services import enqueue_task, publish_event_after_commit
 from apps.parallel.engine import ParallelQuery, ParallelSearchEngine
@@ -250,7 +250,9 @@ def _normalize_query(corpus: Corpus, kind: str, parameters: Mapping[str, Any]) -
         data = parameters.dict() if hasattr(parameters, "dict") else dict(parameters)
         data.update({"page": 1, "page_size": 100})
         form = KwicSearchForm(data, available_languages=languages)
-        if not form.is_valid() or not form.cleaned_data.get("q"):
+        if not form.is_valid() or not (
+            form.cleaned_data.get("q") or form.cleaned_data.get("query_list")
+        ):
             raise ValidationError(f"KWIC 导出条件无效：{form.errors.as_text()}")
         return {
             "q": form.cleaned_data["q"],
@@ -265,6 +267,12 @@ def _normalize_query(corpus: Corpus, kind: str, parameters: Mapping[str, Any]) -
             "whole_words": form.cleaned_data["whole_words"],
             "case_sensitive": form.cleaned_data["case_sensitive"],
             "regex": form.cleaned_data["regex"],
+            "query_list": list(form.cleaned_data["query_list"]),
+            "context_queries": list(form.cleaned_data["context_queries"]),
+            "context_logic": form.cleaned_data["context_logic"],
+            "context_from": form.cleaned_data["context_from"],
+            "context_to": form.cleaned_data["context_to"],
+            "exclude_context": form.cleaned_data["exclude_context"],
         }
 
     if corpus.corpus_type not in PARALLEL_TYPES:
@@ -299,8 +307,8 @@ def _normalize_query(corpus: Corpus, kind: str, parameters: Mapping[str, Any]) -
 
 
 def _require_export_permission(user, corpus: Corpus) -> None:
-    if corpus.source_type != CorpusSourceType.USER or corpus.owner_id != user.pk:
-        raise PermissionDenied("教师和演示语料禁止导出；只能导出本人语料。")
+    if not visible_corpora_for(user).filter(pk=corpus.pk).exists():
+        raise PermissionDenied("无权导出该语料库的检索结果。")
     if corpus.status != CorpusStatus.READY:
         raise ValidationError("语料库尚未加工完成。")
 
@@ -373,7 +381,23 @@ def _kwic_rows(job: ExportJob) -> Iterator[Sequence[object]]:
                     "full_regex": query["query_mode"] == "full_regex",
                 }
             )
-        result = engine.search(**options)
+        use_advanced = bool(query.get("query_list") or query.get("context_queries"))
+        if use_advanced:
+            options.pop("sort_by", None)
+            options.pop("full_regex", None)
+            options.update(
+                {
+                    "query_list": query.get("query_list", ()),
+                    "context_queries": query.get("context_queries", ()),
+                    "context_logic": query.get("context_logic", "or"),
+                    "context_from": query.get("context_from", -5),
+                    "context_to": query.get("context_to", 5),
+                    "exclude_context": query.get("exclude_context", False),
+                }
+            )
+            result = engine.search_advanced(**options)
+        else:
+            result = engine.search(**options)
         for hit in result.hits:
             yield (
                 hit.left,

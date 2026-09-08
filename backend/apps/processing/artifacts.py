@@ -123,17 +123,6 @@ class ArtifactWriter:
         )
         self._sqlite.execute(
             """
-            CREATE TABLE ngram_documents (
-                language TEXT NOT NULL,
-                n INTEGER NOT NULL,
-                normalized TEXT NOT NULL,
-                document_id TEXT NOT NULL,
-                PRIMARY KEY (language, n, normalized, document_id)
-            )
-            """
-        )
-        self._sqlite.execute(
-            """
             CREATE TABLE parallel_pairs (
                 global_position INTEGER PRIMARY KEY,
                 pair_id TEXT NOT NULL UNIQUE,
@@ -235,9 +224,10 @@ class ArtifactWriter:
             document_filenames=document_filenames,
             unit_documents=unit_documents,
         )
-        for token in result.tokens:
-            self._write_token(token)
+        self._write_tokens(result.tokens)
         self._write_ngrams(result.tokens)
+        for token in result.tokens:
+            self._token_document_offsets.pop(token.id, None)
 
     def finalize(
         self,
@@ -282,15 +272,34 @@ class ArtifactWriter:
             if path.exists():
                 shutil.rmtree(path)
 
-    def _write_token(self, token: TokenRecord) -> None:
-        self._write_jsonl("tokens", record_dict(token))
-        self._global_position += 1
-        stream_key = (token.document_id, token.language)
-        self._stream_positions[stream_key] += 1
-        self._frequency[(token.language, token.normalized)] += 1
+    def _write_tokens(self, tokens: list[TokenRecord]) -> None:
         if self._sqlite is None:
             raise RuntimeError("ArtifactWriter is not open.")
-        self._sqlite.execute(
+        rows: list[tuple[Any, ...]] = []
+        for token in tokens:
+            self._write_jsonl("tokens", record_dict(token))
+            self._global_position += 1
+            stream_key = (token.document_id, token.language)
+            self._stream_positions[stream_key] += 1
+            self._frequency[(token.language, token.normalized)] += 1
+            rows.append(
+                (
+                    self._global_position,
+                    self._stream_positions[stream_key],
+                    token.id,
+                    token.normalized,
+                    token.text,
+                    token.lemma,
+                    token.pos,
+                    token.language,
+                    token.document_id,
+                    token.sentence_id,
+                    token.ordinal,
+                    *self._token_document_offsets.get(token.id, (0, 0)),
+                    int(_is_punctuation(token.text)),
+                )
+            )
+        self._sqlite.executemany(
             """
             INSERT INTO tokens (
                 global_position, stream_position, token_id, normalized, surface, lemma, pos,
@@ -298,21 +307,7 @@ class ArtifactWriter:
                 document_start, document_end, is_punctuation
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (
-                self._global_position,
-                self._stream_positions[stream_key],
-                token.id,
-                token.normalized,
-                token.text,
-                token.lemma,
-                token.pos,
-                token.language,
-                token.document_id,
-                token.sentence_id,
-                token.ordinal,
-                *self._token_document_offsets.get(token.id, (0, 0)),
-                int(_is_punctuation(token.text)),
-            ),
+            rows,
         )
 
     def _write_document_streams(self, result: ImportResult) -> None:
@@ -401,7 +396,9 @@ class ArtifactWriter:
         by_sentence: dict[str, list[TokenRecord]] = defaultdict(list)
         for token in tokens:
             by_sentence[token.sentence_id].append(token)
-        counts: Counter[tuple[str, int, str, str, int]] = Counter()
+        counts: Counter[tuple[str, int, str]] = Counter()
+        displays: dict[tuple[str, int, str], str] = {}
+        punctuation_flags: dict[tuple[str, int, str], int] = {}
         documents: set[tuple[str, int, str, str]] = set()
         for sentence_tokens in by_sentence.values():
             ordered = sorted(sentence_tokens, key=lambda token: token.ordinal)
@@ -417,26 +414,44 @@ class ArtifactWriter:
                     contains_punctuation = int(
                         any(_is_punctuation(token.text) for token in window)
                     )
-                    counts[(language, n, normalized, display, contains_punctuation)] += 1
+                    key = (language, n, normalized)
+                    counts[key] += 1
+                    displays.setdefault(key, display)
+                    punctuation_flags[key] = max(
+                        punctuation_flags.get(key, 0),
+                        contains_punctuation,
+                    )
                     documents.add((language, n, normalized, window[0].document_id))
-        self._sqlite.executemany(
-            """
-            INSERT INTO ngrams (
-                language, n, normalized, display, contains_punctuation, frequency
-            )
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(language, n, normalized)
-            DO UPDATE SET frequency = frequency + excluded.frequency
-            """,
-            [(*key, frequency) for key, frequency in counts.items()],
+        document_ranges: Counter[tuple[str, int, str]] = Counter(
+            (language, n, normalized)
+            for language, n, normalized, _document_id in documents
         )
         self._sqlite.executemany(
             """
-            INSERT OR IGNORE INTO ngram_documents (
-                language, n, normalized, document_id
-            ) VALUES (?, ?, ?, ?)
+            INSERT INTO ngrams (
+                language, n, normalized, display, frequency,
+                document_range, contains_punctuation
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(language, n, normalized)
+            DO UPDATE SET
+                frequency = frequency + excluded.frequency,
+                document_range = document_range + excluded.document_range,
+                contains_punctuation = MAX(
+                    contains_punctuation,
+                    excluded.contains_punctuation
+                )
             """,
-            documents,
+            [
+                (
+                    *key,
+                    displays[key],
+                    frequency,
+                    document_ranges[key],
+                    punctuation_flags[key],
+                )
+                for key, frequency in counts.items()
+            ],
         )
 
     def _write_rag_chunks(
@@ -549,17 +564,6 @@ class ArtifactWriter:
                    MIN(is_punctuation) AS is_punctuation
             FROM tokens
             GROUP BY language, normalized, pos;
-
-            UPDATE ngrams
-            SET document_range = (
-                SELECT COUNT(*)
-                FROM ngram_documents
-                WHERE ngram_documents.language = ngrams.language
-                  AND ngram_documents.n = ngrams.n
-                  AND ngram_documents.normalized = ngrams.normalized
-            );
-
-            DROP TABLE ngram_documents;
 
             CREATE INDEX idx_tokens_normalized_position
                 ON tokens(normalized, global_position);

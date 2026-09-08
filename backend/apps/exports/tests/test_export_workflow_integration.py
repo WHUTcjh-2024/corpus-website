@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.test import TestCase
 
 from apps.accounts.models import ApplicationStatus, UserProfile, UserRole
@@ -122,3 +122,65 @@ class ExportWorkflowIntegrationTests(TestCase):
         self.assertEqual(process.call_count, 4)
         job.refresh_from_db()
         self.assertEqual(job.status, ExportJobStatus.FAILED)
+
+    def test_authorized_managed_corpus_results_can_be_exported(self):
+        managed = Corpus.objects.create(
+            name="Authorized Teacher Corpus",
+            source_type=CorpusSourceType.TEACHER,
+            corpus_type=CorpusType.RAW_EN,
+            language=CorpusLanguage.EN,
+            access_level=CorpusAccessLevel.JUNIOR,
+            status=CorpusStatus.READY,
+        )
+
+        job = create_export_job(
+            user=self.user,
+            corpus=managed,
+            kind=ExportKind.KWIC,
+            parameters={"q": "corpus", "language": "en"},
+        )
+
+        self.assertEqual(job.corpus, managed)
+        self.assertEqual(job.requested_by, self.user)
+
+    def test_unavailable_managed_corpus_results_cannot_be_exported(self):
+        managed = Corpus.objects.create(
+            name="Restricted Teacher Corpus",
+            source_type=CorpusSourceType.TEACHER,
+            corpus_type=CorpusType.RAW_EN,
+            language=CorpusLanguage.EN,
+            access_level=CorpusAccessLevel.ADVANCED,
+            status=CorpusStatus.READY,
+        )
+
+        with self.assertRaises(PermissionDenied):
+            create_export_job(
+                user=self.user,
+                corpus=managed,
+                kind=ExportKind.KWIC,
+                parameters={"q": "corpus", "language": "en"},
+            )
+
+    def test_advanced_kwic_conditions_are_preserved_for_export(self):
+        job = create_export_job(
+            user=self.user,
+            corpus=self.corpus,
+            kind=ExportKind.KWIC,
+            parameters={
+                "q": "",
+                "query_list": "corpus\nresearch",
+                "context_queries": "platform",
+                "context_logic": "and",
+                "context_from": "-3",
+                "context_to": "4",
+                "exclude_context": "on",
+                "language": "en",
+            },
+        )
+
+        self.assertEqual(job.query["query_list"], ["corpus", "research"])
+        self.assertEqual(job.query["context_queries"], ["platform"])
+        self.assertEqual(job.query["context_logic"], "and")
+        self.assertEqual(job.query["context_from"], -3)
+        self.assertEqual(job.query["context_to"], 4)
+        self.assertTrue(job.query["exclude_context"])

@@ -58,6 +58,14 @@ class AgentRunApiTests(TestCase):
         self.assertEqual(first["X-Request-Id"], "client-trace-1")
         self.assertEqual(AgentRun.objects.count(), 1)
 
+    def test_workspace_renders_the_controlled_agent_entry_point(self):
+        response = self.client.get(reverse("agent:workspace"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "智能 Agent 工作台")
+        self.assertContains(response, "发起受控检索")
+        self.assertContains(response, self.corpus.name)
+
     def test_create_requires_idempotency_key(self):
         response = self.client.post(
             reverse("api:agent:run-list"),

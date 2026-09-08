@@ -1,0 +1,40 @@
+{% extends "layouts/dashboard_layout.html" %}
+
+{% block title %}检索历史 - 在线语料库平台{% endblock %}
+
+{% block dashboard_content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">检索历史与保存</h1>
+    <p class="page-description">回看本人最近的检索记录，并重放或删除已保存的检索条件。</p>
+  </div>
+</div>
+
+<section class="platform-card mb-4">
+  <header class="platform-card__header"><h2>已保存检索</h2><span class="table-meta">{{ usage.count }} / {{ usage.max_items }} 条 · {{ usage.bytes_used }} / {{ usage.max_bytes }} 字节</span></header>
+  <div class="table-shell table-responsive border-0 rounded-0">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>名称</th><th>类型</th><th>语料库</th><th>更新时间</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+        {% for saved, url in saved_rows %}
+          <tr><td>{{ saved.name }}</td><td>{{ saved.get_kind_display }}</td><td>{{ saved.corpus.name }}</td><td>{{ saved.updated_at|date:"Y-m-d H:i" }}</td><td class="text-end"><div class="d-inline-flex gap-2"><a class="btn btn-sm btn-primary" href="{{ url }}">重新检索</a><form method="post" action="{% url 'research_history:delete' saved.pk %}">{% csrf_token %}<button class="btn btn-sm btn-outline-danger" type="submit">删除</button></form></div></td></tr>
+        {% empty %}<tr><td colspan="5" class="empty-state">还没有保存检索条件。</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="platform-card">
+  <header class="platform-card__header"><h2>最近检索记录</h2><span class="table-meta">最多显示 100 条</span></header>
+  <div class="table-shell table-responsive border-0 rounded-0">
+    <table class="table table-hover align-middle mb-0">
+      <thead><tr><th>时间</th><th>类型</th><th>语料库</th><th>检索词</th><th class="text-end">结果数</th><th class="text-end">操作</th></tr></thead>
+      <tbody>
+        {% for row in history_rows %}
+          <tr><td>{{ row.event.created_at|date:"Y-m-d H:i" }}</td><td>{{ row.event.get_event_type_display }}</td><td>{{ row.event.corpus.name|default:"—" }}</td><td>{{ row.query }}</td><td class="text-end">{{ row.result_count }}</td><td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ row.replay_url }}">重放</a></td></tr>
+        {% empty %}<tr><td colspan="6" class="empty-state">还没有检索记录。</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

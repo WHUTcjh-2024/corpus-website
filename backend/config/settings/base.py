@@ -183,6 +183,15 @@ EXPORT_MAX_ROWS = int(os.getenv("EXPORT_MAX_ROWS", 100_000))
 EXPORT_MAX_DOWNLOADS = int(os.getenv("EXPORT_MAX_DOWNLOADS", 5))
 EXPORT_MAX_JOBS_PER_HOUR = int(os.getenv("EXPORT_MAX_JOBS_PER_HOUR", 10))
 
+# Saved query data is intentionally bounded per account. This supports the
+# contract's search-history requirement without allowing unbounded JSON/query
+# payload growth.
+SAVED_SEARCH_MAX_ITEMS = int(os.getenv("SAVED_SEARCH_MAX_ITEMS", 100))
+SAVED_SEARCH_MAX_QUERY_BYTES = int(os.getenv("SAVED_SEARCH_MAX_QUERY_BYTES", 4 * 1024))
+SAVED_SEARCH_TOTAL_BYTES = int(os.getenv("SAVED_SEARCH_TOTAL_BYTES", 64 * 1024))
+if min(SAVED_SEARCH_MAX_ITEMS, SAVED_SEARCH_MAX_QUERY_BYTES, SAVED_SEARCH_TOTAL_BYTES) < 1:
+    raise ValueError("Saved search limits must be positive.")
+
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 CACHES = {
     "default": {

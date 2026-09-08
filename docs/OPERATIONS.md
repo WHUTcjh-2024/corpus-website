@@ -1,5 +1,14 @@
 # Operations runbook
 
+## Edge traffic limits
+
+Production Nginx limits each client IP to 20 requests per second generally and
+5 requests per second for search, parallel, statistics, and export routes. It
+also caps concurrent connections per IP at 20 and returns HTTP 429 when the
+request-rate budget is exceeded. Keep these limits enabled when replacing the
+bundled reverse proxy, and tune them only from measured traffic and load-test
+results.
+
 ## Reliable task delivery
 
 Processing and export requests are committed with an Outbox event in the same
