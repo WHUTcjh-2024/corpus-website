@@ -1,0 +1,1130 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-09-07T15:23:35+0800",
+  "corpus_profile": {
+    "source_root": "D:\\Desktop\\陈俊宏-实验语料库",
+    "scan_seconds": 14.414,
+    "scan_throughput_files_per_second": 303.105,
+    "summary": {
+      "total_files": 4369,
+      "total_size_bytes": 52701982,
+      "type_counts": {
+        "paired_raw_zh_en": 1882,
+        "paired_tagged_zh_en": 136,
+        "raw_en": 2030,
+        "raw_zh": 320,
+        "unknown": 1
+      },
+      "language_counts": {
+        "en": 3039,
+        "unknown": 1,
+        "zh": 1329
+      },
+      "probable_pair_count": 1009,
+      "unknown_file_count": 1
+    },
+    "collections": [
+      {
+        "name": "test-新时代马克思主义中国化经典文献涉法文本汉英平行语料库-汇总20260522",
+        "files": 56,
+        "bytes": 1482803
+      },
+      {
+        "name": "中文+官译-原始未抽样-马克思主义中国化经典文献汉英平行语料库（unalignment+untagged）",
+        "files": 2346,
+        "bytes": 30199443
+      },
+      {
+        "name": "外译-原始未抽样-马克思主义中国化经典文献",
+        "files": 1887,
+        "bytes": 16418486
+      },
+      {
+        "name": "抽样对齐-马克思主义中国化经典文献汉英平行语料库",
+        "files": 80,
+        "bytes": 4601250
+      }
+    ],
+    "encodings": {
+      "utf-8-sig": 4312,
+      "gb18030": 56,
+      "utf-16": 1
+    },
+    "confidence_bands": {
+      ">=0.90": 136,
+      "0.80-0.89": 1882,
+      "0.70-0.79": 2350,
+      "<0.70": 1
+    },
+    "decode_success_count": 4369,
+    "decode_success_rate": 100.0,
+    "decode_failures": [],
+    "replacement_character_files": [],
+    "empty_files": [
+      "外译-原始未抽样-马克思主义中国化经典文献/毛泽东文选外译-哈佛/7-Mao's Road to Power Revolutionary Writings/184-1938-5-10-为《自由中国》创刊号题词.txt"
+    ],
+    "language_gold_count": 4368,
+    "language_match_count": 4368,
+    "language_accuracy": 100.0,
+    "language_mismatches": [],
+    "date_candidate_count": 4234,
+    "valid_date_count": 4233,
+    "date_format_validity": 99.9764,
+    "invalid_dates": [
+      "中文+官译-原始未抽样-马克思主义中国化经典文献汉英平行语料库（unalignment+untagged）/江泽民著作-中文+官译/江泽民官译-1-5卷-段对齐/180-江泽民3-官译40-2001-21-10-论宗教问题.txt"
+    ],
+    "stage_counts": {
+      "M1": 4,
+      "M2": 60,
+      "M3": 16,
+      "M7": 56,
+      "未标注": 4233
+    },
+    "unique_content_count": 4367,
+    "exact_duplicate_group_count": 2,
+    "exact_duplicate_instance_count": 2,
+    "exact_duplicate_rate": 0.0458,
+    "duplicate_group_samples": [
+      [
+        "中文+官译-原始未抽样-马克思主义中国化经典文献汉英平行语料库（unalignment+untagged）/邓小平著作-中文+官译/邓小平中文-1-5册-段对齐/114-邓小平3-中11-1983-6-18-路子走对了，政策不会变.txt",
+        "中文+官译-原始未抽样-马克思主义中国化经典文献汉英平行语料库（unalignment+untagged）/邓小平著作-中文+官译/邓小平中文-1-5册-段对齐/225-邓小平4-中6-1983-6-18-路子走对了，政策不会改变.txt"
+      ],
+      [
+        "中文+官译-原始未抽样-马克思主义中国化经典文献汉英平行语料库（unalignment+untagged）/邓小平著作-中文+官译/邓小平中文-1-5册-段对齐/230-邓小平-中11-1984-2-24-关于经济特区和增加对外开放城市问题.txt",
+        "中文+官译-原始未抽样-马克思主义中国化经典文献汉英平行语料库（unalignment+untagged）/邓小平著作-中文+官译/邓小平中文-1-5册-段对齐/270-邓小平5-中11-1984-2-24-关于经济特区和增加对外开放城市问题.txt"
+      ]
+    ],
+    "gold": {
+      "file_count": 80,
+      "type_match_count": 80,
+      "type_accuracy": 100.0,
+      "pair_count": 40,
+      "scanner_pair_match_count": 40,
+      "scanner_pair_accuracy": 100.0,
+      "pair_detection_failures": [],
+      "structure_file_count": 80,
+      "balanced_structure_count": 66,
+      "balanced_structure_rate": 82.5,
+      "ordered_unique_sentence_id_files": 75,
+      "ordered_unique_paragraph_id_files": 80,
+      "import_success_count": 40,
+      "import_success_rate": 100.0,
+      "import_failures": [],
+      "pairable_sentence_capacity": 10377,
+      "imported_sentence_pairs": 10372,
+      "sentence_alignment_retention": 99.9518,
+      "pairable_paragraph_capacity": 2258,
+      "imported_paragraph_pairs": 2257,
+      "paragraph_alignment_retention": 99.9557,
+      "alignment_method_counts": {
+        "provided_structure_id": 12462,
+        "provided_structure_order": 167
+      },
+      "exact_sentence_set_pair_count": 37,
+      "exact_paragraph_set_pair_count": 37,
+      "zh_token_count": 217613,
+      "zh_pos_tag_count": 217613,
+      "zh_pos_coverage": 100.0,
+      "en_token_count": 260799,
+      "en_pos_tag_count": 260799,
+      "en_pos_coverage": 100.0,
+      "alignment_rows": [
+        {
+          "pair": 1,
+          "zh_sentences": 120,
+          "en_sentences": 120,
+          "common_sentence_ids": 120,
+          "pairable_sentence_capacity": 120,
+          "imported_sentence_pairs": 120,
+          "zh_paragraphs": 10,
+          "en_paragraphs": 10,
+          "common_paragraph_ids": 10,
+          "pairable_paragraph_capacity": 10,
+          "imported_paragraph_pairs": 10,
+          "warnings": 0
+        },
+        {
+          "pair": 2,
+          "zh_sentences": 693,
+          "en_sentences": 693,
+          "common_sentence_ids": 693,
+          "pairable_sentence_capacity": 693,
+          "imported_sentence_pairs": 693,
+          "zh_paragraphs": 98,
+          "en_paragraphs": 98,
+          "common_paragraph_ids": 98,
+          "pairable_paragraph_capacity": 98,
+          "imported_paragraph_pairs": 98,
+          "warnings": 1
+        },
+        {
+          "pair": 3,
+          "zh_sentences": 92,
+          "en_sentences": 92,
+          "common_sentence_ids": 92,
+          "pairable_sentence_capacity": 92,
+          "imported_sentence_pairs": 92,
+          "zh_paragraphs": 28,
+          "en_paragraphs": 28,
+          "common_paragraph_ids": 28,
+          "pairable_paragraph_capacity": 28,
+          "imported_paragraph_pairs": 28,
+          "warnings": 2
+        },
+        {
+          "pair": 4,
+          "zh_sentences": 510,
+          "en_sentences": 510,
+          "common_sentence_ids": 510,
+          "pairable_sentence_capacity": 510,
+          "imported_sentence_pairs": 510,
+          "zh_paragraphs": 69,
+          "en_paragraphs": 69,
+          "common_paragraph_ids": 69,
+          "pairable_paragraph_capacity": 69,
+          "imported_paragraph_pairs": 69,
+          "warnings": 0
+        },
+        {
+          "pair": 5,
+          "zh_sentences": 183,
+          "en_sentences": 183,
+          "common_sentence_ids": 183,
+          "pairable_sentence_capacity": 183,
+          "imported_sentence_pairs": 183,
+          "zh_paragraphs": 74,
+          "en_paragraphs": 74,
+          "common_paragraph_ids": 74,
+          "pairable_paragraph_capacity": 74,
+          "imported_paragraph_pairs": 74,
+          "warnings": 0
+        },
+        {
+          "pair": 6,
+          "zh_sentences": 180,
+          "en_sentences": 180,
+          "common_sentence_ids": 180,
+          "pairable_sentence_capacity": 180,
+          "imported_sentence_pairs": 180,
+          "zh_paragraphs": 24,
+          "en_paragraphs": 24,
+          "common_paragraph_ids": 24,
+          "pairable_paragraph_capacity": 24,
+          "imported_paragraph_pairs": 24,
+          "warnings": 0
+        },
+        {
+          "pair": 7,
+          "zh_sentences": 156,
+          "en_sentences": 156,
+          "common_sentence_ids": 156,
+          "pairable_sentence_capacity": 156,
+          "imported_sentence_pairs": 156,
+          "zh_paragraphs": 57,
+          "en_paragraphs": 57,
+          "common_paragraph_ids": 57,
+          "pairable_paragraph_capacity": 57,
+          "imported_paragraph_pairs": 57,
+          "warnings": 0
+        },
+        {
+          "pair": 8,
+          "zh_sentences": 128,
+          "en_sentences": 128,
+          "common_sentence_ids": 128,
+          "pairable_sentence_capacity": 128,
+          "imported_sentence_pairs": 128,
+          "zh_paragraphs": 10,
+          "en_paragraphs": 10,
+          "common_paragraph_ids": 10,
+          "pairable_paragraph_capacity": 10,
+          "imported_paragraph_pairs": 10,
+          "warnings": 0
+        },
+        {
+          "pair": 9,
+          "zh_sentences": 38,
+          "en_sentences": 38,
+          "common_sentence_ids": 38,
+          "pairable_sentence_capacity": 38,
+          "imported_sentence_pairs": 38,
+          "zh_paragraphs": 15,
+          "en_paragraphs": 15,
+          "common_paragraph_ids": 15,
+          "pairable_paragraph_capacity": 15,
+          "imported_paragraph_pairs": 15,
+          "warnings": 0
+        },
+        {
+          "pair": 10,
+          "zh_sentences": 254,
+          "en_sentences": 254,
+          "common_sentence_ids": 254,
+          "pairable_sentence_capacity": 254,
+          "imported_sentence_pairs": 254,
+          "zh_paragraphs": 52,
+          "en_paragraphs": 52,
+          "common_paragraph_ids": 52,
+          "pairable_paragraph_capacity": 52,
+          "imported_paragraph_pairs": 52,
+          "warnings": 0
+        },
+        {
+          "pair": 11,
+          "zh_sentences": 296,
+          "en_sentences": 296,
+          "common_sentence_ids": 296,
+          "pairable_sentence_capacity": 296,
+          "imported_sentence_pairs": 296,
+          "zh_paragraphs": 21,
+          "en_paragraphs": 21,
+          "common_paragraph_ids": 21,
+          "pairable_paragraph_capacity": 21,
+          "imported_paragraph_pairs": 21,
+          "warnings": 0
+        },
+        {
+          "pair": 12,
+          "zh_sentences": 43,
+          "en_sentences": 43,
+          "common_sentence_ids": 43,
+          "pairable_sentence_capacity": 43,
+          "imported_sentence_pairs": 43,
+          "zh_paragraphs": 8,
+          "en_paragraphs": 8,
+          "common_paragraph_ids": 8,
+          "pairable_paragraph_capacity": 8,
+          "imported_paragraph_pairs": 8,
+          "warnings": 0
+        },
+        {
+          "pair": 13,
+          "zh_sentences": 74,
+          "en_sentences": 74,
+          "common_sentence_ids": 74,
+          "pairable_sentence_capacity": 74,
+          "imported_sentence_pairs": 74,
+          "zh_paragraphs": 14,
+          "en_paragraphs": 14,
+          "common_paragraph_ids": 14,
+          "pairable_paragraph_capacity": 14,
+          "imported_paragraph_pairs": 14,
+          "warnings": 0
+        },
+        {
+          "pair": 14,
+          "zh_sentences": 110,
+          "en_sentences": 110,
+          "common_sentence_ids": 110,
+          "pairable_sentence_capacity": 110,
+          "imported_sentence_pairs": 110,
+          "zh_paragraphs": 12,
+          "en_paragraphs": 12,
+          "common_paragraph_ids": 12,
+          "pairable_paragraph_capacity": 12,
+          "imported_paragraph_pairs": 12,
+          "warnings": 0
+        },
+        {
+          "pair": 15,
+          "zh_sentences": 25,
+          "en_sentences": 25,
+          "common_sentence_ids": 25,
+          "pairable_sentence_capacity": 25,
+          "imported_sentence_pairs": 25,
+          "zh_paragraphs": 14,
+          "en_paragraphs": 14,
+          "common_paragraph_ids": 14,
+          "pairable_paragraph_capacity": 14,
+          "imported_paragraph_pairs": 14,
+          "warnings": 0
+        },
+        {
+          "pair": 16,
+          "zh_sentences": 349,
+          "en_sentences": 349,
+          "common_sentence_ids": 349,
+          "pairable_sentence_capacity": 349,
+          "imported_sentence_pairs": 349,
+          "zh_paragraphs": 59,
+          "en_paragraphs": 59,
+          "common_paragraph_ids": 59,
+          "pairable_paragraph_capacity": 59,
+          "imported_paragraph_pairs": 59,
+          "warnings": 1
+        },
+        {
+          "pair": 17,
+          "zh_sentences": 1227,
+          "en_sentences": 1227,
+          "common_sentence_ids": 1227,
+          "pairable_sentence_capacity": 1227,
+          "imported_sentence_pairs": 1227,
+          "zh_paragraphs": 302,
+          "en_paragraphs": 302,
+          "common_paragraph_ids": 302,
+          "pairable_paragraph_capacity": 302,
+          "imported_paragraph_pairs": 302,
+          "warnings": 2
+        },
+        {
+          "pair": 18,
+          "zh_sentences": 49,
+          "en_sentences": 49,
+          "common_sentence_ids": 49,
+          "pairable_sentence_capacity": 49,
+          "imported_sentence_pairs": 49,
+          "zh_paragraphs": 21,
+          "en_paragraphs": 21,
+          "common_paragraph_ids": 21,
+          "pairable_paragraph_capacity": 21,
+          "imported_paragraph_pairs": 21,
+          "warnings": 0
+        },
+        {
+          "pair": 19,
+          "zh_sentences": 189,
+          "en_sentences": 189,
+          "common_sentence_ids": 189,
+          "pairable_sentence_capacity": 189,
+          "imported_sentence_pairs": 189,
+          "zh_paragraphs": 37,
+          "en_paragraphs": 37,
+          "common_paragraph_ids": 37,
+          "pairable_paragraph_capacity": 37,
+          "imported_paragraph_pairs": 37,
+          "warnings": 0
+        },
+        {
+          "pair": 20,
+          "zh_sentences": 143,
+          "en_sentences": 143,
+          "common_sentence_ids": 143,
+          "pairable_sentence_capacity": 143,
+          "imported_sentence_pairs": 143,
+          "zh_paragraphs": 33,
+          "en_paragraphs": 33,
+          "common_paragraph_ids": 33,
+          "pairable_paragraph_capacity": 33,
+          "imported_paragraph_pairs": 33,
+          "warnings": 0
+        },
+        {
+          "pair": 21,
+          "zh_sentences": 228,
+          "en_sentences": 228,
+          "common_sentence_ids": 228,
+          "pairable_sentence_capacity": 228,
+          "imported_sentence_pairs": 228,
+          "zh_paragraphs": 25,
+          "en_paragraphs": 26,
+          "common_paragraph_ids": 25,
+          "pairable_paragraph_capacity": 26,
+          "imported_paragraph_pairs": 26,
+          "warnings": 0
+        },
+        {
+          "pair": 22,
+          "zh_sentences": 620,
+          "en_sentences": 622,
+          "common_sentence_ids": 620,
+          "pairable_sentence_capacity": 622,
+          "imported_sentence_pairs": 622,
+          "zh_paragraphs": 123,
+          "en_paragraphs": 122,
+          "common_paragraph_ids": 122,
+          "pairable_paragraph_capacity": 123,
+          "imported_paragraph_pairs": 122,
+          "warnings": 1
+        },
+        {
+          "pair": 23,
+          "zh_sentences": 161,
+          "en_sentences": 161,
+          "common_sentence_ids": 160,
+          "pairable_sentence_capacity": 161,
+          "imported_sentence_pairs": 161,
+          "zh_paragraphs": 57,
+          "en_paragraphs": 57,
+          "common_paragraph_ids": 57,
+          "pairable_paragraph_capacity": 57,
+          "imported_paragraph_pairs": 57,
+          "warnings": 0
+        },
+        {
+          "pair": 24,
+          "zh_sentences": 88,
+          "en_sentences": 88,
+          "common_sentence_ids": 88,
+          "pairable_sentence_capacity": 88,
+          "imported_sentence_pairs": 88,
+          "zh_paragraphs": 47,
+          "en_paragraphs": 47,
+          "common_paragraph_ids": 47,
+          "pairable_paragraph_capacity": 47,
+          "imported_paragraph_pairs": 47,
+          "warnings": 0
+        },
+        {
+          "pair": 25,
+          "zh_sentences": 59,
+          "en_sentences": 59,
+          "common_sentence_ids": 59,
+          "pairable_sentence_capacity": 59,
+          "imported_sentence_pairs": 59,
+          "zh_paragraphs": 22,
+          "en_paragraphs": 22,
+          "common_paragraph_ids": 22,
+          "pairable_paragraph_capacity": 22,
+          "imported_paragraph_pairs": 22,
+          "warnings": 0
+        },
+        {
+          "pair": 26,
+          "zh_sentences": 988,
+          "en_sentences": 989,
+          "common_sentence_ids": 979,
+          "pairable_sentence_capacity": 988,
+          "imported_sentence_pairs": 985,
+          "zh_paragraphs": 498,
+          "en_paragraphs": 498,
+          "common_paragraph_ids": 498,
+          "pairable_paragraph_capacity": 498,
+          "imported_paragraph_pairs": 498,
+          "warnings": 2
+        },
+        {
+          "pair": 27,
+          "zh_sentences": 32,
+          "en_sentences": 32,
+          "common_sentence_ids": 32,
+          "pairable_sentence_capacity": 32,
+          "imported_sentence_pairs": 32,
+          "zh_paragraphs": 7,
+          "en_paragraphs": 7,
+          "common_paragraph_ids": 7,
+          "pairable_paragraph_capacity": 7,
+          "imported_paragraph_pairs": 7,
+          "warnings": 0
+        },
+        {
+          "pair": 28,
+          "zh_sentences": 481,
+          "en_sentences": 482,
+          "common_sentence_ids": 479,
+          "pairable_sentence_capacity": 482,
+          "imported_sentence_pairs": 480,
+          "zh_paragraphs": 107,
+          "en_paragraphs": 107,
+          "common_paragraph_ids": 107,
+          "pairable_paragraph_capacity": 107,
+          "imported_paragraph_pairs": 107,
+          "warnings": 2
+        },
+        {
+          "pair": 29,
+          "zh_sentences": 1437,
+          "en_sentences": 1437,
+          "common_sentence_ids": 1437,
+          "pairable_sentence_capacity": 1437,
+          "imported_sentence_pairs": 1437,
+          "zh_paragraphs": 182,
+          "en_paragraphs": 182,
+          "common_paragraph_ids": 182,
+          "pairable_paragraph_capacity": 182,
+          "imported_paragraph_pairs": 182,
+          "warnings": 0
+        },
+        {
+          "pair": 30,
+          "zh_sentences": 258,
+          "en_sentences": 258,
+          "common_sentence_ids": 258,
+          "pairable_sentence_capacity": 258,
+          "imported_sentence_pairs": 258,
+          "zh_paragraphs": 58,
+          "en_paragraphs": 58,
+          "common_paragraph_ids": 58,
+          "pairable_paragraph_capacity": 58,
+          "imported_paragraph_pairs": 58,
+          "warnings": 0
+        },
+        {
+          "pair": 31,
+          "zh_sentences": 47,
+          "en_sentences": 47,
+          "common_sentence_ids": 47,
+          "pairable_sentence_capacity": 47,
+          "imported_sentence_pairs": 47,
+          "zh_paragraphs": 6,
+          "en_paragraphs": 6,
+          "common_paragraph_ids": 6,
+          "pairable_paragraph_capacity": 6,
+          "imported_paragraph_pairs": 6,
+          "warnings": 0
+        },
+        {
+          "pair": 32,
+          "zh_sentences": 215,
+          "en_sentences": 215,
+          "common_sentence_ids": 215,
+          "pairable_sentence_capacity": 215,
+          "imported_sentence_pairs": 215,
+          "zh_paragraphs": 57,
+          "en_paragraphs": 57,
+          "common_paragraph_ids": 57,
+          "pairable_paragraph_capacity": 57,
+          "imported_paragraph_pairs": 57,
+          "warnings": 0
+        },
+        {
+          "pair": 33,
+          "zh_sentences": 30,
+          "en_sentences": 30,
+          "common_sentence_ids": 30,
+          "pairable_sentence_capacity": 30,
+          "imported_sentence_pairs": 30,
+          "zh_paragraphs": 5,
+          "en_paragraphs": 5,
+          "common_paragraph_ids": 5,
+          "pairable_paragraph_capacity": 5,
+          "imported_paragraph_pairs": 5,
+          "warnings": 0
+        },
+        {
+          "pair": 34,
+          "zh_sentences": 198,
+          "en_sentences": 198,
+          "common_sentence_ids": 198,
+          "pairable_sentence_capacity": 198,
+          "imported_sentence_pairs": 198,
+          "zh_paragraphs": 12,
+          "en_paragraphs": 12,
+          "common_paragraph_ids": 12,
+          "pairable_paragraph_capacity": 12,
+          "imported_paragraph_pairs": 12,
+          "warnings": 0
+        },
+        {
+          "pair": 35,
+          "zh_sentences": 58,
+          "en_sentences": 58,
+          "common_sentence_ids": 58,
+          "pairable_sentence_capacity": 58,
+          "imported_sentence_pairs": 58,
+          "zh_paragraphs": 11,
+          "en_paragraphs": 11,
+          "common_paragraph_ids": 11,
+          "pairable_paragraph_capacity": 11,
+          "imported_paragraph_pairs": 11,
+          "warnings": 0
+        },
+        {
+          "pair": 36,
+          "zh_sentences": 88,
+          "en_sentences": 88,
+          "common_sentence_ids": 88,
+          "pairable_sentence_capacity": 88,
+          "imported_sentence_pairs": 88,
+          "zh_paragraphs": 5,
+          "en_paragraphs": 5,
+          "common_paragraph_ids": 5,
+          "pairable_paragraph_capacity": 5,
+          "imported_paragraph_pairs": 5,
+          "warnings": 0
+        },
+        {
+          "pair": 37,
+          "zh_sentences": 101,
+          "en_sentences": 101,
+          "common_sentence_ids": 101,
+          "pairable_sentence_capacity": 101,
+          "imported_sentence_pairs": 101,
+          "zh_paragraphs": 22,
+          "en_paragraphs": 21,
+          "common_paragraph_ids": 21,
+          "pairable_paragraph_capacity": 21,
+          "imported_paragraph_pairs": 21,
+          "warnings": 1
+        },
+        {
+          "pair": 38,
+          "zh_sentences": 126,
+          "en_sentences": 126,
+          "common_sentence_ids": 126,
+          "pairable_sentence_capacity": 126,
+          "imported_sentence_pairs": 126,
+          "zh_paragraphs": 23,
+          "en_paragraphs": 23,
+          "common_paragraph_ids": 23,
+          "pairable_paragraph_capacity": 23,
+          "imported_paragraph_pairs": 23,
+          "warnings": 1
+        },
+        {
+          "pair": 39,
+          "zh_sentences": 124,
+          "en_sentences": 124,
+          "common_sentence_ids": 124,
+          "pairable_sentence_capacity": 124,
+          "imported_sentence_pairs": 124,
+          "zh_paragraphs": 5,
+          "en_paragraphs": 5,
+          "common_paragraph_ids": 5,
+          "pairable_paragraph_capacity": 6,
+          "imported_paragraph_pairs": 6,
+          "warnings": 1
+        },
+        {
+          "pair": 40,
+          "zh_sentences": 176,
+          "en_sentences": 176,
+          "common_sentence_ids": 176,
+          "pairable_sentence_capacity": 176,
+          "imported_sentence_pairs": 176,
+          "zh_paragraphs": 27,
+          "en_paragraphs": 27,
+          "common_paragraph_ids": 27,
+          "pairable_paragraph_capacity": 27,
+          "imported_paragraph_pairs": 27,
+          "warnings": 0
+        }
+      ]
+    }
+  },
+  "platform_accuracy": {
+    "teacher_corpus_id": "71d92f26-c5e5-485f-ac83-3ebccb6a9acc",
+    "check_count": 48,
+    "passed_count": 48,
+    "failed_count": 0,
+    "pass_rate": 100.0,
+    "checks": [
+      {
+        "category": "Word",
+        "name": "中文有效词次",
+        "expected": "9908",
+        "actual": "9908",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Word",
+        "name": "中文词形数",
+        "expected": "2323",
+        "actual": "2323",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Word",
+        "name": "中文最高频词",
+        "expected": "的/570",
+        "actual": "的/570",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Word",
+        "name": "英文有效词次",
+        "expected": "13601",
+        "actual": "13601",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Word",
+        "name": "英文词形数",
+        "expected": "2542",
+        "actual": "2542",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Word",
+        "name": "英文最高频词",
+        "expected": "the/1398",
+        "actual": "THE/1398",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "KWIC",
+        "name": "中文农民命中数",
+        "expected": "259",
+        "actual": "259",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "KWIC",
+        "name": "英文 peasant 正则命中数",
+        "expected": "158",
+        "actual": "158",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "KWIC",
+        "name": "固定随机种子可重复",
+        "expected": "首条行号一致",
+        "actual": "4147/4147",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "KWIC",
+        "name": "随机结果集规模",
+        "expected": "25/259",
+        "actual": "25/259",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "KWIC",
+        "name": "KPF 计数有效",
+        "expected": "全部 >= 1",
+        "actual": "1",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "File View",
+        "name": "全文命中数",
+        "expected": "259",
+        "actual": "259",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "File View",
+        "name": "全文词次词形",
+        "expected": "12061/2340",
+        "actual": "12061/2340",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Cluster",
+        "name": "农民二词簇类型数",
+        "expected": "28",
+        "actual": "28",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Cluster",
+        "name": "最高频词簇",
+        "expected": "农民协会/49",
+        "actual": "农民协会/49",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "N gram",
+        "name": "开放槽类型数",
+        "expected": "51",
+        "actual": "51",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "N gram",
+        "name": "最高频开放槽",
+        "expected": "the <*> of/207/136",
+        "actual": "the <*> of/207/136",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "N gram",
+        "name": "开放槽熵",
+        "expected": "6.771328",
+        "actual": "6.771328",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Collocate",
+        "name": "节点频次",
+        "expected": "259",
+        "actual": "259",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Collocate",
+        "name": "最高频搭配",
+        "expected": "协会/50",
+        "actual": "协会/50",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Collocate",
+        "name": "统计量有限",
+        "expected": "MI LL 卡方 p 均为有限数",
+        "actual": "True",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Plot",
+        "name": "命中分布守恒",
+        "expected": "259",
+        "actual": "259",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Wordcloud",
+        "name": "词云词数和首词",
+        "expected": "25/的",
+        "actual": "25/的",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "CQP",
+        "name": "三词模式命中数",
+        "expected": "207",
+        "actual": "207",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Parallel",
+        "name": "平行句命中数",
+        "expected": "259",
+        "actual": "259",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Parallel",
+        "name": "首条英译对应词",
+        "expected": "包含 peasant",
+        "actual": "True",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 的",
+        "expected": "570",
+        "actual": "570",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 农民",
+        "expected": "259",
+        "actual": "259",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 了",
+        "expected": "182",
+        "actual": "182",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 是",
+        "expected": "167",
+        "actual": "167",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 不",
+        "expected": "125",
+        "actual": "125",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 在",
+        "expected": "109",
+        "actual": "109",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 农会",
+        "expected": "103",
+        "actual": "103",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 有",
+        "expected": "103",
+        "actual": "103",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 他们",
+        "expected": "86",
+        "actual": "86",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "zh 词项 一",
+        "expected": "85",
+        "actual": "85",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 THE",
+        "expected": "1398",
+        "actual": "1398",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 OF",
+        "expected": "527",
+        "actual": "527",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 AND",
+        "expected": "526",
+        "actual": "526",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 In",
+        "expected": "332",
+        "actual": "332",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 TO",
+        "expected": "302",
+        "actual": "302",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 A",
+        "expected": "214",
+        "actual": "214",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 Is",
+        "expected": "198",
+        "actual": "198",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 PEASANTS",
+        "expected": "190",
+        "actual": "190",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 PEASANT",
+        "expected": "158",
+        "actual": "158",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "SQL 交叉核对",
+        "name": "en 词项 have",
+        "expected": "151",
+        "actual": "151",
+        "passed": true,
+        "evidence": "word_totals 与 KWIC 独立路径核对"
+      },
+      {
+        "category": "Keyword",
+        "name": "关键词统计量有效",
+        "expected": "全部有限",
+        "actual": "True",
+        "passed": true,
+        "evidence": ""
+      },
+      {
+        "category": "Keyword",
+        "name": "关键词排序有效",
+        "expected": "LL 降序",
+        "actual": "True",
+        "passed": true,
+        "evidence": ""
+      }
+    ],
+    "benchmarks": [
+      {
+        "name": "KWIC 中文农民",
+        "iterations": 20,
+        "mean_ms": 19.8675,
+        "median_ms": 19.9756,
+        "p95_ms": 21.2453,
+        "max_ms": 22.6277
+      },
+      {
+        "name": "KWIC 英文正则 peasant",
+        "iterations": 20,
+        "mean_ms": 89.1025,
+        "median_ms": 88.9062,
+        "p95_ms": 100.446,
+        "max_ms": 102.7285
+      },
+      {
+        "name": "中文词表",
+        "iterations": 20,
+        "mean_ms": 8.6133,
+        "median_ms": 8.6177,
+        "p95_ms": 10.9367,
+        "max_ms": 11.4618
+      },
+      {
+        "name": "英文开放槽 N gram",
+        "iterations": 20,
+        "mean_ms": 167.2868,
+        "median_ms": 162.1203,
+        "p95_ms": 188.8458,
+        "max_ms": 232.1304
+      },
+      {
+        "name": "双语平行检索",
+        "iterations": 20,
+        "mean_ms": 18.2094,
+        "median_ms": 17.9602,
+        "p95_ms": 20.9016,
+        "max_ms": 21.1756
+      }
+    ]
+  }
+}

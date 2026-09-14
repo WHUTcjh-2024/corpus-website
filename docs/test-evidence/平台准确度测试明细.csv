@@ -1,0 +1,49 @@
+﻿category,name,expected,actual,passed,evidence
+Word,中文有效词次,9908,9908,True,
+Word,中文词形数,2323,2323,True,
+Word,中文最高频词,的/570,的/570,True,
+Word,英文有效词次,13601,13601,True,
+Word,英文词形数,2542,2542,True,
+Word,英文最高频词,the/1398,THE/1398,True,
+KWIC,中文农民命中数,259,259,True,
+KWIC,英文 peasant 正则命中数,158,158,True,
+KWIC,固定随机种子可重复,首条行号一致,4147/4147,True,
+KWIC,随机结果集规模,25/259,25/259,True,
+KWIC,KPF 计数有效,全部 >= 1,1,True,
+File View,全文命中数,259,259,True,
+File View,全文词次词形,12061/2340,12061/2340,True,
+Cluster,农民二词簇类型数,28,28,True,
+Cluster,最高频词簇,农民协会/49,农民协会/49,True,
+N gram,开放槽类型数,51,51,True,
+N gram,最高频开放槽,the <*> of/207/136,the <*> of/207/136,True,
+N gram,开放槽熵,6.771328,6.771328,True,
+Collocate,节点频次,259,259,True,
+Collocate,最高频搭配,协会/50,协会/50,True,
+Collocate,统计量有限,MI LL 卡方 p 均为有限数,True,True,
+Plot,命中分布守恒,259,259,True,
+Wordcloud,词云词数和首词,25/的,25/的,True,
+CQP,三词模式命中数,207,207,True,
+Parallel,平行句命中数,259,259,True,
+Parallel,首条英译对应词,包含 peasant,True,True,
+SQL 交叉核对,zh 词项 的,570,570,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 农民,259,259,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 了,182,182,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 是,167,167,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 不,125,125,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 在,109,109,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 农会,103,103,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 有,103,103,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 他们,86,86,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,zh 词项 一,85,85,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 THE,1398,1398,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 OF,527,527,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 AND,526,526,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 In,332,332,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 TO,302,302,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 A,214,214,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 Is,198,198,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 PEASANTS,190,190,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 PEASANT,158,158,True,word_totals 与 KWIC 独立路径核对
+SQL 交叉核对,en 词项 have,151,151,True,word_totals 与 KWIC 独立路径核对
+Keyword,关键词统计量有效,全部有限,True,True,
+Keyword,关键词排序有效,LL 降序,True,True,

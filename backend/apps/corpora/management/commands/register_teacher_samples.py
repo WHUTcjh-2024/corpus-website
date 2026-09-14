@@ -154,7 +154,9 @@ class Command(BaseCommand):
                         f"Processed: {corpus.name}; counts={report['counts']}"
                     )
                 )
-        self.stdout.write(self.style.SUCCESS(f"Teacher samples ready: {len(registered)}"))
+        self.stdout.write(
+            self.style.SUCCESS(f"Teacher samples ready: {len(registered)}")
+        )
 
 
 def _find_unique_file(source_root: Path, filename: str) -> Path:
@@ -195,11 +197,11 @@ def _register_sample(
         classification = classify_path(path)
         corpus_file, _ = CorpusFile.objects.update_or_create(
             corpus=corpus,
-            language=sample_file.language,
+            stored_path=str(path),
             defaults={
                 "original_filename": path.name,
-                "stored_path": str(path),
                 "detected_type": sample.corpus_type,
+                "language": sample_file.language,
                 "size_bytes": path.stat().st_size,
                 "encoding": classification.encoding,
                 "status": CorpusFileStatus.PENDING,

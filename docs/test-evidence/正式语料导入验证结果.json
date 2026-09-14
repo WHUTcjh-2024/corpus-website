@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-09-08T14:10:30+08:00",
+  "source_file_count": 4369,
+  "registered_file_count": 4368,
+  "quarantined_file_count": 1,
+  "corpora": [
+    {
+      "corpus_id": "e202807f-678e-449e-80f9-54febd213416",
+      "corpus_type": "paired_raw_zh_en",
+      "display_name": "汉英原文候选配对语料",
+      "status": "ready",
+      "file_count": 1882,
+      "document_count": 1882,
+      "paragraph_count": 43409,
+      "sentence_count": 179603,
+      "token_count": 4286872,
+      "type_count": 71282,
+      "parallel_pair_count": 20951,
+      "index_size_bytes": 4092881947,
+      "validation_passed": true
+    },
+    {
+      "corpus_id": "3ebc5b8f-6b55-4d98-9800-17d4d12dc892",
+      "corpus_type": "paired_tagged_zh_en",
+      "display_name": "汉英人工对齐标注语料",
+      "status": "ready",
+      "file_count": 136,
+      "document_count": 136,
+      "paragraph_count": 6115,
+      "sentence_count": 26819,
+      "token_count": 622828,
+      "type_count": 24977,
+      "parallel_pair_count": 16414,
+      "index_size_bytes": 632143973,
+      "validation_passed": true
+    },
+    {
+      "corpus_id": "e20ed12b-3968-4e7d-85c7-b7c081d571da",
+      "corpus_type": "raw_en",
+      "display_name": "英文译文语料",
+      "status": "ready",
+      "file_count": 2030,
+      "document_count": 2030,
+      "paragraph_count": 36595,
+      "sentence_count": 153904,
+      "token_count": 3480436,
+      "type_count": 35917,
+      "parallel_pair_count": 0,
+      "index_size_bytes": 2868148192,
+      "validation_passed": true
+    },
+    {
+      "corpus_id": "5e2223c1-98b6-4699-a730-241543065e46",
+      "corpus_type": "raw_zh",
+      "display_name": "中文原文语料",
+      "status": "ready",
+      "file_count": 320,
+      "document_count": 320,
+      "paragraph_count": 9030,
+      "sentence_count": 33811,
+      "token_count": 749930,
+      "type_count": 30800,
+      "parallel_pair_count": 0,
+      "index_size_bytes": 733096042,
+      "validation_passed": true
+    }
+  ],
+  "totals": {
+    "file_count": 4368,
+    "document_count": 4368,
+    "paragraph_count": 95149,
+    "sentence_count": 394137,
+    "token_count": 9140066,
+    "type_count": 162976,
+    "parallel_pair_count": 37365,
+    "index_size_bytes": 8326270154
+  },
+  "validation_command_output": [
+    "PASS  5e2223c1-98b6-4699-a730-241543065e46  马克思主义中国化经典文献·中文原文语料  tokens=749930 kwic=48699 types=30757 pairs=0",
+    "PASS  3ebc5b8f-6b55-4d98-9800-17d4d12dc892  马克思主义中国化经典文献·汉英人工对齐标注语料  tokens=622828 kwic=26763 types=12373 pairs=16414",
+    "PASS  e202807f-678e-449e-80f9-54febd213416  马克思主义中国化经典文献·汉英原文候选配对语料  tokens=4286872 kwic=162964 types=26037 pairs=20951",
+    "PASS  e20ed12b-3968-4e7d-85c7-b7c081d571da  马克思主义中国化经典文献·英文译文语料  tokens=3480436 kwic=255667 types=35870 pairs=0",
+    "validated=4, passed=4, failed=0"
+  ]
+}
