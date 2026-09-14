@@ -782,7 +782,7 @@ body.public-body {
   width: 100%;
 }
 
-/* Agent and RAG workspace */
+/* Agent workspace */
 .agent-hero {
   position: relative;
   display: flex;

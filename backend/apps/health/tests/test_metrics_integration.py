@@ -19,7 +19,6 @@ from apps.corpora.models import (
 )
 from apps.outbox.models import OutboxEvent, OutboxEventStatus, OutboxTaskName
 from apps.processing.models import ProcessingTask, ProcessingTaskStatus
-from apps.rag.models import RagIndex, RagIndexStatus
 
 
 @override_settings(METRICS_BEARER_TOKEN="metrics-test-token")
@@ -96,12 +95,6 @@ class MetricsIntegrationTests(TestCase):
             status=AgentRunStatus.WAITING_EXTERNAL,
             external_wait_started_at=timezone.now(),
         )
-        RagIndex.objects.create(
-            corpus=corpus,
-            processing_task=task,
-            status=RagIndexStatus.RUNNING,
-        )
-
         response = self.client.get("/metrics", headers={"Authorization": "Bearer metrics-test-token"})
 
         self.assertEqual(response.status_code, 200)
@@ -109,5 +102,3 @@ class MetricsIntegrationTests(TestCase):
         self.assertIn("corpus_agent_external_wait_oldest_age_seconds", body)
         self.assertIn("corpus_parallel_audit_oldest_active_age_seconds", body)
         self.assertIn("corpus_agent_model_fallback_runs", body)
-        self.assertIn('corpus_rag_indexes{status="running"} 1', body)
-        self.assertIn("corpus_rag_index_oldest_active_age_seconds", body)

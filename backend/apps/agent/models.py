@@ -11,7 +11,6 @@ from apps.corpora.models import Corpus
 
 class AgentRunMode(models.TextChoices):
     RETRIEVE = "retrieve", "证据检索"
-    RAG = "rag", "混合 RAG 检索"
     QUALITY_REVIEW = "quality_review", "质量审阅"
     EXPORT = "export", "检索后导出"
 

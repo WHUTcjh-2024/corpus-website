@@ -7,7 +7,7 @@
   <div class="agent-hero__copy">
     <p class="page-eyebrow">受控检索与证据生成</p>
     <h1 class="page-title">智能 Agent 工作台</h1>
-    <p class="page-description">在你可访问的语料范围内执行检索、混合 RAG 与证据化回答。模型只能整理已授权证据，不能自行扩大数据访问范围。</p>
+    <p class="page-description">在你可访问的语料范围内执行受控检索与证据化回答。模型只能整理已授权证据，不能自行扩大数据访问范围。</p>
   </div>
   <div class="agent-hero__seal" aria-hidden="true">
     <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/><path d="M9 15h6M12 1v3M1 12h3M20 12h3"/></svg>
@@ -22,11 +22,11 @@
   </article>
   <article class="agent-status-card">
     <span class="agent-status-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="m9 12 2 2 4-5"/></svg></span>
-    <div><span>混合 RAG</span><strong>{% if rag_enabled %}服务已连接{% else %}未启用{% endif %}</strong><small>{% if embedding_model_name %}{{ embedding_model_name }} · Milvus{% else %}等待 Embedding 配置{% endif %}</small></div>
+    <div><span>证据检索</span><strong>已启用</strong><small>关键词、词项与固定搭配</small></div>
   </article>
   <article class="agent-status-card">
     <span class="agent-status-card__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 5h14v14H5zM8 9h8M8 13h8M8 17h5"/></svg></span>
-    <div><span>可用语义索引</span><strong>{{ rag_ready_count }}</strong><small>已处理语料可发起 RAG</small></div>
+    <div><span>可用语料</span><strong>{{ corpora|length }}</strong><small>已完成加工的授权语料</small></div>
   </article>
 </section>
 
@@ -38,16 +38,16 @@
         <form class="agent-run-form" id="agentRunForm" novalidate>
           {% csrf_token %}
           <div class="agent-form-grid">
-            <div><label class="form-label" for="agentCorpus">目标语料</label><select class="form-select" id="agentCorpus" required>{% for corpus in corpora %}<option value="{{ corpus.pk }}" data-rag-ready="{% if corpus.rag_ready %}true{% else %}false{% endif %}">{{ corpus.name }} · {{ corpus.get_language_display }}{% if corpus.rag_ready %} · 语义索引就绪{% else %} · 语义索引构建中{% endif %}</option>{% endfor %}</select></div>
-            <div><label class="form-label" for="agentMode">检索模式</label><select class="form-select" id="agentMode"><option value="rag">混合 RAG 检索</option><option value="retrieve">关键词证据检索</option></select></div>
+            <div><label class="form-label" for="agentCorpus">目标语料</label><select class="form-select" id="agentCorpus" required>{% for corpus in corpora %}<option value="{{ corpus.pk }}">{{ corpus.name }} · {{ corpus.get_language_display }}</option>{% endfor %}</select></div>
+            <div><label class="form-label" for="agentMode">检索模式</label><select class="form-select" id="agentMode"><option value="retrieve">关键词证据检索</option></select></div>
           </div>
           <label class="form-label" for="agentQuery">研究问题</label>
           <textarea class="form-control" id="agentQuery" rows="4" maxlength="200" placeholder="例如：概括该语料中与‘跨文化传播’相关的主要证据。" required></textarea>
-          <div class="agent-form-footer"><p class="agent-form-hint" id="agentModeHint">RAG 会先在 Milvus 中检索语义相近片段，再返回可追溯的证据化回答。</p><button class="btn btn-primary" id="agentSubmit" type="submit"><span>开始受控检索</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
+          <div class="agent-form-footer"><p class="agent-form-hint">关键词证据检索适合精确词项、上下文与固定搭配研究。</p><button class="btn btn-primary" id="agentSubmit" type="submit"><span>开始受控检索</span><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button></div>
           <p class="agent-form-message" id="agentFormMessage" role="status" aria-live="polite" hidden></p>
         </form>
       {% else %}
-        <div class="agent-empty-state"><span class="agent-empty-state__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span><div><h3>暂时没有可执行的语料</h3><p>请先上传并完成语料加工；RAG 索引就绪后即可在这里发起检索。</p><a class="btn btn-primary" href="{% url 'corpora:upload' %}">上传语料</a></div></div>
+        <div class="agent-empty-state"><span class="agent-empty-state__icon"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></span><div><h3>暂时没有可执行的语料</h3><p>请先上传并完成语料加工，随后即可在这里发起检索。</p><a class="btn btn-primary" href="{% url 'corpora:upload' %}">上传语料</a></div></div>
       {% endif %}
     </div>
   </article>
@@ -73,38 +73,16 @@
   const mode = document.getElementById("agentMode");
   const query = document.getElementById("agentQuery");
   const submit = document.getElementById("agentSubmit");
-  const hint = document.getElementById("agentModeHint");
   const message = document.getElementById("agentFormMessage");
   const showMessage = (text, isError = false) => {
     message.textContent = text;
     message.hidden = false;
     message.classList.toggle("is-error", isError);
   };
-  const syncHint = () => {
-    const selected = corpus.options[corpus.selectedIndex];
-    const ragReady = selected?.dataset.ragReady === "true";
-    if (mode.value === "rag" && !ragReady) {
-      hint.textContent = "该语料的语义索引尚未就绪。请等待加工完成，或切换到关键词证据检索。";
-      hint.classList.add("is-warning");
-    } else if (mode.value === "rag") {
-      hint.textContent = "RAG 会先在 Milvus 中检索语义相近片段，再返回可追溯的证据化回答。";
-      hint.classList.remove("is-warning");
-    } else {
-      hint.textContent = "关键词证据检索不依赖语义索引，适合精确词项与固定搭配研究。";
-      hint.classList.remove("is-warning");
-    }
-  };
-  corpus.addEventListener("change", syncHint);
-  mode.addEventListener("change", syncHint);
-  syncHint();
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const selected = corpus.options[corpus.selectedIndex];
     const question = query.value.trim();
     if (!question) { showMessage("请输入研究问题。", true); query.focus(); return; }
-    if (mode.value === "rag" && selected?.dataset.ragReady !== "true") {
-      showMessage("该语料的 RAG 索引尚未就绪，请切换到关键词检索或等待索引完成。", true); return;
-    }
     const token = form.querySelector("[name=csrfmiddlewaretoken]")?.value;
     const idempotencyKey = window.crypto?.randomUUID?.() || `agent-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     submit.disabled = true;
