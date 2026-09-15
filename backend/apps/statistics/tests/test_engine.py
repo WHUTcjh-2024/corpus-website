@@ -22,6 +22,8 @@ class StatisticsEngineParityTests(TestCase):
         processed_dir.mkdir(parents=True)
         self.index_path = index_dir / "kwic_index.sqlite"
         self._build_index()
+        self.reference_corpus_id = "00000000-0000-0000-0000-000000000002"
+        self._build_reference_index()
         documents = (
             {"id": "d1", "filename": "one.txt"},
             {"id": "d2", "filename": "two.txt"},
@@ -73,6 +75,15 @@ class StatisticsEngineParityTests(TestCase):
                 document_range INTEGER NOT NULL,
                 contains_punctuation INTEGER NOT NULL,
                 PRIMARY KEY (language, n, normalized)
+            );
+            CREATE TABLE word_totals (
+                language TEXT NOT NULL,
+                normalized TEXT NOT NULL,
+                display TEXT NOT NULL,
+                frequency INTEGER NOT NULL,
+                document_range INTEGER NOT NULL,
+                is_punctuation INTEGER NOT NULL,
+                PRIMARY KEY (language, normalized)
             );
             CREATE TABLE documents (
                 document_id TEXT PRIMARY KEY,
@@ -129,6 +140,58 @@ class StatisticsEngineParityTests(TestCase):
                     ),
                 )
                 character_position = word_end + 1
+        connection.executemany(
+            "INSERT INTO word_totals VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                ("en", "in", "in", 3, 3, 0),
+                ("en", "of", "of", 3, 3, 0),
+                ("en", "policy", "policy", 2, 2, 0),
+                ("en", "terms", "terms", 2, 2, 0),
+                ("en", "law", "law", 1, 1, 0),
+                ("en", "support", "support", 1, 1, 0),
+                ("en", ".", ".", 4, 3, 1),
+            ),
+        )
+        connection.executemany(
+            "INSERT INTO ngrams VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                ("en", 2, "in terms", "in terms", 2, 2, 0),
+                ("en", 2, "terms of", "terms of", 2, 2, 0),
+                ("en", 2, "in support", "in support", 1, 1, 0),
+                ("en", 2, "law .", "law .", 1, 1, 1),
+            ),
+        )
+        connection.commit()
+        connection.close()
+
+    def _build_reference_index(self) -> None:
+        index_dir = self.data_root / "indexes" / self.reference_corpus_id
+        index_dir.mkdir(parents=True)
+        connection = sqlite3.connect(index_dir / "kwic_index.sqlite")
+        connection.executescript(
+            """
+            CREATE TABLE word_totals (
+                language TEXT NOT NULL,
+                normalized TEXT NOT NULL,
+                display TEXT NOT NULL,
+                frequency INTEGER NOT NULL,
+                document_range INTEGER NOT NULL,
+                is_punctuation INTEGER NOT NULL,
+                PRIMARY KEY (language, normalized)
+            );
+            """
+        )
+        connection.executemany(
+            "INSERT INTO word_totals VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                ("en", "in", "in", 2, 2, 0),
+                ("en", "of", "of", 4, 3, 0),
+                ("en", "policy", "policy", 8, 4, 0),
+                ("en", "terms", "terms", 1, 1, 0),
+                ("en", "reference", "reference", 5, 3, 0),
+                ("en", ".", ".", 3, 3, 1),
+            ),
+        )
         connection.commit()
         connection.close()
 
@@ -191,6 +254,100 @@ class StatisticsEngineParityTests(TestCase):
         self.assertEqual(page.rows[0].term, "term")
         self.assertEqual(page.rows[0].frequency, 2)
         self.assertEqual(page.rows[0].document_range, 2)
+
+    def test_cached_word_list_filters_sorts_and_excludes_punctuation(self) -> None:
+        page = self.engine.word_list(
+            language="en",
+            filter_text="O",
+            min_frequency=2,
+            sort_by="range",
+            page=99,
+            page_size=20,
+        )
+
+        self.assertEqual(page.total_tokens, 12)
+        self.assertEqual(page.total_types, 2)
+        self.assertEqual(page.page, 1)
+        self.assertEqual(
+            [(row.term, row.frequency, row.document_range) for row in page.rows],
+            [("of", 3, 3), ("policy", 2, 2)],
+        )
+        self.assertAlmostEqual(page.rows[0].per_million, 250_000)
+
+    def test_static_ngrams_filter_sort_and_punctuation_controls(self) -> None:
+        filtered = self.engine.ngrams(
+            language="en",
+            n=2,
+            min_frequency=1,
+            filter_text="TERMS",
+            sort_by="term",
+        )
+        with_punctuation = self.engine.ngrams(
+            language="en",
+            n=2,
+            min_frequency=1,
+            include_punctuation=True,
+            sort_by="range",
+        )
+
+        self.assertEqual(
+            [(row.ngram, row.frequency, row.document_range) for row in filtered.rows],
+            [("in terms", 2, 2), ("terms of", 2, 2)],
+        )
+        self.assertEqual(with_punctuation.total_types, 4)
+        self.assertIn("law .", {row.ngram for row in with_punctuation.rows})
+
+    def test_keywords_include_direction_statistics_and_reference_only_terms(self) -> None:
+        reference = StatisticsEngine(
+            data_root=self.data_root,
+            corpus_id=self.reference_corpus_id,
+        )
+        positive_only = self.engine.keywords(
+            reference=reference,
+            reference_name="Reference",
+            language="en",
+            min_frequency=1,
+            sort_by="term",
+        )
+        all_keywords = self.engine.keywords(
+            reference=reference,
+            reference_name="Reference",
+            language="en",
+            min_frequency=1,
+            include_negative=True,
+            sort_by="log_ratio",
+        )
+
+        self.assertTrue(all(row.direction == "positive" for row in positive_only.rows))
+        rows = {row.term: row for row in all_keywords.rows}
+        self.assertEqual(rows["support"].reference_frequency, 0)
+        self.assertEqual(rows["reference"].target_frequency, 0)
+        self.assertEqual(rows["policy"].direction, "negative")
+        self.assertGreater(rows["terms"].log_likelihood, 0)
+        self.assertGreater(rows["terms"].chi_square, 0)
+        self.assertEqual(all_keywords.reference_name, "Reference")
+
+    def test_wordcloud_applies_stopwords_and_places_terms_deterministically(self) -> None:
+        first = self.engine.wordcloud(
+            language="en",
+            min_frequency=1,
+            max_words=10,
+            stopwords=(" IN ", "in", "of"),
+            theme="forest",
+        )
+        second = self.engine.wordcloud(
+            language="en",
+            min_frequency=1,
+            max_words=10,
+            stopwords=("in", "of"),
+            theme="forest",
+        )
+
+        self.assertEqual(first.source_types, 6)
+        self.assertEqual(first.excluded_stopwords, 2)
+        self.assertEqual(first.terms, second.terms)
+        self.assertEqual({term.term for term in first.terms}, {"policy", "terms", "law", "support"})
+        self.assertTrue(all(term.x > 0 and term.y > 0 for term in first.terms))
 
     def test_collocates_expose_antconc_likelihood_and_effect_size_measures(self) -> None:
         page = self.engine.collocates(
