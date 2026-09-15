@@ -14,7 +14,7 @@ from django.shortcuts import get_object_or_404, render
 from apps.accounts.permissions import approved_user_required
 from apps.audit.models import AuditEventType
 from apps.audit.services import record_audit_event, serializable_form_data
-from apps.corpora.models import Corpus, CorpusSourceType, CorpusStatus, CorpusType
+from apps.corpora.models import Corpus, CorpusStatus, CorpusType
 from apps.corpora.services import visible_corpora_for
 from apps.processing.index_health import ensure_corpus_index_ready
 
@@ -85,8 +85,7 @@ def parallel_search(request: HttpRequest, corpus_id) -> HttpResponse:
             "search_error": search_error,
             "index_repair": index_repair,
             "query_string": query_parameters.urlencode(),
-            "can_export": corpus.source_type == CorpusSourceType.USER
-            and corpus.owner_id == request.user.pk,
+            "can_export": True,
             "export_query_string": query_parameters.urlencode(),
         },
         status=202 if index_repair and index_repair.is_active else (409 if search_error else 200),
@@ -98,8 +97,6 @@ def parallel_export(request: HttpRequest, corpus_id) -> HttpResponse:
     corpus = get_object_or_404(Corpus, pk=corpus_id)
     if not visible_corpora_for(request.user).filter(pk=corpus.pk).exists():
         return HttpResponseForbidden("无权访问该语料库。")
-    if corpus.source_type != CorpusSourceType.USER or corpus.owner_id != request.user.pk:
-        return HttpResponseForbidden("教师和演示语料禁止导出；只能导出本人语料。")
     if availability_error := _availability_error(corpus):
         return HttpResponse(availability_error, status=409)
 

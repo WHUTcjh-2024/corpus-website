@@ -1,5 +1,14 @@
 # Operations runbook
 
+## Edge traffic limits
+
+Production Nginx limits each client IP to 20 requests per second generally and
+5 requests per second for search, parallel, statistics, and export routes. It
+also caps concurrent connections per IP at 20 and returns HTTP 429 when the
+request-rate budget is exceeded. Keep these limits enabled when replacing the
+bundled reverse proxy, and tune them only from measured traffic and load-test
+results.
+
 ## Reliable task delivery
 
 Processing and export requests are committed with an Outbox event in the same
@@ -40,10 +49,9 @@ Use `PROCESSING_WORKER_CONCURRENCY` and `EXPORT_WORKER_CONCURRENCY` to bound
 parallelism within one replica. Keep export concurrency low unless storage and
 database load have been measured; exports can read many indexed rows at once.
 
-The `agent` and `rag` queues are consumed by `processing-worker` because their
-tools access the same immutable corpus artifacts. They remain separately routed
-so a dedicated RAG worker can be introduced without changing producers. Agent
-runs are durable state machines, not long-lived HTTP requests: inspect an
+The `agent` queue is consumed by `processing-worker` because its tools access
+the same immutable corpus artifacts. Agent runs are durable state machines, not
+long-lived HTTP requests: inspect an
 `AgentRun` and its step trace before replaying any dead-letter Outbox event. A run in
 `waiting_approval` is healthy and must never be replayed to bypass the user
 confirmation boundary. See [CORPUS_AGENT_HARNESS.md](CORPUS_AGENT_HARNESS.md).
@@ -67,17 +75,12 @@ Create alerts for:
   detects an Agent Saga blocked after issuing an audit command.
 - `corpus_parallel_audit_oldest_active_age_seconds > 600` for 10 minutes. This
   detects a stuck Redis Streams command, worker, or result projection path.
-- `corpus_rag_indexes{status="failed"} > 0` for 10 minutes.
-- `corpus_rag_index_oldest_active_age_seconds > 900` for 10 minutes. This
-  detects an embedding request, RAG worker, or lease-recovery problem.
-
 `/healthz` is liveness only: it answers whether the Django process is alive.
 Container orchestration must use `/readyz`, which additionally checks PostgreSQL,
 Redis, the mounted data directory, optional model configuration, and the Redis
-Streams dependency used by the Go auditor. When `RAG_INDEXING_ENABLED=true`, it
-also verifies the Milvus control-plane connection before accepting work. Likewise, the Go auditor's `/readyz`
-checks Redis before it accepts traffic, while `/healthz` remains available during
-a transient broker outage for diagnosis.
+Streams dependency used by the Go auditor. The Go auditor's `/readyz` checks
+Redis before it accepts traffic, while `/healthz` remains available during a
+transient broker outage for diagnosis.
 
 The default retention is seven days for successfully published events. Dead
 letters are retained for investigation and manual replay.

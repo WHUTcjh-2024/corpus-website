@@ -1,6 +1,6 @@
 <div class="page-header">
   <div><h1 class="page-title">{{ corpus.name }}</h1><p class="page-description">统计基于已加工词元索引，不扫描或修改老师原文件。</p></div>
-  <div class="page-actions"><a class="btn btn-outline-secondary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a><a class="btn btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">语料说明</a></div>
+  <div class="page-actions">{% if request.GET %}<form method="post" action="{% url 'research_history:save' %}" class="m-0">{% csrf_token %}<input type="hidden" name="corpus_id" value="{{ corpus.pk }}"><input type="hidden" name="kind" value="{{ request.resolver_match.url_name }}"><input type="hidden" name="query_string" value="{{ request.GET.urlencode }}"><button class="btn btn-outline-primary" type="submit">保存分析</button></form>{% endif %}<a class="btn btn-outline-secondary" href="{% url 'search:kwic' corpus.pk %}">KWIC</a><a class="btn btn-outline-secondary" href="{% url 'corpora:documentation' corpus.pk %}">语料说明</a></div>
 </div>
 <nav class="nav tool-tabs" aria-label="统计分析工具">
   <a class="nav-link{% if request.resolver_match.url_name == 'word_list' %} active{% endif %}" href="{% url 'statistics:word_list' corpus.pk %}">词表</a>

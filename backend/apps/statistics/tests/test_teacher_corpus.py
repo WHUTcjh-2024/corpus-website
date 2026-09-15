@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from unittest import TestCase, skipUnless
@@ -14,9 +15,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATA_ROOT = PROJECT_ROOT / "data"
 TEACHER_CORPUS_ID = "71d92f26-c5e5-485f-ac83-3ebccb6a9acc"
 TEACHER_INDEX = DATA_ROOT / "indexes" / TEACHER_CORPUS_ID / "kwic_index.sqlite"
+RUN_TEACHER_CORPUS_REGRESSION = os.getenv("RUN_TEACHER_CORPUS_REGRESSION") == "1"
 
 
-@skipUnless(TEACHER_INDEX.is_file(), "teacher corpus regression index is not installed")
+@skipUnless(
+    RUN_TEACHER_CORPUS_REGRESSION and TEACHER_INDEX.is_file(),
+    "set RUN_TEACHER_CORPUS_REGRESSION=1 and install the teacher corpus index",
+)
 class TeacherCorpusAntConcRegressionTests(TestCase):
     """Golden checks against the provided tagged bilingual teacher corpus."""
 

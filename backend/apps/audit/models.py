@@ -36,6 +36,62 @@ class AuditEventType(models.TextChoices):
     AGENT_EXTERNAL_FAILED = "agent.external.failed", "Agent external wait failed"
 
 
+class SavedSearchKind(models.TextChoices):
+    KWIC = "kwic", "KWIC 检索"
+    PARALLEL = "parallel", "ParaConc 平行检索"
+    WORD_LIST = "word_list", "词表"
+    CLUSTERS = "clusters", "词簇"
+    NGRAMS = "ngrams", "N-Gram"
+    COLLOCATES = "collocates", "搭配词"
+    KEYWORDS = "keywords", "关键词"
+    WORDCLOUD = "wordcloud", "词云"
+    CONCORDANCE_PLOT = "concordance_plot", "索引图"
+
+
+class SavedSearch(models.Model):
+    """A bounded, replayable query saved by one approved workspace user."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="saved_searches",
+        verbose_name="用户",
+    )
+    corpus = models.ForeignKey(
+        Corpus,
+        on_delete=models.CASCADE,
+        related_name="saved_searches",
+        verbose_name="语料库",
+    )
+    kind = models.CharField(
+        "检索类型",
+        max_length=32,
+        choices=SavedSearchKind.choices,
+        db_index=True,
+    )
+    name = models.CharField("名称", max_length=120)
+    query_string = models.TextField("查询参数")
+    created_at = models.DateTimeField("保存时间", auto_now_add=True)
+    updated_at = models.DateTimeField("更新时间", auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-pk"]
+        verbose_name = "已保存检索"
+        verbose_name_plural = "已保存检索"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "corpus", "kind", "query_string"],
+                name="unique_saved_search_query_per_user",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["user", "updated_at"], name="saved_search_user_updated_idx")
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name} · {self.get_kind_display()}"
+
+
 class AuditEvent(models.Model):
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

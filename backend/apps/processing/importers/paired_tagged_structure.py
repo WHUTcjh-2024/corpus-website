@@ -18,7 +18,7 @@ from ..contracts import (
 )
 from ..exceptions import ProcessingError
 from ..text import normalize_token, read_source_text
-from .base import BaseImporter
+from .base import BaseImporter, iter_language_pairs
 
 
 _ELEMENT_RE_TEMPLATE = r"<{tag}\b(?P<attrs>[^>]*)>(?P<body>.*?)<\s*/\s*{tag}\s*>"
@@ -98,7 +98,13 @@ class PairedTaggedStructureImporter(BaseImporter):
     name = "paired_tagged_structure_provided"
 
     def iter_import(self, sources: Sequence[SourceFile]) -> Iterator[ImportResult]:
-        zh_source, en_source = _select_language_pair(sources)
+        try:
+            for zh_source, en_source in iter_language_pairs(sources):
+                yield self._import_pair(zh_source, en_source)
+        except ValueError as exc:
+            raise ProcessingError(str(exc)) from exc
+
+    def _import_pair(self, zh_source: SourceFile, en_source: SourceFile) -> ImportResult:
         zh = _import_tagged_source(zh_source)
         en = _import_tagged_source(en_source)
         _validate_alignment(zh.document, en.document)
@@ -194,17 +200,7 @@ class PairedTaggedStructureImporter(BaseImporter):
         )
         if not result.parallel_pairs:
             raise ProcessingError("Tagged pair contains no verifiable aligned unit.")
-        yield result
-
-
-def _select_language_pair(sources: Sequence[SourceFile]) -> tuple[SourceFile, SourceFile]:
-    zh_sources = [source for source in sources if source.language == "zh"]
-    en_sources = [source for source in sources if source.language == "en"]
-    if len(zh_sources) != 1 or len(en_sources) != 1:
-        raise ProcessingError(
-            "PairedTaggedStructureImporter requires exactly one zh file and one en file."
-        )
-    return zh_sources[0], en_sources[0]
+        return result
 
 
 def _import_tagged_source(source: SourceFile) -> ImportedStructure:

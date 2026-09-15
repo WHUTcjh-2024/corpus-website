@@ -16,6 +16,7 @@ class CorpusFileInline(admin.TabularInline):
         "stored_path",
         "detected_type",
         "language",
+        "pair_id",
         "encoding",
         "size_bytes",
         "status",
@@ -61,6 +62,12 @@ class CorpusFileAdmin(admin.ModelAdmin):
         "status",
     )
     list_filter = ("detected_type", "language", "status")
-    search_fields = ("original_filename", "stored_path", "manifest_file_id", "corpus__name")
+    search_fields = (
+        "original_filename",
+        "stored_path",
+        "manifest_file_id",
+        "pair_id",
+        "corpus__name",
+    )
     autocomplete_fields = ("corpus",)
     readonly_fields = ("created_at", "updated_at")

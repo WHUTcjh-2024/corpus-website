@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404, render
 from apps.accounts.permissions import approved_user_required
 from apps.audit.models import AuditEventType
 from apps.audit.services import record_audit_event, serializable_form_data
-from apps.corpora.models import Corpus, CorpusLanguage, CorpusSourceType
+from apps.corpora.models import Corpus, CorpusLanguage
 from apps.corpora.services import visible_corpora_for
 from apps.processing.index_health import ensure_corpus_index_ready
 
@@ -133,8 +133,7 @@ def kwic_search(request: HttpRequest, corpus_id) -> HttpResponse:
             "query_string": query_parameters.urlencode(),
             "query_mode_label": query_mode_label,
             "language_label": language_label,
-            "can_export": corpus.source_type == CorpusSourceType.USER
-            and corpus.owner_id == request.user.pk,
+            "can_export": True,
             "export_query_string": query_parameters.urlencode(),
         },
         status=202 if index_repair and index_repair.is_active else (409 if search_error else 200),

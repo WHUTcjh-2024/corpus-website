@@ -243,6 +243,13 @@ class CorpusFile(models.Model):
     original_filename = models.CharField("原始文件名", max_length=500)
     stored_path = models.CharField("存储路径", max_length=1500)
     manifest_file_id = models.CharField("manifest 文件 ID", max_length=64, blank=True)
+    pair_id = models.CharField(
+        "双语配对 ID",
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text="批量双语语料中用于关联一组中英文源文件。",
+    )
     detected_type = models.CharField(
         "检测类型",
         max_length=30,

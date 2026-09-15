@@ -716,6 +716,7 @@ def register_manifest_corpus(
                 "stored_path": str(source_path),
                 "detected_type": detected_type,
                 "language": file_language,
+                "pair_id": str(selected.get("probable_pair_id", "")),
                 "size_bytes": _non_negative_int(selected.get("size_bytes")),
                 "encoding": str(selected.get("encoding", "")),
                 "status": CorpusFileStatus.PENDING,
@@ -744,6 +745,7 @@ def register_corpus_file(*, corpus: Corpus, data: CorpusFileData) -> tuple[Corpu
         defaults={
             "original_filename": path.name,
             "manifest_file_id": data.manifest_file_id,
+            "pair_id": "",
             "detected_type": data.detected_type,
             "language": data.language,
             "size_bytes": path.stat().st_size,

@@ -65,7 +65,7 @@
     <div class="small text-secondary">保留源语料顺序；自动候选段对不会标记为人工对齐。</div>
     <div class="d-flex flex-wrap gap-2">
       <button class="btn btn-outline-secondary" type="button" data-reset-form>重置</button>
-      <button class="btn btn-outline-secondary" type="button" disabled title="保存查询将在后续历史模块接入">保存查询</button>
+      {% if form.is_bound and form.is_valid %}<form method="post" action="{% url 'research_history:save' %}" class="m-0">{% csrf_token %}<input type="hidden" name="corpus_id" value="{{ corpus.pk }}"><input type="hidden" name="kind" value="parallel"><input type="hidden" name="query_string" value="{{ query_string }}"><button class="btn btn-outline-secondary" type="submit">保存查询</button></form>{% endif %}
       <button class="btn btn-outline-secondary" type="button" disabled>导出在结果区启用</button>
     </div>
   </div>
@@ -90,8 +90,6 @@
       {% if result.auto_target_highlights %}<div class="query-tags"><span class="query-tag">目标侧统计提示（非词语对齐）：{{ result.auto_target_highlights|join:" / " }}</span></div>{% endif %}
       {% if can_export %}
         <form method="post" action="{% url 'exports:create_parallel' corpus.pk %}" class="m-0">{% csrf_token %}<input type="hidden" name="query_string" value="{{ export_query_string }}"><button class="btn btn-sm btn-outline-primary" type="submit">后台导出 TSV</button></form>
-      {% else %}
-        <button class="btn btn-sm btn-outline-secondary disabled-explain" type="button" disabled data-bs-toggle="tooltip" data-bs-title="教师授权语料仅支持在线检索，不支持批量导出">导出不可用</button>
       {% endif %}
     </div>
   </div>

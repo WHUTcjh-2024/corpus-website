@@ -11,7 +11,7 @@ class GroundedSummaryTests(SimpleTestCase):
             "choices": [
                 {
                     "message": {
-                        "content": '{"answer":"The policy requires approval.","citation_ids":["rag:1"]}'
+                        "content": '{"answer":"The policy requires approval.","citation_ids":["kwic:1"]}'
                     }
                 }
             ],
@@ -26,10 +26,10 @@ class GroundedSummaryTests(SimpleTestCase):
             AGENT_MODEL_OUTPUT_USD_PER_1M=8.0,
         ), patch("apps.agent.llm._invoke", return_value=response):
             result = summarize_grounded_evidence(
-                mode="rag",
-                evidence=[{"citation_id": "rag:1", "text": "Policy approval evidence."}],
+                mode="retrieve",
+                evidence=[{"citation_id": "kwic:1", "text": "Policy approval evidence."}],
             )
 
         self.assertFalse(result.usage["fallback"])
         self.assertEqual(result.estimated_cost_usd, 0.0004)
-        self.assertIn("rag:1", result.answer)
+        self.assertIn("kwic:1", result.answer)

@@ -95,14 +95,12 @@ class Command(BaseCommand):
             sample = connection.execute(
                 """
                 SELECT language,
-                       MIN(surface) AS surface,
+                       display,
                        normalized,
-                       COUNT(*) AS frequency,
-                       MIN(global_position) AS first_position
-                FROM tokens
+                       frequency
+                FROM word_totals
                 WHERE is_punctuation = 0
-                GROUP BY language, normalized
-                ORDER BY frequency DESC, first_position
+                ORDER BY frequency DESC, normalized
                 LIMIT 1
                 """
             ).fetchone()
@@ -118,7 +116,7 @@ class Command(BaseCommand):
         kwic_total = 0
         type_total = 0
         if sample is not None:
-            language, surface, _normalized, expected_frequency, _first_position = sample
+            language, surface, _normalized, expected_frequency = sample
             kwic = KwicSearchEngine(
                 data_root=settings.DATA_ROOT,
                 corpus_id=str(corpus.pk),

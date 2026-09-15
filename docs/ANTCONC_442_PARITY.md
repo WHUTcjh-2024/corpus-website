@@ -60,6 +60,10 @@ $env:DATABASE_URL='postgres://corpus_platform:corpus_platform@127.0.0.1:5432/cor
 $env:DJANGO_SETTINGS_MODULE='config.settings.local'
 .\.venv\Scripts\python.exe manage.py test
 
+# 已安装老师正式语料索引时，显式启用大型金标准回归
+$env:RUN_TEACHER_CORPUS_REGRESSION='1'
+.\.venv\Scripts\python.exe manage.py test apps.statistics.tests.test_teacher_corpus
+
 cd ..\frontend
 npm run lint
 npm run build
