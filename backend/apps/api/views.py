@@ -16,6 +16,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.forms import ApprovedUserAuthenticationForm
+from apps.accounts.login_security import (
+    LoginSecurityUnavailable,
+    evaluate_login_attempt,
+    record_login_failure,
+    record_login_success,
+)
 from apps.accounts.permissions import get_user_profile, workspace_access_scope
 from apps.corpora.models import (
     Corpus,
@@ -153,8 +159,32 @@ class LoginView(APIView):
     authentication_classes = []
 
     def post(self, request):
+        username = request.data.get("username", "")
+        try:
+            decision = evaluate_login_attempt(request, username)
+        except LoginSecurityUnavailable:
+            return Response(
+                {"detail": "登录保护服务暂时不可用，请稍后重试。"},
+                status=503,
+                headers={"Retry-After": "30"},
+            )
+        if not decision.allowed:
+            return Response(
+                {"detail": "登录尝试过于频繁，请稍后重试。"},
+                status=429,
+                headers={"Retry-After": str(decision.retry_after_seconds)},
+            )
+
         form = ApprovedUserAuthenticationForm(request=request, data=request.data)
         if not form.is_valid():
+            try:
+                record_login_failure(request, username)
+            except LoginSecurityUnavailable:
+                return Response(
+                    {"detail": "登录保护服务暂时不可用，请稍后重试。"},
+                    status=503,
+                    headers={"Retry-After": "30"},
+                )
             return Response(
                 {
                     "detail": "用户名、密码错误，或账号尚未审核通过。",
@@ -163,6 +193,7 @@ class LoginView(APIView):
                 status=400,
             )
 
+        record_login_success(request, username)
         login(request, form.get_user())
         return Response({"redirect_to": resolve_url(settings.LOGIN_REDIRECT_URL)})
 

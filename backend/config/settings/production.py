@@ -7,6 +7,7 @@ from .base import *  # noqa: F401,F403
 
 
 DEBUG = False
+LOGIN_SECURITY_FAIL_CLOSED = env_bool("LOGIN_SECURITY_FAIL_CLOSED", True)  # noqa: F405
 DATABASES["default"]["CONN_MAX_AGE"] = int(  # noqa: F405
     os.getenv("DB_CONN_MAX_AGE_SECONDS", "60")
 )

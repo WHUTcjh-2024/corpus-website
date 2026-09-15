@@ -56,6 +56,11 @@ openssl rand -hex 32
 PostgreSQL 最大 50 连接、Redis 最大内存 384 MB 且禁止驱逐。Redis 同时承载任务和审计
 消息，不能使用会静默删除键的 LRU 驱逐策略。
 
+公网登录由两层保护：Nginx 对 `/api/auth/login/` 和 `/admin/login/` 独立限制为每个
+来源 IP 每分钟 10 次；应用通过 Redis 记录 IP、用户名以及二者组合的失败次数。连续失败
+会锁定 15 分钟，Redis 不可用时生产登录默认关闭，避免缓存故障绕过防护。不要关闭
+`LOGIN_SECURITY_FAIL_CLOSED`，调整阈值时必须同步评估 Nginx 限流值。
+
 ## 3. 首次申请 TLS 证书
 
 先完成域名解析，确认 80 端口未被其他程序占用，然后在应用栈尚未启动时执行。将下面

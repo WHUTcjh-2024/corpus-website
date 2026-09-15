@@ -94,6 +94,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "config.middleware.AdminLoginProtectionMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -146,6 +147,31 @@ FEEDBACK_SUPPORT_NAME = os.getenv("FEEDBACK_SUPPORT_NAME", "平台管理员").st
 FEEDBACK_SUPPORT_EMAIL = os.getenv(
     "FEEDBACK_SUPPORT_EMAIL", "support@example.invalid"
 ).strip()
+
+LOGIN_RATE_LIMIT_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_ATTEMPTS", "10"))
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(
+    os.getenv("LOGIN_RATE_LIMIT_WINDOW_SECONDS", "60")
+)
+LOGIN_PAIR_FAILURE_LIMIT = int(os.getenv("LOGIN_PAIR_FAILURE_LIMIT", "5"))
+LOGIN_USERNAME_FAILURE_LIMIT = int(os.getenv("LOGIN_USERNAME_FAILURE_LIMIT", "10"))
+LOGIN_IP_FAILURE_LIMIT = int(os.getenv("LOGIN_IP_FAILURE_LIMIT", "30"))
+LOGIN_FAILURE_WINDOW_SECONDS = int(os.getenv("LOGIN_FAILURE_WINDOW_SECONDS", "900"))
+LOGIN_LOCKOUT_SECONDS = int(os.getenv("LOGIN_LOCKOUT_SECONDS", "900"))
+LOGIN_SECURITY_FAIL_CLOSED = env_bool("LOGIN_SECURITY_FAIL_CLOSED", False)
+LOGIN_TRUSTED_PROXY_CIDRS = env_list(
+    "LOGIN_TRUSTED_PROXY_CIDRS",
+    "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
+)
+if min(
+    LOGIN_RATE_LIMIT_ATTEMPTS,
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+    LOGIN_PAIR_FAILURE_LIMIT,
+    LOGIN_USERNAME_FAILURE_LIMIT,
+    LOGIN_IP_FAILURE_LIMIT,
+    LOGIN_FAILURE_WINDOW_SECONDS,
+    LOGIN_LOCKOUT_SECONDS,
+) < 1:
+    raise ValueError("Login rate limits and lockout settings must be positive.")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

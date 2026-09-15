@@ -43,6 +43,8 @@ esac
 [ "$(read_env_value DJANGO_DEBUG)" = "false" ] || fail "DJANGO_DEBUG must be false"
 [ "$(read_env_value DJANGO_SECURE_SSL_REDIRECT)" = "true" ] || \
   fail "DJANGO_SECURE_SSL_REDIRECT must be true"
+[ "$(read_env_value LOGIN_SECURITY_FAIL_CLOSED)" = "true" ] || \
+  fail "LOGIN_SECURITY_FAIL_CLOSED must be true"
 [ "$(read_env_value NGINX_CONFIG_PATH)" = "./deploy/nginx.single-host.conf" ] || \
   fail "NGINX_CONFIG_PATH must select deploy/nginx.single-host.conf"
 [ "$(read_env_value UPLOAD_SCANNER_BACKEND)" = "apps.corpora.scanners.ClamAVUploadScanner" ] || \
@@ -53,6 +55,23 @@ case "$feedback_email" in
   *@*.*) ;;
   *) fail "FEEDBACK_SUPPORT_EMAIL is not a valid address" ;;
 esac
+
+for key in \
+  LOGIN_RATE_LIMIT_ATTEMPTS \
+  LOGIN_RATE_LIMIT_WINDOW_SECONDS \
+  LOGIN_PAIR_FAILURE_LIMIT \
+  LOGIN_USERNAME_FAILURE_LIMIT \
+  LOGIN_IP_FAILURE_LIMIT \
+  LOGIN_FAILURE_WINDOW_SECONDS \
+  LOGIN_LOCKOUT_SECONDS; do
+  value=$(read_env_value "$key")
+  case "$value" in
+    ''|*[!0-9]*) fail "$key must be a positive integer" ;;
+  esac
+  [ "$value" -gt 0 ] || fail "$key must be a positive integer"
+done
+[ "$(read_env_value LOGIN_PAIR_FAILURE_LIMIT)" -le "$(read_env_value LOGIN_USERNAME_FAILURE_LIMIT)" ] || \
+  fail "LOGIN_PAIR_FAILURE_LIMIT must not exceed LOGIN_USERNAME_FAILURE_LIMIT"
 allowed_hosts=$(read_env_value DJANGO_ALLOWED_HOSTS)
 trusted_origins=$(read_env_value DJANGO_CSRF_TRUSTED_ORIGINS)
 healthcheck_host=$(read_env_value DJANGO_HEALTHCHECK_HOST)

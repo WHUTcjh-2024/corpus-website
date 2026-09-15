@@ -21,8 +21,8 @@ class ContractDeploymentTests(SimpleTestCase):
 
         self.assertIn("upstream corpus_web", config)
         self.assertIn("keepalive 16", config)
-        self.assertEqual(config.count("proxy_http_version 1.1"), 2)
-        self.assertEqual(config.count('proxy_set_header Connection ""'), 2)
+        self.assertEqual(config.count("proxy_http_version 1.1"), 3)
+        self.assertEqual(config.count('proxy_set_header Connection ""'), 3)
 
     def test_production_compose_uses_bounded_threaded_workers(self):
         config = (PROJECT_ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
@@ -75,6 +75,7 @@ class ContractDeploymentTests(SimpleTestCase):
         self.assertIn("location = /metrics", config)
         self.assertIn("location = /readyz", config)
         self.assertIn("zone=login_per_ip", config)
+        self.assertIn("api/auth/login|admin/login", config)
         self.assertIn("proxy_set_header X-Forwarded-Proto https", config)
 
     def test_single_host_backup_is_validated_before_publication(self):
