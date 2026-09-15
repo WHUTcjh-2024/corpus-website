@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from apps.accounts.models import UserRole
@@ -31,6 +32,8 @@ class Command(BaseCommand):
         parser.add_argument("--admin-email", default="chen@example.invalid")
 
     def handle(self, *args, **options) -> None:
+        if not settings.DEBUG:
+            raise CommandError("seed_accounts 仅供 DEBUG 验收环境使用。")
         if not options["test_password"] or not options["admin_password"]:
             raise CommandError(
                 "必须通过命令参数或环境变量提供 test_user 和 admin 密码。"

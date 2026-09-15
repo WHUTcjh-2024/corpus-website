@@ -21,6 +21,9 @@ if SECRET_KEY == "unsafe-local-dev-key":  # noqa: F405
 if not ALLOWED_HOSTS:  # noqa: F405
     raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be set in production.")
 
+if FIXED_TEST_ACCOUNT_ENABLED:  # noqa: F405
+    raise ImproperlyConfigured("FIXED_TEST_ACCOUNT_ENABLED must be false in production.")
+
 if DATABASES["default"]["CONN_MAX_AGE"] < 1:  # noqa: F405
     raise ImproperlyConfigured("DB_CONN_MAX_AGE_SECONDS must be positive in production.")
 

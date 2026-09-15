@@ -35,6 +35,7 @@ sudo install -d -m 0750 /srv/corpus-platform/data
 sudo install -d -m 0700 /srv/corpus-platform/backups
 sudo install -d -m 0700 /srv/corpus-platform/letsencrypt
 sudo install -d -m 0755 /srv/corpus-platform/certbot-www
+sudo install -d -m 0700 /srv/corpus-platform/secrets
 ```
 
 ## 2. 生产配置
@@ -51,6 +52,18 @@ chmod 600 .env.single-host
 ```bash
 openssl rand -hex 32
 ```
+
+另生成一份不与其他密钥复用的管理员密码，写入 Compose 不会展示内容的独立文件：
+
+```bash
+openssl rand -base64 36 | sudo tee /srv/corpus-platform/secrets/production_admin_password >/dev/null
+sudo chmod 600 /srv/corpus-platform/secrets/production_admin_password
+```
+
+在 `.env.single-host` 填写管理员真实用户名、姓名、单位、邮箱和该密码文件路径。启动时
+`provision_production_admin` 会创建正式管理员；以后重复启动只同步账号状态和资料，不会
+覆盖管理员在后台修改过的密码。命令拒绝 `test`、`test_user`、`.invalid` 邮箱以及接管
+既有测试账号；生产设置也禁止启用 `FIXED_TEST_ACCOUNT_ENABLED`。
 
 保持以下低配主机默认值：Gunicorn `2 × 4` 线程、加工/导出/审计并发均为 `1`、
 PostgreSQL 最大 50 连接、Redis 最大内存 384 MB 且禁止驱逐。Redis 同时承载任务和审计
@@ -98,14 +111,8 @@ docker compose --env-file .env.single-host \
 ClamAV 首次下载和加载病毒库可能需要数分钟，`web` 会等待其健康后启动。不要为了加快
 首次启动而关闭上传扫描。
 
-创建唯一的正式管理员，不要运行 `seed_accounts` 或保留验收密码：
-
-```bash
-docker compose --env-file .env.single-host \
-  -f docker-compose.prod.yml \
-  -f docker-compose.single-host.yml \
-  exec web python manage.py createsuperuser
-```
+确认日志出现“正式管理员已创建”或“已验证并同步资料”。不要在生产环境运行
+`seed_accounts` 或 `ensure_test_account`；两条命令在非 DEBUG 环境均会直接拒绝执行。
 
 完成启动检查：
 

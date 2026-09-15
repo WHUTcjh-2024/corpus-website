@@ -18,13 +18,12 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options) -> None:
+        if not settings.DEBUG:
+            raise CommandError("拒绝在非 DEBUG 环境创建固定弱口令测试账号。")
         if not settings.FIXED_TEST_ACCOUNT_ENABLED and not options["force"]:
             raise CommandError(
                 "固定测试账号未启用。仅可在本地设置 FIXED_TEST_ACCOUNT_ENABLED=true。"
             )
-        if not settings.DEBUG and not options["force"]:
-            raise CommandError("拒绝在非 DEBUG 环境创建固定弱口令测试账号。")
-
         user, created = ensure_seed_account(
             username="test",
             email="test@example.invalid",

@@ -56,6 +56,24 @@ case "$feedback_email" in
   *) fail "FEEDBACK_SUPPORT_EMAIL is not a valid address" ;;
 esac
 
+admin_username=$(read_env_value PRODUCTION_ADMIN_USERNAME)
+admin_email=$(read_env_value PRODUCTION_ADMIN_EMAIL)
+admin_full_name=$(read_env_value PRODUCTION_ADMIN_FULL_NAME)
+admin_organization=$(read_env_value PRODUCTION_ADMIN_ORGANIZATION)
+[ -n "$admin_username" ] || fail "PRODUCTION_ADMIN_USERNAME is required"
+[ -n "$admin_full_name" ] || fail "PRODUCTION_ADMIN_FULL_NAME is required"
+[ -n "$admin_organization" ] || fail "PRODUCTION_ADMIN_ORGANIZATION is required"
+case "$(printf '%s' "$admin_username" | tr '[:upper:]' '[:lower:]')" in
+  test|test_user) fail "the production administrator cannot use a test username" ;;
+esac
+case "$admin_email" in
+  *@*.*) ;;
+  *) fail "PRODUCTION_ADMIN_EMAIL is not a valid address" ;;
+esac
+case "$(printf '%s' "$admin_email" | tr '[:upper:]' '[:lower:]')" in
+  *.invalid) fail "the production administrator cannot use a .invalid email address" ;;
+esac
+
 for key in \
   LOGIN_RATE_LIMIT_ATTEMPTS \
   LOGIN_RATE_LIMIT_WINDOW_SECONDS \
@@ -150,6 +168,23 @@ for key in DATA_ROOT_HOST_PATH BACKUP_ROOT_HOST_PATH LETSENCRYPT_HOST_PATH CERTB
   [ -d "$value" ] || fail "$key directory does not exist: $value"
   [ -w "$value" ] || fail "$key directory is not writable: $value"
 done
+
+admin_password_path=$(read_env_value PRODUCTION_ADMIN_PASSWORD_HOST_PATH)
+[ -n "$admin_password_path" ] || fail "PRODUCTION_ADMIN_PASSWORD_HOST_PATH is required"
+case "$admin_password_path" in
+  /*) ;;
+  *) fail "PRODUCTION_ADMIN_PASSWORD_HOST_PATH must be an absolute path" ;;
+esac
+[ -f "$admin_password_path" ] || fail "administrator password file does not exist: $admin_password_path"
+[ ! -L "$admin_password_path" ] || fail "administrator password file must not be a symbolic link"
+[ -s "$admin_password_path" ] || fail "administrator password file is empty"
+if command -v stat >/dev/null 2>&1; then
+  password_mode=$(stat -c '%a' "$admin_password_path" 2>/dev/null || true)
+  case "$password_mode" in
+    600|400) ;;
+    *) fail "administrator password file permissions are $password_mode; use chmod 600" ;;
+  esac
+fi
 
 cert_root=$(read_env_value LETSENCRYPT_HOST_PATH)
 for certificate_file in \

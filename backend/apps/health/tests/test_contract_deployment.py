@@ -36,6 +36,8 @@ class ContractDeploymentTests(SimpleTestCase):
         self.assertIn("PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS", config)
         self.assertIn("DJANGO_HEALTHCHECK_HOST", config)
         self.assertIn("headers={'Host': os.environ['DJANGO_HEALTHCHECK_HOST']}", config)
+        self.assertIn("python manage.py provision_production_admin", config)
+        self.assertIn("PRODUCTION_ADMIN_PASSWORD_HOST_PATH", config)
 
     def test_local_compose_matches_safe_concurrency_defaults(self):
         config = (PROJECT_ROOT / "docker-compose.local.yml").read_text(encoding="utf-8")
