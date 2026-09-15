@@ -12,12 +12,8 @@ from .models import FeedbackTicket
 
 def _support_context() -> dict[str, str]:
     return {
-        "feedback_support_name": getattr(settings, "FEEDBACK_SUPPORT_NAME", "平台管理员"),
-        "feedback_support_email": getattr(
-            settings,
-            "FEEDBACK_SUPPORT_EMAIL",
-            getattr(settings, "DEFAULT_FROM_EMAIL", "support@example.invalid"),
-        ),
+        "feedback_support_name": settings.FEEDBACK_SUPPORT_NAME,
+        "feedback_support_email": settings.FEEDBACK_SUPPORT_EMAIL,
     }
 
 

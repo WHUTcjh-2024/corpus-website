@@ -143,9 +143,9 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "accounts:dashboard"
 LOGOUT_REDIRECT_URL = "home"
 
-FEEDBACK_SUPPORT_NAME = os.getenv("FEEDBACK_SUPPORT_NAME", "平台管理员").strip()
+FEEDBACK_SUPPORT_NAME = os.getenv("FEEDBACK_SUPPORT_NAME", "陈俊宏").strip()
 FEEDBACK_SUPPORT_EMAIL = os.getenv(
-    "FEEDBACK_SUPPORT_EMAIL", "support@example.invalid"
+    "FEEDBACK_SUPPORT_EMAIL", "570372819@qq.com"
 ).strip()
 
 LOGIN_RATE_LIMIT_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_ATTEMPTS", "10"))
