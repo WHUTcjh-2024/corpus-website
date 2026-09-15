@@ -51,7 +51,10 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+      DJANGO_HEALTHCHECK_HOST: ${DJANGO_HEALTHCHECK_HOST:?DJANGO_HEALTHCHECK_HOST is required}
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
+      FEEDBACK_SUPPORT_NAME: ${FEEDBACK_SUPPORT_NAME:?FEEDBACK_SUPPORT_NAME is required}
+      FEEDBACK_SUPPORT_EMAIL: ${FEEDBACK_SUPPORT_EMAIL:?FEEDBACK_SUPPORT_EMAIL is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
       DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
@@ -106,7 +109,7 @@ services:
       - "8000"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=3).read()\""]
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; request = urllib.request.Request('http://127.0.0.1:8000/readyz', headers={'Host': os.environ['DJANGO_HEALTHCHECK_HOST']}); urllib.request.urlopen(request, timeout=3).read()\""]
       interval: 15s
       timeout: 5s
       retries: 12
@@ -119,6 +122,8 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+      FEEDBACK_SUPPORT_NAME: ${FEEDBACK_SUPPORT_NAME:?FEEDBACK_SUPPORT_NAME is required}
+      FEEDBACK_SUPPORT_EMAIL: ${FEEDBACK_SUPPORT_EMAIL:?FEEDBACK_SUPPORT_EMAIL is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
       DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
@@ -174,6 +179,8 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+      FEEDBACK_SUPPORT_NAME: ${FEEDBACK_SUPPORT_NAME:?FEEDBACK_SUPPORT_NAME is required}
+      FEEDBACK_SUPPORT_EMAIL: ${FEEDBACK_SUPPORT_EMAIL:?FEEDBACK_SUPPORT_EMAIL is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
       DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
@@ -229,6 +236,8 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+      FEEDBACK_SUPPORT_NAME: ${FEEDBACK_SUPPORT_NAME:?FEEDBACK_SUPPORT_NAME is required}
+      FEEDBACK_SUPPORT_EMAIL: ${FEEDBACK_SUPPORT_EMAIL:?FEEDBACK_SUPPORT_EMAIL is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
       DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
@@ -252,6 +261,8 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
+      FEEDBACK_SUPPORT_NAME: ${FEEDBACK_SUPPORT_NAME:?FEEDBACK_SUPPORT_NAME is required}
+      FEEDBACK_SUPPORT_EMAIL: ${FEEDBACK_SUPPORT_EMAIL:?FEEDBACK_SUPPORT_EMAIL is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
       DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
@@ -288,7 +299,7 @@ services:
     ports:
       - "${HTTP_PORT:-80}:80"
     volumes:
-      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ${NGINX_CONFIG_PATH:-./deploy/nginx.conf}:/etc/nginx/conf.d/default.conf:ro
       - static_files:/srv/static:ro
     restart: unless-stopped
 

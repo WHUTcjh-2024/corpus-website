@@ -142,6 +142,11 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "accounts:dashboard"
 LOGOUT_REDIRECT_URL = "home"
 
+FEEDBACK_SUPPORT_NAME = os.getenv("FEEDBACK_SUPPORT_NAME", "平台管理员").strip()
+FEEDBACK_SUPPORT_EMAIL = os.getenv(
+    "FEEDBACK_SUPPORT_EMAIL", "support@example.invalid"
+).strip()
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",

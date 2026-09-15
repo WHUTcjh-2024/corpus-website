@@ -1,0 +1,262 @@
+name: corpus-platform-single-host
+
+x-json-logging: &json-logging
+  driver: json-file
+  options:
+    max-size: ${LOG_MAX_SIZE:-10m}
+    max-file: "${LOG_MAX_FILES:-3}"
+
+x-service-hardening: &service-hardening
+  security_opt:
+    - no-new-privileges:true
+  init: true
+
+services:
+  db:
+    image: postgres:16.10-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-50}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - wal_compression=on
+      - -c
+      - idle_in_transaction_session_timeout=60000
+      - -c
+      - log_min_duration_statement=${DATABASE_SLOW_QUERY_MS:-500}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+    stop_grace_period: 60s
+    shm_size: 256mb
+    mem_limit: 768m
+    mem_reservation: 384m
+    cpus: 1.25
+    pids_limit: 128
+    logging: *json-logging
+    <<: *service-hardening
+
+  redis:
+    image: redis:7.4.5-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command:
+      - sh
+      - -ec
+      - >-
+        exec redis-server
+        --appendonly yes
+        --appendfsync everysec
+        --save 900 1
+        --save 300 10
+        --save 60 10000
+        --maxmemory ${REDIS_MAXMEMORY:-384mb}
+        --maxmemory-policy noeviction
+        --requirepass "$${REDIS_PASSWORD}"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - redis-cli --no-auth-warning -a "$${REDIS_PASSWORD}" ping | grep -q PONG
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 512m
+    mem_reservation: 192m
+    cpus: 0.50
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  clamav:
+    image: clamav/clamav:1.4.6-debian13-slim
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+    expose:
+      - "3310"
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 5m
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 1400m
+    mem_reservation: 800m
+    cpus: 0.75
+    pids_limit: 128
+    logging: *json-logging
+    security_opt:
+      - no-new-privileges:true
+
+  corpus-auditor:
+    depends_on:
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: 0.50
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  web:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    mem_limit: 768m
+    mem_reservation: 256m
+    cpus: 1.50
+    pids_limit: 192
+    logging: *json-logging
+    <<: *service-hardening
+
+  processing-worker:
+    mem_limit: 896m
+    mem_reservation: 256m
+    cpus: 1.00
+    pids_limit: 192
+    logging: *json-logging
+    <<: *service-hardening
+
+  export-worker:
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.50
+    pids_limit: 128
+    logging: *json-logging
+    <<: *service-hardening
+
+  audit-result-projector:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: 0.25
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  outbox:
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: 0.25
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  nginx:
+    environment:
+      DOMAIN: ${DOMAIN:?DOMAIN is required}
+    ports:
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ${LETSENCRYPT_HOST_PATH:?LETSENCRYPT_HOST_PATH is required}:/etc/letsencrypt:ro
+      - ${CERTBOT_WEBROOT_HOST_PATH:?CERTBOT_WEBROOT_HOST_PATH is required}:/var/www/certbot:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'wget -qO- --no-check-certificate --header="Host: $${DOMAIN}" https://127.0.0.1/healthz >/dev/null'
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    mem_limit: 128m
+    mem_reservation: 32m
+    cpus: 0.25
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  backup:
+    image: postgres:16.10-alpine
+    command: ["sh", "/opt/corpus-platform/backup-loop.sh"]
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-7}
+      BACKUP_ONCE: ${BACKUP_ONCE:-false}
+    volumes:
+      - ./deploy/scripts/backup-loop.sh:/opt/corpus-platform/backup-loop.sh:ro
+      - ${DATA_ROOT_HOST_PATH:?DATA_ROOT_HOST_PATH is required}:/data:ro
+      - ${BACKUP_ROOT_HOST_PATH:?BACKUP_ROOT_HOST_PATH is required}:/backups
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'max_age_minutes=$$((BACKUP_INTERVAL_SECONDS / 60 + 120)); test -f /tmp/last-backup-success && find /tmp/last-backup-success -mmin "-$${max_age_minutes}" -print -quit | grep -q .'
+      interval: 5m
+      timeout: 5s
+      retries: 2
+      start_period: 10m
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 320m
+    mem_reservation: 64m
+    cpus: 0.50
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  certbot:
+    image: certbot/certbot:v4.2.0
+    profiles: [tls]
+    volumes:
+      - ${LETSENCRYPT_HOST_PATH:?LETSENCRYPT_HOST_PATH is required}:/etc/letsencrypt
+      - ${CERTBOT_WEBROOT_HOST_PATH:?CERTBOT_WEBROOT_HOST_PATH is required}:/var/www/certbot
+    mem_limit: 256m
+    cpus: 0.25
+    pids_limit: 96
+    logging: *json-logging
+    <<: *service-hardening
+
+  prometheus:
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: 0.25
+    pids_limit: 128
+    logging: *json-logging
+    <<: *service-hardening
+
+volumes:
+  postgres_data:
+  redis_data:
+  clamav_signatures:

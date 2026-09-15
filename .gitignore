@@ -36,6 +36,10 @@ coverage/
 .env.prod
 deploy/secrets/*
 !deploy/secrets/.gitkeep
+deploy/letsencrypt/*
+!deploy/letsencrypt/.gitkeep
+deploy/certbot-www/*
+!deploy/certbot-www/.gitkeep
 
 # Editor / OS
 .DS_Store

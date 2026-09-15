@@ -1,5 +1,10 @@
 # 生产部署与恢复
 
+本文档描述使用外部 PostgreSQL、Redis 和 TLS 网关的通用生产部署。低流量、2 核 4 GB
+单机部署请使用 [SINGLE_HOST_DEPLOYMENT.md](SINGLE_HOST_DEPLOYMENT.md)；该方案在保留
+未来迁移托管数据库能力的同时，补充本机 PostgreSQL、Redis、ClamAV、TLS、资源限制和
+自动备份。
+
 ## 上线前
 
 1. 将 `.env.prod.example` 复制为独立的生产环境文件，替换所有示例密钥和数据库地址。

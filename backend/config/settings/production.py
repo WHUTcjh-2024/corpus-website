@@ -1,6 +1,7 @@
 import os
 
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.core.validators import validate_email
 
 from .base import *  # noqa: F401,F403
 
@@ -35,6 +36,19 @@ if UPLOAD_SCANNER_BACKEND == "apps.corpora.scanners.DisabledUploadScanner":  # n
 
 if not METRICS_BEARER_TOKEN:  # noqa: F405
     raise ImproperlyConfigured("METRICS_BEARER_TOKEN must be set in production.")
+
+if not FEEDBACK_SUPPORT_NAME:  # noqa: F405
+    raise ImproperlyConfigured("FEEDBACK_SUPPORT_NAME must be set in production.")
+try:
+    validate_email(FEEDBACK_SUPPORT_EMAIL)  # noqa: F405
+except ValidationError as exc:
+    raise ImproperlyConfigured(
+        "FEEDBACK_SUPPORT_EMAIL must be a valid address in production."
+    ) from exc
+if FEEDBACK_SUPPORT_EMAIL.lower().endswith(".invalid"):  # noqa: F405
+    raise ImproperlyConfigured(
+        "FEEDBACK_SUPPORT_EMAIL must not use the reserved .invalid domain in production."
+    )
 
 if not CORPUS_AUDITOR_QUEUE_ENABLED:  # noqa: F405
     raise ImproperlyConfigured("CORPUS_AUDITOR_QUEUE_ENABLED must be true in production.")

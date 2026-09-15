@@ -98,7 +98,10 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings.production
           DJANGO_SECRET_KEY: ci-test-only-K3r4T8sF1pN7wQ2xY9bC5dG6hJ0mL4vR8zA1eE7uI3oP
           DJANGO_ALLOWED_HOSTS: ci.example.test
+          DJANGO_HEALTHCHECK_HOST: ci.example.test
           DJANGO_CSRF_TRUSTED_ORIGINS: https://ci.example.test
+          FEEDBACK_SUPPORT_NAME: CI Administrator
+          FEEDBACK_SUPPORT_EMAIL: admin@ci.example.test
           UPLOAD_SCANNER_BACKEND: apps.corpora.scanners.ClamAVUploadScanner
           METRICS_BEARER_TOKEN: ci-metrics-token-9f4a8c2d7e1b6g3h5j0k4m8n
           CORPUS_AUDITOR_QUEUE_ENABLED: "true"
@@ -149,6 +152,8 @@ jobs:
         run: npm run test:coverage
       - name: Build production assets
         run: npm run build
+      - name: Verify committed production assets are current
+        run: git diff --exit-code -- ../backend/static/frontend
 
   deployment:
     name: Deployment configuration gate
@@ -160,3 +165,23 @@ jobs:
         run: docker compose --env-file .env.local.example -f docker-compose.local.yml config --quiet
       - name: Validate production Compose configuration
         run: docker compose --env-file .env.prod.example -f docker-compose.prod.yml config --quiet
+      - name: Validate single-host production Compose configuration
+        run: >-
+          docker compose --env-file .env.single-host.example
+          -f docker-compose.prod.yml
+          -f docker-compose.single-host.yml
+          config --quiet
+      - name: Validate single-host shell scripts
+        run: sh -n deploy/scripts/backup-loop.sh deploy/scripts/single-host-preflight.sh deploy/scripts/renew-tls.sh
+      - name: Validate single-host Nginx configuration
+        run: |
+          mkdir -p /tmp/corpus-platform-tls/live/corpus-platform
+          openssl req -x509 -nodes -newkey rsa:2048 -days 1 \
+            -subj '/CN=ci.example.test' \
+            -keyout /tmp/corpus-platform-tls/live/corpus-platform/privkey.pem \
+            -out /tmp/corpus-platform-tls/live/corpus-platform/fullchain.pem
+          docker run --rm \
+            --add-host web:127.0.0.1 \
+            -v "$PWD/deploy/nginx.single-host.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "/tmp/corpus-platform-tls:/etc/letsencrypt:ro" \
+            nginx:1.27-alpine nginx -t
