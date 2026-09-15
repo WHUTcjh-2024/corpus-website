@@ -11,7 +11,7 @@ services:
       - --state-dir=/var/lib/corpus-auditor/jobs
       - --control-token=${CORPUS_AUDITOR_COMPAT_API_TOKEN:?CORPUS_AUDITOR_COMPAT_API_TOKEN is required}
       - --redis-url=${CORPUS_AUDITOR_QUEUE_URL:?CORPUS_AUDITOR_QUEUE_URL is required}
-      - --workers=${AUDITOR_WORKERS:-2}
+      - --workers=${AUDITOR_WORKERS:-1}
       - --queue-capacity=${AUDITOR_QUEUE_CAPACITY:-100}
       - --audit-timeout=${AUDITOR_AUDIT_TIMEOUT:-10m}
     volumes:
@@ -34,14 +34,30 @@ services:
   web:
     build:
       context: ./backend
-    command: sh -c "python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120 --access-logfile - --error-logfile -"
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py collectstatic --noinput &&
+      gunicorn config.wsgi:application --bind 0.0.0.0:8000
+      --worker-class gthread
+      --workers ${GUNICORN_WORKERS:-2}
+      --threads ${GUNICORN_THREADS:-4}
+      --timeout ${GUNICORN_TIMEOUT_SECONDS:-60}
+      --graceful-timeout ${GUNICORN_GRACEFUL_TIMEOUT_SECONDS:-30}
+      --keep-alive ${GUNICORN_KEEP_ALIVE_SECONDS:-5}
+      --max-requests ${GUNICORN_MAX_REQUESTS:-5000}
+      --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-500}
+      --access-logfile - --error-logfile -"
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
       DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
+      DATABASE_SLOW_QUERY_MS: ${DATABASE_SLOW_QUERY_MS:-500}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS: ${PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS:-60}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
@@ -98,12 +114,14 @@ services:
   processing-worker:
     build:
       context: ./backend
-    command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
+    command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-1} --max-tasks-per-child=${PROCESSING_WORKER_MAX_TASKS_PER_CHILD:-50}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
@@ -157,6 +175,8 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}
@@ -210,6 +230,8 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CORPUS_AUDITOR_QUEUE_ENABLED: "true"
       CORPUS_AUDITOR_QUEUE_URL: ${CORPUS_AUDITOR_QUEUE_URL:?CORPUS_AUDITOR_QUEUE_URL is required}
@@ -231,6 +253,8 @@ services:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:?CELERY_BROKER_URL is required}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:?CELERY_RESULT_BACKEND is required}

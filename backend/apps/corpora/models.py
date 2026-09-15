@@ -130,6 +130,10 @@ class Corpus(models.Model):
                 fields=["source_type", "status", "access_level"],
                 name="corpus_visibility_idx",
             ),
+            models.Index(
+                fields=["source_type", "status", "corpus_type", "name"],
+                name="corpus_public_list_idx",
+            ),
         ]
         constraints = [
             models.CheckConstraint(

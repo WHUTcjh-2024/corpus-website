@@ -6,12 +6,27 @@ from .base import *  # noqa: F401,F403
 
 
 DEBUG = False
+DATABASES["default"]["CONN_MAX_AGE"] = int(  # noqa: F405
+    os.getenv("DB_CONN_MAX_AGE_SECONDS", "60")
+)
+DATABASES["default"]["CONN_HEALTH_CHECKS"] = env_bool(  # noqa: F405
+    "DB_CONN_HEALTH_CHECKS", True
+)
 
 if SECRET_KEY == "unsafe-local-dev-key":  # noqa: F405
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set in production.")
 
 if not ALLOWED_HOSTS:  # noqa: F405
     raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS must be set in production.")
+
+if DATABASES["default"]["CONN_MAX_AGE"] < 1:  # noqa: F405
+    raise ImproperlyConfigured("DB_CONN_MAX_AGE_SECONDS must be positive in production.")
+
+if not DATABASES["default"]["CONN_HEALTH_CHECKS"]:  # noqa: F405
+    raise ImproperlyConfigured("DB_CONN_HEALTH_CHECKS must be true in production.")
+
+if DATABASE_SLOW_QUERY_MS <= 0:  # noqa: F405
+    raise ImproperlyConfigured("DATABASE_SLOW_QUERY_MS must be positive in production.")
 
 if UPLOAD_SCANNER_BACKEND == "apps.corpora.scanners.DisabledUploadScanner":  # noqa: F405
     raise ImproperlyConfigured(

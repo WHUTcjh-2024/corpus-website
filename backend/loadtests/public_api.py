@@ -14,6 +14,7 @@ import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from http.client import RemoteDisconnected
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -40,7 +41,7 @@ def request_once(*, base_url: str, endpoint: str, timeout: float) -> RequestResu
             status_code = response.status
     except HTTPError as exc:
         status_code = exc.code
-    except URLError:
+    except (RemoteDisconnected, TimeoutError, URLError):
         status_code = 0
     return RequestResult(
         elapsed_ms=(time.perf_counter() - started_at) * 1000,

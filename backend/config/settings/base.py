@@ -24,6 +24,13 @@ def env_list(name: str, default: str = "") -> list[str]:
 
 
 def database_from_env() -> dict[str, object]:
+    conn_max_age = int(os.getenv("DB_CONN_MAX_AGE_SECONDS", "0"))
+    if conn_max_age < 0:
+        raise ValueError("DB_CONN_MAX_AGE_SECONDS must be zero or greater.")
+    connection_options = {
+        "CONN_MAX_AGE": conn_max_age,
+        "CONN_HEALTH_CHECKS": env_bool("DB_CONN_HEALTH_CHECKS", conn_max_age > 0),
+    }
     database_url = os.getenv("DATABASE_URL")
     if database_url:
         parsed = urlparse(database_url)
@@ -36,6 +43,7 @@ def database_from_env() -> dict[str, object]:
             "PASSWORD": unquote(parsed.password or ""),
             "HOST": parsed.hostname or "localhost",
             "PORT": str(parsed.port or 5432),
+            **connection_options,
         }
     return {
         "ENGINE": "django.db.backends.postgresql",
@@ -44,6 +52,7 @@ def database_from_env() -> dict[str, object]:
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "corpus_platform"),
         "HOST": os.getenv("POSTGRES_HOST", "localhost"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
+        **connection_options,
     }
 
 
@@ -80,6 +89,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "config.middleware.SlowQueryLoggingMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -198,6 +208,14 @@ CACHES = {
         "LOCATION": REDIS_URL,
     }
 }
+PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS = int(
+    os.getenv("PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS", "60")
+)
+DATABASE_SLOW_QUERY_MS = float(os.getenv("DATABASE_SLOW_QUERY_MS", "500"))
+if PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS < 1:
+    raise ValueError("PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS must be positive.")
+if DATABASE_SLOW_QUERY_MS < 0:
+    raise ValueError("DATABASE_SLOW_QUERY_MS must be zero or greater.")
 
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")

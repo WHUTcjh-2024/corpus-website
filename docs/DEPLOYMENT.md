@@ -4,6 +4,8 @@
 
 1. 将 `.env.prod.example` 复制为独立的生产环境文件，替换所有示例密钥和数据库地址。
 2. 确认 PostgreSQL、Redis、ClamAV 可达，并为 `data/` 配置持久磁盘和每日快照。
+   2 核 4 GB 主机建议保留默认的 2 个 Gunicorn 进程、每进程 4 线程，
+   `PROCESSING_WORKER_CONCURRENCY=1`、`AUDITOR_WORKERS=1`；扩容前必须先压测。
 3. 先验证配置：
 
    ```bash
@@ -17,6 +19,18 @@
    docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py check --deploy
    docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py validate_corpus_indexes
    ```
+
+5. 验证数据库连接复用、公开查询索引与慢查询日志配置：
+
+   ```bash
+   docker compose --env-file .env.prod -f docker-compose.prod.yml exec web \
+     python manage.py shell -c "from django.conf import settings; print(settings.DATABASES['default']['CONN_MAX_AGE'], settings.DATABASES['default']['CONN_HEALTH_CHECKS'], settings.DATABASE_SLOW_QUERY_MS)"
+   psql "$DATABASE_URL" -c "SELECT indexname FROM pg_indexes WHERE tablename='corpora_corpus' AND indexname='corpus_public_list_idx';"
+   ```
+
+   预期依次得到正数连接寿命、`True`、正数慢查询阈值，以及
+   `corpus_public_list_idx`。Web 日志中的 `slow_database_query` 记录只保留脱敏 SQL，
+   不记录参数值。
 
 Nginx 对外提供 HTTP；TLS 应在校级网关或独立反向代理终止，并传入 `X-Forwarded-Proto`。Web 启动时自动执行数据库迁移和静态文件收集。`outbox` 服务独立扫描 PostgreSQL 中待投递的任务事件；即使 Celery Broker 临时不可用，已经提交的加工和导出任务也会在 Broker 恢复后补投。请保持该服务常驻，并监控其待投递数量、重试次数和最早事件等待时间。
 
@@ -46,4 +60,6 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python m
 
 - 发布前记录镜像标签和数据库备份。代码回滚只切回上一镜像；涉及不可逆数据库迁移时从备份恢复。
 - 监控 `/healthz`、Web 5xx、Celery 失败任务、队列长度、磁盘剩余空间、ClamAV 状态和备份时间。
+- 监控 `slow_database_query` 日志；先执行 `EXPLAIN (ANALYZE, BUFFERS)` 再调整索引，
+  不要仅因单条慢日志盲目加索引。
 - `data/` 剩余空间低于 20%、连续加工失败或索引自动修复反复触发时告警。

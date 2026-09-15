@@ -48,6 +48,9 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d \
 Use `PROCESSING_WORKER_CONCURRENCY` and `EXPORT_WORKER_CONCURRENCY` to bound
 parallelism within one replica. Keep export concurrency low unless storage and
 database load have been measured; exports can read many indexed rows at once.
+On a 2-core host, keep processing and auditor concurrency at `1` so background
+CPU work cannot consume both cores while web requests are waiting. Increase one
+setting at a time only after a mixed web-and-worker load test.
 
 The `agent` queue is consumed by `processing-worker` because its tools access
 the same immutable corpus artifacts. Agent runs are durable state machines, not
@@ -84,6 +87,25 @@ transient broker outage for diagnosis.
 
 The default retention is seven days for successfully published events. Dead
 letters are retained for investigation and manual replay.
+
+## Web and database performance
+
+Production uses Gunicorn `gthread` workers. The 2-core baseline is two processes
+with four threads each; tune `GUNICORN_WORKERS` and `GUNICORN_THREADS` together
+with the PostgreSQL connection limit because each active thread may hold one
+connection. `DB_CONN_MAX_AGE_SECONDS=60` reuses connections and
+`DB_CONN_HEALTH_CHECKS=true` checks a reused connection before serving a request.
+
+The public corpus overview is cached in Redis for
+`PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS` (60 seconds by default). A Redis outage
+does not make that endpoint unavailable: it falls back to its single PostgreSQL
+query and logs the cache failure. The public query is supported by
+`corpus_public_list_idx` and must remain within a one-query regression budget.
+
+Queries slower than `DATABASE_SLOW_QUERY_MS` are logged as
+`slow_database_query`. Parameters and literal values are redacted. Review these
+logs together with PostgreSQL `EXPLAIN (ANALYZE, BUFFERS)`, CPU, I/O, active
+connections, and cache hit rate before changing worker counts or indexes.
 
 ## Prometheus profile
 

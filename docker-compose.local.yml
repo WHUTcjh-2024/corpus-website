@@ -37,7 +37,7 @@ services:
       - --state-dir=/var/lib/corpus-auditor/jobs
       - --control-token=${CORPUS_AUDITOR_COMPAT_API_TOKEN:-local-auditor-compat-token}
       - --redis-url=redis://redis:6379/0
-      - --workers=${AUDITOR_WORKERS:-2}
+      - --workers=${AUDITOR_WORKERS:-1}
       - --queue-capacity=${AUDITOR_QUEUE_CAPACITY:-100}
       - --audit-timeout=${AUDITOR_AUDIT_TIMEOUT:-10m}
     environment:
@@ -66,7 +66,11 @@ services:
       FIXED_TEST_ACCOUNT_ENABLED: "true"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
       DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
+      DATABASE_SLOW_QUERY_MS: ${DATABASE_SLOW_QUERY_MS:-500}
       REDIS_URL: redis://redis:6379/0
+      PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS: ${PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS:-60}
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:-local-metrics-token}
@@ -127,13 +131,15 @@ services:
   processing-worker:
     build:
       context: ./backend
-    command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-2}
+    command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-1} --max-tasks-per-child=${PROCESSING_WORKER_MAX_TASKS_PER_CHILD:-50}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
       DJANGO_DEBUG: "true"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
       DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -186,6 +192,8 @@ services:
       DJANGO_DEBUG: "true"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
       DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
@@ -238,6 +246,8 @@ services:
       DJANGO_DEBUG: "true"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
       DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: redis://redis:6379/0
       CORPUS_AUDITOR_QUEUE_ENABLED: "true"
       CORPUS_AUDITOR_QUEUE_URL: redis://redis:6379/0
@@ -263,6 +273,8 @@ services:
       DJANGO_DEBUG: "true"
       DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,0.0.0.0,testserver
       DATABASE_URL: postgres://corpus_platform:corpus_platform@db:5432/corpus_platform
+      DB_CONN_MAX_AGE_SECONDS: ${DB_CONN_MAX_AGE_SECONDS:-60}
+      DB_CONN_HEALTH_CHECKS: ${DB_CONN_HEALTH_CHECKS:-true}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1

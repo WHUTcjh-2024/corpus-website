@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from django.contrib.auth import login
+import logging
+
 from django.conf import settings
+from django.contrib.auth import login
+from django.core.cache import cache
 from django.middleware.csrf import get_token
 from django.db.models import Prefetch, Sum
 from django.shortcuts import resolve_url
@@ -16,7 +19,6 @@ from apps.accounts.forms import ApprovedUserAuthenticationForm
 from apps.accounts.permissions import get_user_profile, workspace_access_scope
 from apps.corpora.models import (
     Corpus,
-    CorpusDocumentation,
     CorpusLanguage,
     CorpusSourceType,
     CorpusStatus,
@@ -36,9 +38,14 @@ from .serializers import (
     CorpusDetailSerializer,
     CorpusSerializer,
     ExportJobSerializer,
+    PublicCorpusSerializer,
     UserProfileSerializer,
     UserSerializer,
 )
+
+
+logger = logging.getLogger(__name__)
+PUBLIC_CORPUS_OVERVIEW_CACHE_KEY = "api:public-corpus-overview:v2"
 
 
 def with_latest_tasks(queryset):
@@ -96,6 +103,14 @@ class PublicCorpusOverviewView(APIView):
     authentication_classes = []
 
     def get(self, request):
+        try:
+            cached_payload = cache.get(PUBLIC_CORPUS_OVERVIEW_CACHE_KEY)
+        except Exception:  # pragma: no cover - backend-specific outage path
+            logger.warning("Public corpus overview cache read failed.", exc_info=True)
+            cached_payload = None
+        if cached_payload is not None:
+            return Response(cached_payload)
+
         corpora = list(
             Corpus.objects.filter(
                 source_type=CorpusSourceType.DEMO,
@@ -104,25 +119,32 @@ class PublicCorpusOverviewView(APIView):
             .select_related("documentation")
             .order_by("corpus_type", "name")[:6]
         )
-        totals = CorpusDocumentation.objects.filter(corpus__in=corpora).aggregate(
-            document_count=Sum("document_count"),
-            sentence_count=Sum("sentence_count"),
-            token_count=Sum("token_count"),
-        )
-        return Response(
-            {
-                "metrics": {
-                    "corpus_count": len(corpora),
-                    "bilingual_corpus_count": sum(
-                        corpus.language == CorpusLanguage.ZH_EN for corpus in corpora
-                    ),
-                    "document_count": totals["document_count"] or 0,
-                    "sentence_count": totals["sentence_count"] or 0,
-                    "token_count": totals["token_count"] or 0,
-                },
-                "corpora": CorpusSerializer(corpora, many=True).data,
-            }
-        )
+        documentation = [getattr(corpus, "documentation", None) for corpus in corpora]
+
+        def total(field: str) -> int:
+            return sum(int(getattr(item, field, 0) or 0) for item in documentation if item)
+
+        payload = {
+            "metrics": {
+                "corpus_count": len(corpora),
+                "bilingual_corpus_count": sum(
+                    corpus.language == CorpusLanguage.ZH_EN for corpus in corpora
+                ),
+                "document_count": total("document_count"),
+                "sentence_count": total("sentence_count"),
+                "token_count": total("token_count"),
+            },
+            "corpora": list(PublicCorpusSerializer(corpora, many=True).data),
+        }
+        try:
+            cache.set(
+                PUBLIC_CORPUS_OVERVIEW_CACHE_KEY,
+                payload,
+                timeout=settings.PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS,
+            )
+        except Exception:  # pragma: no cover - backend-specific outage path
+            logger.warning("Public corpus overview cache write failed.", exc_info=True)
+        return Response(payload)
 
 
 @method_decorator(csrf_protect, name="dispatch")

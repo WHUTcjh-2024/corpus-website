@@ -74,6 +74,44 @@ class CorpusDocumentationSerializer(serializers.ModelSerializer):
         )
 
 
+class PublicCorpusDocumentationSerializer(serializers.ModelSerializer):
+    """The small, stable documentation projection used by the public homepage."""
+
+    class Meta:
+        model = CorpusDocumentation
+        fields = (
+            "file_count",
+            "document_count",
+            "paragraph_count",
+            "sentence_count",
+            "token_count",
+            "type_count",
+        )
+
+
+class PublicCorpusSerializer(serializers.ModelSerializer):
+    corpus_type_label = serializers.CharField(source="get_corpus_type_display", read_only=True)
+    language_label = serializers.CharField(source="get_language_display", read_only=True)
+    access_level_label = serializers.CharField(source="get_access_level_display", read_only=True)
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    documentation = PublicCorpusDocumentationSerializer(read_only=True)
+
+    class Meta:
+        model = Corpus
+        fields = (
+            "id",
+            "name",
+            "corpus_type",
+            "corpus_type_label",
+            "language",
+            "language_label",
+            "access_level_label",
+            "status_label",
+            "description",
+            "documentation",
+        )
+
+
 class CorpusFileSerializer(serializers.ModelSerializer):
     detected_type_label = serializers.CharField(source="get_detected_type_display", read_only=True)
     language_label = serializers.CharField(source="get_language_display", read_only=True)
