@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}用户协议 - 在线语料库平台{% endblock %}
+
+{% block content %}
+<section class="legal-page" aria-labelledby="legal-title">
+  <header class="legal-page__header">
+    <p class="legal-page__eyebrow">平台规则</p>
+    <h1 id="legal-title">用户协议</h1>
+    <p>生效日期：2026 年 9 月 15 日</p>
+  </header>
+  <div class="legal-page__content">
+    <section><h2>一、账号与权限</h2><p>用户应提供真实、准确的申请信息，妥善保管账号和密码，不得出借、转让或共享账号。平台依据审核结果授予分级权限，并可在发现风险、违规或资料失实时暂停账号。</p></section>
+    <section><h2>二、允许用途</h2><p>平台主要用于合法的教学、科研、翻译和语料分析。用户应遵守语料对应的授权范围、署名要求、访问级别和导出限制，不得超出获批用途处理数据。</p></section>
+    <section><h2>三、禁止行为</h2><ul><li>上传违法、有害、侵权、含恶意程序或无合法来源的内容。</li><li>绕过访问控制、限流、配额、审计、导出限制或其他安全措施。</li><li>探测漏洞、干扰服务、批量抓取、共享受限语料，或利用平台侵害他人权益。</li><li>冒用他人身份，提交虚假申请、反馈或版权投诉。</li></ul></section>
+    <section><h2>四、用户上传内容</h2><p>用户保留其依法享有的权利，并确认拥有上传、处理和授权平台保存相关内容的合法依据。为提供语料加工、检索、统计、导出、备份与恢复功能，用户授权平台在服务范围内进行必要的复制和技术处理。</p></section>
+    <section><h2>五、服务变更与中断</h2><p>平台可能因维护、安全事件、资源限制或不可抗力暂停部分服务，并将尽力保存任务状态、恢复数据及发布必要通知。用户应自行保存重要研究成果，不能将平台作为唯一存储位置。</p></section>
+    <section><h2>六、责任边界</h2><p>检索、统计和自动化结果仅作为研究辅助，用户应自行核验。因违法使用、错误配置、超越授权或未保存重要成果造成的损失，由责任方依法承担。</p></section>
+    <section><h2>七、协议更新与联系</h2><p>继续使用更新后的服务视为接受依法生效的修订内容。如不同意，应停止使用并申请处理账号。联系人：{{ support_name }}；邮箱：<a href="mailto:{{ support_email }}">{{ support_email }}</a>。</p></section>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}隐私政策 - 在线语料库平台{% endblock %}
+
+{% block content %}
+<section class="legal-page" aria-labelledby="legal-title">
+  <header class="legal-page__header">
+    <p class="legal-page__eyebrow">平台规则</p>
+    <h1 id="legal-title">隐私政策</h1>
+    <p>生效日期：2026 年 9 月 15 日</p>
+  </header>
+  <div class="legal-page__content">
+    <section><h2>一、适用范围</h2><p>本政策适用于武汉理工大学外国语学院翻译跨学科研究中心在线语料库平台。平台面向经审核的教学、科研与语料分析用户，并提供有限的公开示例信息。</p></section>
+    <section><h2>二、收集的信息</h2><ul><li>账号申请信息：用户名、姓名、单位、邮箱、申请用途和申请理由。</li><li>使用与安全信息：登录、退出、检索、导出、管理操作等审计记录，以及必要的时间、访问路径、IP 地址和浏览器标识。</li><li>业务内容：用户主动上传的语料文件、语料元数据、检索历史、导出任务和反馈工单。</li></ul></section>
+    <section><h2>三、使用目的</h2><p>上述信息仅用于账号审核、权限控制、语料处理与检索、任务恢复、安全审计、故障排查、用户支持以及履行法律义务。平台不会将个人信息出售给第三方。</p></section>
+    <section><h2>四、存储与共享</h2><p>信息存储在平台授权的服务器及备份介质中，并按照最小权限原则限制访问。仅在获得授权、完成受托运维、处理安全事件或法律法规要求时，才会向必要主体提供相关信息。</p></section>
+    <section><h2>五、Cookie 与会话</h2><p>平台使用必要的会话 Cookie 和 CSRF 防护 Cookie 维持登录状态及保障请求安全，不以广告追踪为目的使用 Cookie。退出账号后，会话状态按系统安全策略失效。</p></section>
+    <section><h2>六、信息安全</h2><p>平台采用传输加密、访问控制、登录防护、上传扫描、审计、备份和异常恢复等措施。任何网络服务均无法承诺绝对安全；发现异常时，请立即通过下列邮箱联系平台。</p></section>
+    <section><h2>七、用户权利</h2><p>用户可申请查询、更正账号资料，或在法律及项目管理要求允许的范围内申请停用账号、删除相关个人信息。涉及语料数据的请求还需遵守项目归档、知识产权及审计留存要求。</p></section>
+    <section><h2>八、联系我们</h2><p>联系人：{{ support_name }}；邮箱：<a href="mailto:{{ support_email }}">{{ support_email }}</a>。政策发生重要变化时，平台将通过页面公告或其他适当方式提示。</p></section>
+  </div>
+</section>
+{% endblock %}

@@ -29,6 +29,11 @@ export function HomeFooter() {
           <span>邮箱：</span>
           <a href="mailto:570372819@qq.com">570372819@qq.com</a>
         </p>
+        <nav className="campus-footer__legal" aria-label="法律与规则">
+          <a href="/privacy/">隐私政策</a>
+          <a href="/terms/">用户协议</a>
+          <a href="/copyright/">版权投诉</a>
+        </nav>
         <p>© 2026 武汉理工大学外国语学院翻译跨学科研究中心</p>
       </div>
     </footer>

@@ -4,6 +4,7 @@ from django.conf import settings
 from django.db import connection
 from django.http import HttpRequest, HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_GET
 from redis import Redis
 
 from apps.audits.queue import AuditQueue, AuditQueueUnavailable
@@ -12,6 +13,28 @@ from apps.outbox.metrics import collect_outbox_metrics, render_prometheus_metric
 
 def home(request: HttpRequest):
     return render(request, "frontend/index.html")
+
+
+def _legal_context() -> dict[str, str]:
+    return {
+        "support_name": settings.FEEDBACK_SUPPORT_NAME,
+        "support_email": settings.FEEDBACK_SUPPORT_EMAIL,
+    }
+
+
+@require_GET
+def privacy_policy(request: HttpRequest) -> HttpResponse:
+    return render(request, "legal/privacy.html", _legal_context())
+
+
+@require_GET
+def user_agreement(request: HttpRequest) -> HttpResponse:
+    return render(request, "legal/terms.html", _legal_context())
+
+
+@require_GET
+def copyright_notice(request: HttpRequest) -> HttpResponse:
+    return render(request, "legal/copyright.html", _legal_context())
 
 
 def healthz(request: HttpRequest) -> JsonResponse:

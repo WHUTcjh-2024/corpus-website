@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}版权投诉说明 - 在线语料库平台{% endblock %}
+
+{% block content %}
+<section class="legal-page" aria-labelledby="legal-title">
+  <header class="legal-page__header">
+    <p class="legal-page__eyebrow">权利保护</p>
+    <h1 id="legal-title">版权投诉说明</h1>
+    <p>生效日期：2026 年 9 月 15 日</p>
+  </header>
+  <div class="legal-page__content">
+    <section><h2>一、投诉渠道</h2><p>权利人认为平台中的语料、说明、展示内容或下载文件侵犯其著作权及相关权利时，可发送投诉至 <a href="mailto:{{ support_email }}">{{ support_email }}</a>，邮件标题请注明“版权投诉”。</p></section>
+    <section><h2>二、所需材料</h2><ul><li>权利人或授权代理人的姓名、单位、联系方式和有效身份证明。</li><li>权属证明或合法授权文件，以及被投诉内容的准确名称、页面地址和定位信息。</li><li>具体侵权理由、处理请求，以及材料真实有效并愿意承担相应责任的声明。</li><li>代理投诉时，还需提供明确的授权委托证明。</li></ul></section>
+    <section><h2>三、处理流程</h2><p>平台收到完整材料后将登记核验，并根据证据采取限制访问、暂停下载、移除内容或要求补充材料等措施；必要时会将不含敏感信息的投诉要点转交内容提供者核实。涉及争议或司法程序的，平台将依法配合。</p></section>
+    <section><h2>四、反通知</h2><p>内容提供者认为处理有误的，可提交身份信息、合法来源或授权证明、争议说明和承担责任的声明。平台将结合双方材料及适用规则决定是否恢复内容。</p></section>
+    <section><h2>五、诚信要求</h2><p>投诉及反通知应真实、准确、完整。恶意投诉、伪造材料或滥用权利造成损失的，提交方应依法承担责任。平台对材料仅作必要范围内的核验，不替代有权机关作出最终权属判断。</p></section>
+    <section><h2>六、联系方式</h2><p>联系人：{{ support_name }}；版权投诉邮箱：<a href="mailto:{{ support_email }}">{{ support_email }}</a>。</p></section>
+  </div>
+</section>
+{% endblock %}

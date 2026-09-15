@@ -1315,6 +1315,17 @@ a.campus-hero-statement__meta-card:hover {
   text-decoration: underline;
 }
 
+.campus-footer__legal {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 7px 0;
+  gap: 6px 16px;
+}
+
+.campus-footer__legal a {
+  font-size: 0.78rem;
+}
+
 @media (max-width: 1180px) {
   .platform-brand {
     --home-brand-logo-width: clamp(300px, 41vw, 370px);
