@@ -1326,6 +1326,14 @@ a.campus-hero-statement__meta-card:hover {
   font-size: 0.78rem;
 }
 
+.campus-footer__icp {
+  min-height: 1.2em;
+}
+
+.campus-footer__icp span {
+  color: #7188a3;
+}
+
 @media (max-width: 1180px) {
   .platform-brand {
     --home-brand-logo-width: clamp(300px, 41vw, 370px);

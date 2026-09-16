@@ -65,6 +65,10 @@ sudo chmod 600 /srv/corpus-platform/secrets/production_admin_password
 覆盖管理员在后台修改过的密码。命令拒绝 `test`、`test_user`、`.invalid` 邮箱以及接管
 既有测试账号；生产设置也禁止启用 `FIXED_TEST_ACCOUNT_ENABLED`。
 
+取得 ICP 备案号后，将完整展示文本（例如“鄂ICP备XXXXXXXX号-X”）写入
+`ICP_LICENSE_NUMBER`。未配置时页面底部会明确显示“ICP备案号：待填写”，用于联调但不应
+作为中国大陆公网正式开放状态；备案号链接固定指向工信部备案查询网站。
+
 保持以下低配主机默认值：Gunicorn `2 × 4` 线程、加工/导出/审计并发均为 `1`、
 PostgreSQL 最大 50 连接、Redis 最大内存 384 MB 且禁止驱逐。Redis 同时承载任务和审计
 消息，不能使用会静默删除键的 LRU 驱逐策略。

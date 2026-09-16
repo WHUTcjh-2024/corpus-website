@@ -1,6 +1,8 @@
 import { Mail } from "lucide-react";
 
 export function HomeFooter() {
+  const icpLicense = document.body.dataset.icpLicense?.trim();
+
   return (
     <footer className="campus-footer" id="platform-guide">
       <div className="campus-footer__brand">
@@ -34,6 +36,15 @@ export function HomeFooter() {
           <a href="/terms/">用户协议</a>
           <a href="/copyright/">版权投诉</a>
         </nav>
+        <p className="campus-footer__icp">
+          {icpLicense ? (
+            <a href="https://beian.miit.gov.cn/" rel="noreferrer" target="_blank">
+              {icpLicense}
+            </a>
+          ) : (
+            <span>ICP备案号：待填写</span>
+          )}
+        </p>
         <p>© 2026 武汉理工大学外国语学院翻译跨学科研究中心</p>
       </div>
     </footer>

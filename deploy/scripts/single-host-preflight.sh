@@ -55,6 +55,9 @@ case "$feedback_email" in
   *@*.*) ;;
   *) fail "FEEDBACK_SUPPORT_EMAIL is not a valid address" ;;
 esac
+if [ -z "$(read_env_value ICP_LICENSE_NUMBER)" ]; then
+  warn "ICP_LICENSE_NUMBER is empty; fill it before opening a mainland China public site"
+fi
 
 admin_username=$(read_env_value PRODUCTION_ADMIN_USERNAME)
 admin_email=$(read_env_value PRODUCTION_ADMIN_EMAIL)

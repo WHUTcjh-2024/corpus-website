@@ -112,6 +112,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "apps.audit.context_processors.teacher_watermark",
+                "apps.health.context_processors.public_site_metadata",
             ],
         },
     },
@@ -147,6 +148,7 @@ FEEDBACK_SUPPORT_NAME = os.getenv("FEEDBACK_SUPPORT_NAME", "陈俊宏").strip()
 FEEDBACK_SUPPORT_EMAIL = os.getenv(
     "FEEDBACK_SUPPORT_EMAIL", "570372819@qq.com"
 ).strip()
+ICP_LICENSE_NUMBER = os.getenv("ICP_LICENSE_NUMBER", "").strip()
 
 LOGIN_RATE_LIMIT_ATTEMPTS = int(os.getenv("LOGIN_RATE_LIMIT_ATTEMPTS", "10"))
 LOGIN_RATE_LIMIT_WINDOW_SECONDS = int(

@@ -6,4 +6,10 @@
   <a href="{% url 'privacy_policy' %}">隐私政策</a>
   <a href="{% url 'user_agreement' %}">用户协议</a>
   <a href="{% url 'copyright_notice' %}">版权投诉</a>
+  <span class="platform-footer__divider">|</span>
+  {% if icp_license_number %}
+    <a href="https://beian.miit.gov.cn/" rel="noreferrer" target="_blank">{{ icp_license_number }}</a>
+  {% else %}
+    <span>ICP备案号：待填写</span>
+  {% endif %}
 </footer>

@@ -21,4 +21,17 @@ describe("HomeFooter", () => {
       "/copyright/",
     );
   });
+
+  it("renders a configurable ICP filing link and a safe placeholder", () => {
+    document.body.dataset.icpLicense = "鄂ICP备12345678号-1";
+    const { rerender } = render(<HomeFooter />);
+    expect(screen.getByRole("link", { name: "鄂ICP备12345678号-1" })).toHaveAttribute(
+      "href",
+      "https://beian.miit.gov.cn/",
+    );
+
+    delete document.body.dataset.icpLicense;
+    rerender(<HomeFooter />);
+    expect(screen.getByText("ICP备案号：待填写")).toBeInTheDocument();
+  });
 });
