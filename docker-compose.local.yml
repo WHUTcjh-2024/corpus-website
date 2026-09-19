@@ -1,5 +1,9 @@
 name: corpus-platform-local
 
+x-backend-build: &backend-build
+  context: .
+  dockerfile: backend/Dockerfile
+
 services:
   db:
     image: postgres:16-alpine
@@ -56,10 +60,9 @@ services:
         condition: service_healthy
 
   web:
-    build:
-      context: ./backend
-    command: sh -c "python manage.py migrate --noinput && python manage.py ensure_test_account && python manage.py runserver 0.0.0.0:8000"
-    environment:
+    build: *backend-build
+    command: sh -c "python manage.py ensure_test_account && python manage.py runserver 0.0.0.0:8000"
+    environment: &local-web-environment
       DJANGO_SETTINGS_MODULE: config.settings.local
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-local-dev-only-change-me}
       DJANGO_DEBUG: "true"
@@ -112,7 +115,7 @@ services:
       CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
       CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
       CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
-    volumes:
+    volumes: &local-web-volumes
       - ./backend:/app/backend
       - ./data:/app/data
     ports:
@@ -122,15 +125,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/readyz', timeout=3).read()\""]
       interval: 10s
       timeout: 5s
       retries: 12
 
+  migrate:
+    build: *backend-build
+    command: python manage.py migrate --noinput
+    environment: *local-web-environment
+    volumes: *local-web-volumes
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
   processing-worker:
-    build:
-      context: ./backend
+    build: *backend-build
     command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-1} --max-tasks-per-child=${PROCESSING_WORKER_MAX_TASKS_PER_CHILD:-50}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
@@ -183,8 +199,7 @@ services:
         condition: service_healthy
 
   export-worker:
-    build:
-      context: ./backend
+    build: *backend-build
     command: celery -A config worker --loglevel=info --queues=exports --hostname=exports@%h --concurrency=${EXPORT_WORKER_CONCURRENCY:-1}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
@@ -237,8 +252,7 @@ services:
         condition: service_healthy
 
   audit-result-projector:
-    build:
-      context: ./backend
+    build: *backend-build
     command: python manage.py project_audit_results --loop --interval ${AUDIT_RESULT_PROJECT_INTERVAL_SECONDS:-1}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local
@@ -264,8 +278,7 @@ services:
         condition: service_healthy
 
   outbox:
-    build:
-      context: ./backend
+    build: *backend-build
     command: python manage.py publish_outbox --loop --interval ${OUTBOX_PUBLISH_INTERVAL_SECONDS:-5} --cleanup-interval ${OUTBOX_CLEANUP_INTERVAL_SECONDS:-3600}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.local

@@ -20,10 +20,16 @@
 4. 构建并启动：
 
    ```bash
-   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+   docker compose --env-file .env.prod -f docker-compose.prod.yml build --pull
+   docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm migrate
+   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
    docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py check --deploy
    docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py validate_corpus_indexes
    ```
+
+   生产基础镜像使用摘要固定，构建阶段安装发行版安全更新；CI 会用 Trivy 阻止仍含
+   可修复 Critical/High 漏洞的镜像进入 `main`。发布时必须保留 `--pull`，不要绕过
+   容器安全门禁或改用未扫描的临时镜像。
 
 5. 验证数据库连接复用、公开查询索引与慢查询日志配置：
 
@@ -37,7 +43,7 @@
    `corpus_public_list_idx`。Web 日志中的 `slow_database_query` 记录只保留脱敏 SQL，
    不记录参数值。
 
-Nginx 对外提供 HTTP；TLS 应在校级网关或独立反向代理终止，并传入 `X-Forwarded-Proto`。Web 启动时自动执行数据库迁移和静态文件收集。`outbox` 服务独立扫描 PostgreSQL 中待投递的任务事件；即使 Celery Broker 临时不可用，已经提交的加工和导出任务也会在 Broker 恢复后补投。请保持该服务常驻，并监控其待投递数量、重试次数和最早事件等待时间。
+Nginx 对外提供 HTTP；TLS 应在校级网关或独立反向代理终止，并传入 `X-Forwarded-Proto`。每次发布先显式运行一次性 `migrate` 服务，再启动无副作用的 Web 服务；数据库迁移、正式管理员同步和静态文件收集不会再与 Gunicorn 启动耦合。`outbox` 服务独立扫描 PostgreSQL 中待投递的任务事件；即使 Celery Broker 临时不可用，已经提交的加工和导出任务也会在 Broker 恢复后补投。请保持该服务常驻，并监控其待投递数量、重试次数和最早事件等待时间。
 
 ## 备份
 
@@ -55,7 +61,9 @@ tar --create --gzip --file=corpus-data.tar.gz data/
 ```bash
 pg_restore --clean --if-exists --dbname="$DATABASE_URL" corpus-platform.dump
 tar --extract --gzip --file=corpus-data.tar.gz
-docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+docker compose --env-file .env.prod -f docker-compose.prod.yml build --pull
+docker compose --env-file .env.prod -f docker-compose.prod.yml run --rm migrate
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
 docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python manage.py validate_corpus_indexes
 ```
 

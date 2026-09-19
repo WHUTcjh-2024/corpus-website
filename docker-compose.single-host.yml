@@ -13,7 +13,10 @@ x-service-hardening: &service-hardening
 
 services:
   db:
-    image: postgres:16.10-alpine
+    image: corpus-platform-postgres:16.15-hardened
+    build:
+      context: .
+      dockerfile: deploy/images/postgres/Dockerfile
     environment:
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
@@ -57,7 +60,7 @@ services:
     <<: *service-hardening
 
   redis:
-    image: redis:7.4.5-alpine
+    image: redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     command:
@@ -93,7 +96,10 @@ services:
     <<: *service-hardening
 
   clamav:
-    image: clamav/clamav:1.4.6-debian13-slim
+    image: corpus-platform-clamav:1.4.6-hardened
+    build:
+      context: .
+      dockerfile: deploy/images/clamav/Dockerfile
     volumes:
       - clamav_signatures:/var/lib/clamav
     expose:
@@ -137,6 +143,19 @@ services:
     mem_reservation: 256m
     cpus: 1.50
     pids_limit: 192
+    logging: *json-logging
+    <<: *service-hardening
+
+  migrate:
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    mem_limit: 512m
+    mem_reservation: 128m
+    cpus: 0.50
+    pids_limit: 128
     logging: *json-logging
     <<: *service-hardening
 
@@ -201,7 +220,7 @@ services:
     <<: *service-hardening
 
   backup:
-    image: postgres:16.10-alpine
+    image: corpus-platform-postgres:16.15-hardened
     command: ["sh", "/opt/corpus-platform/backup-loop.sh"]
     environment:
       PGHOST: db
@@ -237,7 +256,10 @@ services:
     <<: *service-hardening
 
   certbot:
-    image: certbot/certbot:v4.2.0
+    image: corpus-platform-certbot:5.8.0-hardened
+    build:
+      context: .
+      dockerfile: deploy/images/certbot/Dockerfile
     profiles: [tls]
     volumes:
       - ${LETSENCRYPT_HOST_PATH:?LETSENCRYPT_HOST_PATH is required}:/etc/letsencrypt
