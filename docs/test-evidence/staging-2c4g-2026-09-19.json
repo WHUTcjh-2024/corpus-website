@@ -1,0 +1,25 @@
+{
+  "base_url": "http://127.0.0.1:18010",
+  "concurrency": 50,
+  "elapsed_seconds": 14.8049,
+  "endpoints": [
+    "/healthz",
+    "/api/session/",
+    "/api/public-corpora/"
+  ],
+  "error_rate": 0.0,
+  "latency_ms": {
+    "p50": 121.99,
+    "p95": 303.67,
+    "p99": 374.97
+  },
+  "request_count": 5000,
+  "requests_per_second": 337.73,
+  "status_counts": {
+    "200": 5000
+  },
+  "thresholds": {
+    "max_error_rate": 0.01,
+    "max_p95_ms": 1000.0
+  }
+}

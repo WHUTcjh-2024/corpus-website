@@ -1,0 +1,80 @@
+name: corpus-platform-staging-2c4g
+
+x-app-environment: &app-environment
+  DJANGO_SETTINGS_MODULE: config.settings.local
+  DJANGO_DEBUG: "false"
+  DJANGO_SECRET_KEY: staging-load-test-only
+  DJANGO_ALLOWED_HOSTS: 127.0.0.1,localhost,web
+  DATABASE_URL: postgresql://corpus:corpus@db:5432/corpus
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  FIXED_TEST_ACCOUNT_ENABLED: "false"
+  UPLOAD_SCANNER_BACKEND: apps.corpora.scanners.DisabledUploadScanner
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: corpus
+      POSTGRES_USER: corpus
+      POSTGRES_PASSWORD: corpus
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U corpus -d corpus"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    cpus: 0.50
+    mem_limit: 768m
+    pids_limit: 256
+    tmpfs:
+      - /tmp
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --save "" --appendonly no --maxmemory 192mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    cpus: 0.25
+    mem_limit: 256m
+    pids_limit: 128
+
+  migrate:
+    image: ${STAGING_WEB_IMAGE:-corpus-platform-web:staging}
+    command: python manage.py migrate --noinput
+    environment: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    cpus: 0.50
+    mem_limit: 512m
+    pids_limit: 128
+    restart: "no"
+
+  web:
+    image: ${STAGING_WEB_IMAGE:-corpus-platform-web:staging}
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 60
+    environment: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:18010:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    cpus: 1.25
+    mem_limit: 2048m
+    pids_limit: 256
+    init: true
