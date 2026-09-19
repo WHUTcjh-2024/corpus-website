@@ -172,6 +172,13 @@ for key in DATA_ROOT_HOST_PATH BACKUP_ROOT_HOST_PATH LETSENCRYPT_HOST_PATH CERTB
   [ -w "$value" ] || fail "$key directory is not writable: $value"
 done
 
+if command -v stat >/dev/null 2>&1; then
+  data_root=$(read_env_value DATA_ROOT_HOST_PATH)
+  data_owner=$(stat -c '%u' "$data_root" 2>/dev/null || true)
+  [ "$data_owner" = "10001" ] || \
+    fail "DATA_ROOT_HOST_PATH must be owned by container uid 10001"
+fi
+
 admin_password_path=$(read_env_value PRODUCTION_ADMIN_PASSWORD_HOST_PATH)
 [ -n "$admin_password_path" ] || fail "PRODUCTION_ADMIN_PASSWORD_HOST_PATH is required"
 case "$admin_password_path" in
@@ -185,8 +192,11 @@ if command -v stat >/dev/null 2>&1; then
   password_mode=$(stat -c '%a' "$admin_password_path" 2>/dev/null || true)
   case "$password_mode" in
     600|400) ;;
-    *) fail "administrator password file permissions are $password_mode; use chmod 600" ;;
+    *) fail "administrator password file permissions are $password_mode; use chmod 400" ;;
   esac
+  password_owner=$(stat -c '%u' "$admin_password_path" 2>/dev/null || true)
+  [ "$password_owner" = "10001" ] || \
+    fail "administrator password file must be owned by container uid 10001"
 fi
 
 cert_root=$(read_env_value LETSENCRYPT_HOST_PATH)

@@ -38,6 +38,11 @@ class ContractDeploymentTests(SimpleTestCase):
         self.assertIn("headers={'Host': os.environ['DJANGO_HEALTHCHECK_HOST']}", config)
         self.assertIn("python manage.py provision_production_admin", config)
         self.assertIn("PRODUCTION_ADMIN_PASSWORD_HOST_PATH", config)
+        self.assertIn("x-backend-build: &backend-build", config)
+        self.assertIn("  migrate:\n", config)
+        web_service = config.split("\n  web:\n", 1)[1].split("\n  migrate:\n", 1)[0]
+        self.assertNotIn("manage.py migrate", web_service)
+        self.assertNotIn("collectstatic", web_service)
 
     def test_local_compose_matches_safe_concurrency_defaults(self):
         config = (PROJECT_ROOT / "docker-compose.local.yml").read_text(encoding="utf-8")
@@ -47,6 +52,9 @@ class ContractDeploymentTests(SimpleTestCase):
         self.assertIn("--workers=${AUDITOR_WORKERS:-1}", config)
         self.assertIn("DB_CONN_MAX_AGE_SECONDS", config)
         self.assertIn("PUBLIC_CORPUS_OVERVIEW_CACHE_SECONDS", config)
+        self.assertIn("  migrate:\n", config)
+        web_service = config.split("\n  web:\n", 1)[1].split("\n  migrate:\n", 1)[0]
+        self.assertNotIn("manage.py migrate", web_service)
 
     def test_single_host_compose_supplies_bounded_persistent_dependencies(self):
         config = (PROJECT_ROOT / "docker-compose.single-host.yml").read_text(
@@ -66,6 +74,41 @@ class ContractDeploymentTests(SimpleTestCase):
         self.assertIn("max-size: ${LOG_MAX_SIZE:-10m}", config)
         self.assertNotIn('"5432:5432"', config)
         self.assertNotIn('"6379:6379"', config)
+
+    def test_production_images_are_hardened_and_vulnerability_gated(self):
+        production = (PROJECT_ROOT / "docker-compose.prod.yml").read_text(
+            encoding="utf-8"
+        )
+        single_host = (PROJECT_ROOT / "docker-compose.single-host.yml").read_text(
+            encoding="utf-8"
+        )
+        workflow = (PROJECT_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("nginx:1.27-alpine", production)
+        self.assertNotIn("postgres:16.10-alpine", single_host)
+        self.assertNotIn("redis:7.4.5-alpine", single_host)
+        self.assertNotIn("certbot/certbot:v4.2.0", single_host)
+        self.assertIn("nginx:stable-alpine@sha256:", production)
+        self.assertIn("redis:7.4.11-alpine@sha256:", single_host)
+        self.assertIn("deploy/images/postgres/Dockerfile", single_host)
+        self.assertIn("deploy/images/clamav/Dockerfile", single_host)
+        self.assertIn("deploy/images/certbot/Dockerfile", single_host)
+        self.assertIn("deploy/images/prometheus/Dockerfile", production)
+        self.assertIn("aquasec/trivy:0.74.0@sha256:", workflow)
+        self.assertIn("--ignore-unfixed", workflow)
+        self.assertIn("--severity CRITICAL,HIGH --exit-code 1", workflow)
+
+        backend_image = (PROJECT_ROOT / "backend" / "Dockerfile").read_text(
+            encoding="utf-8"
+        )
+        auditor_image = (
+            PROJECT_ROOT / "backend" / "go" / "corpus-auditor" / "Dockerfile"
+        ).read_text(encoding="utf-8")
+        self.assertIn("apt-get upgrade -y", backend_image)
+        self.assertIn("USER 10001:10001", backend_image)
+        self.assertIn("apk upgrade --no-cache", auditor_image)
 
     def test_single_host_nginx_terminates_tls_and_hides_internal_probes(self):
         config = (PROJECT_ROOT / "deploy" / "nginx.single-host.conf").read_text(

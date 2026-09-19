@@ -31,7 +31,7 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 准备仅供 root 和容器使用的持久目录：
 
 ```bash
-sudo install -d -m 0750 /srv/corpus-platform/data
+sudo install -d -o 10001 -g 10001 -m 0750 /srv/corpus-platform/data
 sudo install -d -m 0700 /srv/corpus-platform/backups
 sudo install -d -m 0700 /srv/corpus-platform/letsencrypt
 sudo install -d -m 0755 /srv/corpus-platform/certbot-www
@@ -57,7 +57,8 @@ openssl rand -hex 32
 
 ```bash
 openssl rand -base64 36 | sudo tee /srv/corpus-platform/secrets/production_admin_password >/dev/null
-sudo chmod 600 /srv/corpus-platform/secrets/production_admin_password
+sudo chown 10001:10001 /srv/corpus-platform/secrets/production_admin_password
+sudo chmod 400 /srv/corpus-platform/secrets/production_admin_password
 ```
 
 在 `.env.single-host` 填写管理员真实用户名、姓名、单位、邮箱和该密码文件路径。启动时
@@ -109,11 +110,25 @@ Swap 不足会给出警告。
 docker compose --env-file .env.single-host \
   -f docker-compose.prod.yml \
   -f docker-compose.single-host.yml \
-  up -d --build
+  build --pull
+
+docker compose --env-file .env.single-host \
+  -f docker-compose.prod.yml \
+  -f docker-compose.single-host.yml \
+  run --rm migrate
+
+docker compose --env-file .env.single-host \
+  -f docker-compose.prod.yml \
+  -f docker-compose.single-host.yml \
+  up -d
 ```
 
 ClamAV 首次下载和加载病毒库可能需要数分钟，`web` 会等待其健康后启动。不要为了加快
 首次启动而关闭上传扫描。
+
+生产基础镜像均以摘要固定；PostgreSQL、ClamAV、Certbot 和应用镜像在构建时安装安全
+更新。CI 使用 Trivy 阻止含可修复 Critical/High 漏洞的镜像进入 `main`。服务器发布时
+必须执行上面的 `build --pull`，不要改用未经过门禁的临时镜像。
 
 确认日志出现“正式管理员已创建”或“已验证并同步资料”。不要在生产环境运行
 `seed_accounts` 或 `ensure_test_account`；两条命令在非 DEBUG 环境均会直接拒绝执行。
@@ -187,7 +202,15 @@ git pull --ff-only origin main
 docker compose --env-file .env.single-host \
   -f docker-compose.prod.yml \
   -f docker-compose.single-host.yml \
-  up -d --build --remove-orphans
+  build --pull
+docker compose --env-file .env.single-host \
+  -f docker-compose.prod.yml \
+  -f docker-compose.single-host.yml \
+  run --rm migrate
+docker compose --env-file .env.single-host \
+  -f docker-compose.prod.yml \
+  -f docker-compose.single-host.yml \
+  up -d --remove-orphans
 ```
 
 发布后检查容器健康、首页登录、公开语料列表、检索、导出和管理员审批流程。代码回滚必须

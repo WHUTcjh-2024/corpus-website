@@ -1,5 +1,9 @@
 name: corpus-platform-prod
 
+x-backend-build: &backend-build
+  context: .
+  dockerfile: backend/Dockerfile
+
 services:
   corpus-auditor:
     build:
@@ -32,12 +36,8 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: ./backend
+    build: *backend-build
     command: >-
-      sh -c "python manage.py migrate --noinput &&
-      python manage.py provision_production_admin &&
-      python manage.py collectstatic --noinput &&
       gunicorn config.wsgi:application --bind 0.0.0.0:8000
       --worker-class gthread
       --workers ${GUNICORN_WORKERS:-2}
@@ -47,8 +47,8 @@ services:
       --keep-alive ${GUNICORN_KEEP_ALIVE_SECONDS:-5}
       --max-requests ${GUNICORN_MAX_REQUESTS:-5000}
       --max-requests-jitter ${GUNICORN_MAX_REQUESTS_JITTER:-500}
-      --access-logfile - --error-logfile -"
-    environment:
+      --access-logfile - --error-logfile -
+    environment: &web-environment
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:?DJANGO_ALLOWED_HOSTS is required}
@@ -119,7 +119,7 @@ services:
       CORPUS_AUDITOR_COMMAND_STREAM: ${CORPUS_AUDITOR_COMMAND_STREAM:-corpus:audit:commands:v1}
       CORPUS_AUDITOR_COMMAND_GROUP: ${CORPUS_AUDITOR_COMMAND_GROUP:-corpus-auditor-v1}
       CORPUS_AUDITOR_RESULT_STREAM: ${CORPUS_AUDITOR_RESULT_STREAM:-corpus:audit:results:v1}
-    volumes:
+    volumes: &web-volumes
       - ${DATA_ROOT_HOST_PATH:?DATA_ROOT_HOST_PATH is required}:/app/data
       - static_files:/app/backend/staticfiles
       - ${PRODUCTION_ADMIN_PASSWORD_HOST_PATH:?PRODUCTION_ADMIN_PASSWORD_HOST_PATH is required}:/run/secrets/production_admin_password:ro
@@ -132,9 +132,18 @@ services:
       timeout: 5s
       retries: 12
 
+  migrate:
+    build: *backend-build
+    command: >-
+      sh -c "python manage.py migrate --noinput &&
+      python manage.py provision_production_admin &&
+      python manage.py collectstatic --noinput"
+    environment: *web-environment
+    volumes: *web-volumes
+    restart: "no"
+
   processing-worker:
-    build:
-      context: ./backend
+    build: *backend-build
     command: celery -A config worker --loglevel=info --queues=processing,default,agent,audit_commands --hostname=processing@%h --concurrency=${PROCESSING_WORKER_CONCURRENCY:-1} --max-tasks-per-child=${PROCESSING_WORKER_MAX_TASKS_PER_CHILD:-50}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -190,8 +199,7 @@ services:
     restart: unless-stopped
 
   export-worker:
-    build:
-      context: ./backend
+    build: *backend-build
     command: celery -A config worker --loglevel=info --queues=exports --hostname=exports@%h --concurrency=${EXPORT_WORKER_CONCURRENCY:-1}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -247,8 +255,7 @@ services:
     restart: unless-stopped
 
   audit-result-projector:
-    build:
-      context: ./backend
+    build: *backend-build
     command: python manage.py project_audit_results --loop --interval ${AUDIT_RESULT_PROJECT_INTERVAL_SECONDS:-1}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -272,8 +279,7 @@ services:
     restart: unless-stopped
 
   outbox:
-    build:
-      context: ./backend
+    build: *backend-build
     command: python manage.py publish_outbox --loop --interval ${OUTBOX_PUBLISH_INTERVAL_SECONDS:-5} --cleanup-interval ${OUTBOX_CLEANUP_INTERVAL_SECONDS:-3600}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
@@ -310,7 +316,7 @@ services:
     restart: unless-stopped
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:stable-alpine@sha256:16be905121d05b70e1f069096cfc727353f7e31aae50480acb8dfd51a76b7ced
     depends_on:
       web:
         condition: service_healthy
@@ -322,7 +328,10 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v3.6.0
+    image: corpus-platform-prometheus:3.14.0-hardened
+    build:
+      context: .
+      dockerfile: deploy/images/prometheus/Dockerfile
     profiles: [monitoring]
     command:
       - --config.file=/etc/prometheus/prometheus.yml
