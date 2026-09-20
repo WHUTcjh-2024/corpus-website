@@ -91,7 +91,7 @@ class ContractDeploymentTests(SimpleTestCase):
         self.assertNotIn("redis:7.4.5-alpine", single_host)
         self.assertNotIn("certbot/certbot:v4.2.0", single_host)
         self.assertIn("nginx:stable-alpine@sha256:", production)
-        self.assertIn("redis:7.4.11-alpine@sha256:", single_host)
+        self.assertIn("deploy/images/redis/Dockerfile", single_host)
         self.assertIn("deploy/images/postgres/Dockerfile", single_host)
         self.assertIn("deploy/images/clamav/Dockerfile", single_host)
         self.assertIn("deploy/images/certbot/Dockerfile", single_host)
