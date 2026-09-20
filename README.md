@@ -50,8 +50,8 @@ npm run build
 
 ```powershell
 Set-Location backend
-.venv/Scripts/pip-compile.exe --generate-hashes --no-header --resolver=backtracking --strip-extras --output-file=requirements.txt requirements.in
-.venv/Scripts/pip-compile.exe --generate-hashes --no-header --allow-unsafe --resolver=backtracking --strip-extras --output-file=requirements-dev.txt requirements-dev.in
+.venv/Scripts/pip-compile.exe --generate-hashes --no-annotate --no-header --resolver=backtracking --strip-extras --output-file=requirements.txt requirements.in
+.venv/Scripts/pip-compile.exe --generate-hashes --no-annotate --no-header --allow-unsafe --resolver=backtracking --strip-extras --output-file=requirements-dev.txt requirements-dev.in
 ```
 
 CI 会重新生成并校验锁文件，禁止未锁定依赖进入 `main`。
