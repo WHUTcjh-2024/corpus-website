@@ -7,8 +7,9 @@ ARG PROMETHEUS_UI_SHA256=be18623c5891d32572998070de0d48522c966b737d9204aa41e0e88
 RUN apk add --no-cache bash curl git gzip \
     && git init /src \
     && git -C /src remote add origin https://github.com/prometheus/prometheus.git \
-    && git -C /src fetch --depth=1 origin "${PROMETHEUS_REVISION}" \
-    && git -C /src checkout --detach FETCH_HEAD \
+    && git -C /src fetch --depth=1 origin \
+        "refs/tags/v${PROMETHEUS_VERSION}:refs/tags/v${PROMETHEUS_VERSION}" \
+    && git -C /src checkout --detach "v${PROMETHEUS_VERSION}" \
     && test "$(git -C /src rev-parse HEAD)" = "${PROMETHEUS_REVISION}"
 
 WORKDIR /src
