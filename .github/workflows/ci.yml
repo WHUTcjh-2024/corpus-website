@@ -202,11 +202,11 @@ jobs:
           docker build --pull --tag corpus-platform-web:ci --file backend/Dockerfile .
           docker build --pull --tag corpus-platform-auditor:ci backend/go/corpus-auditor
           docker build --pull --tag corpus-platform-postgres:ci --file deploy/images/postgres/Dockerfile .
+          docker build --pull --tag corpus-platform-redis:ci --file deploy/images/redis/Dockerfile .
           docker build --pull --tag corpus-platform-clamav:ci --file deploy/images/clamav/Dockerfile .
           docker build --pull --tag corpus-platform-certbot:ci --file deploy/images/certbot/Dockerfile .
           docker build --pull --tag corpus-platform-prometheus:ci --file deploy/images/prometheus/Dockerfile .
           docker pull nginx:stable-alpine@sha256:16be905121d05b70e1f069096cfc727353f7e31aae50480acb8dfd51a76b7ced
-          docker pull redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
       - name: Reject fixable critical and high vulnerabilities
         run: |
           mkdir -p /tmp/trivy-cache
@@ -214,11 +214,11 @@ jobs:
             corpus-platform-web:ci
             corpus-platform-auditor:ci
             corpus-platform-postgres:ci
+            corpus-platform-redis:ci
             corpus-platform-clamav:ci
             corpus-platform-certbot:ci
             corpus-platform-prometheus:ci
             nginx:stable-alpine@sha256:16be905121d05b70e1f069096cfc727353f7e31aae50480acb8dfd51a76b7ced
-            redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
           )
           for image in "${images[@]}"; do
             docker run --rm \
