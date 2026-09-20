@@ -1,6 +1,7 @@
 -r requirements.in
 
 coverage>=7.6,<8.0
+colorama>=0.4.6,<0.5
 pip-audit>=2.8,<3.0
 pip==25.3
 pip-tools==7.5.2
