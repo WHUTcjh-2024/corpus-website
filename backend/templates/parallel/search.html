@@ -89,8 +89,8 @@
     </div>
     <div class="d-flex flex-wrap gap-2">
       <label class="d-flex align-items-center gap-2 small text-secondary" for="parallel-font-size">结果字号
-        <input id="parallel-font-size" type="range" min="14" max="28" value="18" step="1" data-parallel-font-size>
-        <output for="parallel-font-size" data-parallel-font-output>18px</output>
+        <input id="parallel-font-size" type="range" min="14" max="28" value="16" step="1" data-parallel-font-size>
+        <output for="parallel-font-size" data-parallel-font-output>16px</output>
       </label>
       {% if result.auto_target_highlights %}<div class="query-tags"><span class="query-tag">目标侧统计提示（非词语对齐）：{{ result.auto_target_highlights|join:" / " }}</span></div>{% endif %}
       {% if can_export %}
@@ -109,11 +109,6 @@
       <article class="parallel-pair-card {{ hit.palette_class }}">
         <div class="parallel-pair-index"><div class="fw-semibold">{{ hit.pair_ordinal }}</div><div class="table-meta">#{{ hit.global_position }}{% if hit.occurrence_ordinal > 1 %}<br>第 {{ hit.occurrence_ordinal }} 次命中{% endif %}</div></div>
         <div class="parallel-pair-main">
-          <div class="parallel-result__meta">
-            <span class="parallel-quality parallel-quality--{{ hit.quality_class }}">{{ hit.quality_label }}</span>
-            {{ hit.alignment_unit_display }} · {{ hit.method_display }} · 置信度 {{ hit.confidence|floatformat:2 }}
-            {% if hit.zh_filename or hit.en_filename %} · 来源：{{ hit.zh_filename|default:"—" }}{% if hit.en_filename and hit.en_filename != hit.zh_filename %} / {{ hit.en_filename }}{% endif %}{% endif %}
-          </div>
           <div class="parallel-pair-grid">
             <div class="parallel-result__text">{% if hit.zh_is_gap %}<span class="text-secondary">∅（源语料为空对齐位）</span>{% else %}{% for fragment in hit.zh_fragments %}{% if fragment.matched %}<mark>{{ fragment.text }}</mark>{% else %}{{ fragment.text }}{% endif %}{% endfor %}{% endif %}</div>
             <div class="parallel-pair-divider" aria-hidden="true"></div>

@@ -79,7 +79,7 @@
 
   document.querySelectorAll("[data-parallel-font-size]").forEach((input) => {
     const output = document.querySelector("[data-parallel-font-output]");
-    const storageKey = "parallel-result-font-size";
+    const storageKey = "parallel-result-font-size-compact-v1";
     const applySize = () => {
       const size = `${input.value}px`;
       document.querySelectorAll(".parallel-result__text").forEach((element) => {
