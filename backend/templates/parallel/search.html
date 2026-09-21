@@ -107,7 +107,7 @@
     <div class="parallel-result__head"><div>序号</div><div>中文原文</div><div>英文译文</div></div>
     {% for hit in result.hits %}
       <article class="parallel-pair-card {{ hit.palette_class }}">
-        <div class="parallel-pair-index"><div class="fw-semibold">{{ hit.pair_ordinal }}</div><div class="table-meta">#{{ hit.global_position }}{% if hit.occurrence_ordinal > 1 %}<br>第 {{ hit.occurrence_ordinal }} 次命中{% endif %}</div></div>
+        <div class="parallel-pair-index"><div class="fw-semibold">{{ hit.pair_ordinal }}</div>{% if hit.occurrence_ordinal > 1 %}<div class="table-meta">第 {{ hit.occurrence_ordinal }} 次命中</div>{% endif %}</div>
         <div class="parallel-pair-main">
           <div class="parallel-pair-grid">
             <div class="parallel-result__text">{% if hit.zh_is_gap %}<span class="text-secondary">∅（源语料为空对齐位）</span>{% else %}{% for fragment in hit.zh_fragments %}{% if fragment.matched %}<mark>{{ fragment.text }}</mark>{% else %}{{ fragment.text }}{% endif %}{% endfor %}{% endif %}</div>
