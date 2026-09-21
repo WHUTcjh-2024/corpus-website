@@ -102,7 +102,7 @@
 }
 
 .home-hero--product {
-  background: radial-gradient(circle at 20% 8%, rgba(22, 163, 166, .12), transparent 32%), linear-gradient(135deg, #f8fbff 0%, #eef5fb 58%, #ffffff 100%);
+  background: #f4f7fa;
 }
 
 .home-unit-bar img {
@@ -124,8 +124,8 @@
 .product-preview {
   border: 1px solid #d9e5ef;
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, .88);
-  box-shadow: var(--shadow-float-soft);
+  background: #fff;
+  box-shadow: none;
   overflow: hidden;
 }
 
@@ -248,7 +248,7 @@
   height: 10px;
   margin-top: 10px;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--primary-700), var(--accent-500));
+  background: var(--primary-700);
 }
 
 .bento-grid {
@@ -264,7 +264,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .bento-card--wide {
@@ -273,7 +273,7 @@
 
 .bento-card--accent {
   color: #fff;
-  background: linear-gradient(135deg, var(--primary-900), var(--primary-700));
+  background: var(--primary-900);
 }
 
 .bento-card span {

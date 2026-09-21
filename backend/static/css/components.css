@@ -27,12 +27,12 @@
   border-color: var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .platform-card__header {
   min-height: 60px;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
+  background: #fff;
 }
 
 .filter-card {
@@ -43,7 +43,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .research-panel__header {
@@ -459,7 +459,7 @@
 }
 
 .progress-bar {
-  background: linear-gradient(90deg, var(--primary-700), var(--accent-500));
+  background: var(--primary-700);
 }
 
 .auth-page {
@@ -476,13 +476,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: var(--shadow-float-soft);
+  box-shadow: none;
 }
 
 .auth-brand-panel {
   padding: 44px;
   color: #fff;
-  background: linear-gradient(135deg, var(--primary-950), var(--primary-700));
+  background: var(--primary-900);
 }
 
 .auth-brand-logo {
@@ -548,13 +548,13 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .legal-page__header {
   margin-bottom: 18px;
   padding: 32px clamp(22px, 5vw, 52px);
-  background: linear-gradient(135deg, #f4f8fc, #fff);
+  background: #f7f9fb;
 }
 
 .legal-page__eyebrow {

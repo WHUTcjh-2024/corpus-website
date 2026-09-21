@@ -859,6 +859,7 @@ textarea.form-control {
 .filter-card,
 .table-shell,
 .metric-card,
+.card,
 .kwic-result-shell,
 .parallel-result,
 .wordcloud-shell {
@@ -2158,5 +2159,410 @@ textarea.form-control {
 
   .platform-navbar--app .platform-brand__center {
     display: none;
+  }
+}
+
+/* Restrained full-site visual system
+ * Keep information density high and reserve color for hierarchy and status. */
+:root {
+  --workspace-blue-950: #12355b;
+  --workspace-blue-900: #17466f;
+  --workspace-blue-800: #1a5f96;
+  --workspace-blue-700: #2172ad;
+  --workspace-blue-100: #e9f1f7;
+  --workspace-blue-50: #f4f7fa;
+  --workspace-ink: #1f3448;
+  --workspace-muted: #66798b;
+  --workspace-line: #dce3e9;
+  --workspace-surface: #fff;
+  --workspace-radius-lg: 9px;
+  --workspace-radius-md: 7px;
+  --workspace-shadow: none;
+  --workspace-shadow-soft: none;
+}
+
+body.app-body,
+body.public-body {
+  background: #f3f5f7;
+}
+
+.platform-navbar {
+  border-bottom-color: #d9e0e7;
+  background: #fff;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.platform-navbar .public-nav,
+.platform-navbar .app-top-nav {
+  background: #174f80;
+  box-shadow: none;
+}
+
+.app-body .shadow-sm,
+.public-body .shadow-sm {
+  box-shadow: none !important;
+}
+
+.platform-navbar .public-nav > a,
+.platform-navbar .app-top-nav > a {
+  border-radius: 4px;
+}
+
+.platform-navbar .public-nav > a:hover,
+.platform-navbar .public-nav > a.active,
+.platform-navbar .app-top-nav > a:hover,
+.platform-navbar .app-top-nav > a.active {
+  background: rgba(255, 255, 255, .12);
+}
+
+.platform-navbar .icon-button,
+.platform-navbar .user-menu,
+.platform-navbar .dropdown-menu {
+  border-color: #d7e0e8;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: none !important;
+}
+
+.platform-navbar .icon-button:hover,
+.platform-navbar .user-menu:hover,
+.platform-navbar .user-menu[aria-expanded="true"] {
+  border-color: #adc2d4;
+  background: #f5f8fa;
+  box-shadow: none;
+}
+
+.platform-navbar .user-avatar {
+  border-radius: 6px;
+  background: #1a5f96;
+  box-shadow: none;
+}
+
+.app-content {
+  padding-top: 28px;
+}
+
+.page-header {
+  min-height: 104px;
+  margin-bottom: 20px;
+  padding: 22px 24px;
+  border-color: #dce3e9;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.page-header::before {
+  width: 3px;
+  background: #2172ad;
+}
+
+.page-title {
+  color: #173b5d;
+  font-size: clamp(1.42rem, 1.8vw, 1.88rem);
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+
+.page-description {
+  margin-top: 6px;
+  color: #687d90;
+  font-weight: 500;
+}
+
+.page-eyebrow {
+  color: #617d96;
+  font-weight: 750;
+  letter-spacing: .08em;
+}
+
+.btn {
+  min-height: 38px;
+  border-radius: 6px;
+  font-weight: 700;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.btn:hover {
+  transform: none;
+}
+
+.btn-primary,
+.btn-primary:hover,
+.btn-primary:focus {
+  border-color: #1a5f96;
+  background: #1a5f96;
+  box-shadow: none !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  border-color: #164f7d;
+  background: #164f7d;
+}
+
+.btn-outline-primary,
+.btn-outline-secondary {
+  background: #fff;
+}
+
+.form-control,
+.form-select {
+  min-height: 40px;
+  border-color: #cfd8e1;
+  border-radius: 6px;
+  background-color: #fff;
+  box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #6f9fc3;
+  box-shadow: 0 0 0 2px rgba(33, 114, 173, .12);
+}
+
+.platform-card,
+.filter-card,
+.table-shell,
+.metric-card,
+.kwic-result-shell,
+.parallel-result,
+.wordcloud-shell,
+.research-panel {
+  border-color: #dce3e9;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.platform-card::before,
+.filter-card::before,
+.metric-card::before {
+  content: none;
+}
+
+.platform-card__header,
+.platform-card__footer {
+  background: #fff;
+}
+
+.platform-card__header {
+  min-height: 56px;
+  padding: 15px 18px;
+  border-bottom-color: #e2e7ec;
+}
+
+.platform-card__header h2,
+.platform-card__header h3 {
+  color: #284b69;
+  font-weight: 750;
+}
+
+.platform-card__body,
+.filter-card {
+  padding: 18px;
+}
+
+.filter-card,
+.metric-card {
+  background: #fff;
+}
+
+.metric-card {
+  min-height: 118px;
+  padding: 18px;
+}
+
+.metric-card__label {
+  margin-bottom: 10px;
+  color: #6f7f8d;
+  font-weight: 700;
+}
+
+.metric-card__value {
+  color: #173b5d;
+  font-size: 1.62rem;
+  font-weight: 800;
+}
+
+.metric-card__hint {
+  margin-top: 8px;
+  color: #778897;
+  font-weight: 500;
+}
+
+.metric-card__icon {
+  right: 16px;
+  bottom: 16px;
+  color: #6c93b2;
+  opacity: .48;
+}
+
+.quick-action {
+  min-height: 44px;
+  border-color: #dce3e9;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 700;
+}
+
+.quick-action:hover {
+  border-color: #aebfce;
+  background: #f5f8fa;
+}
+
+.quick-action span {
+  border-radius: 5px;
+  background: #1a5f96;
+}
+
+.table > thead > tr > th,
+.table thead th {
+  color: #5d7183;
+  background: #f4f6f8;
+  font-weight: 700;
+}
+
+.table-hover > tbody > tr:hover > *,
+.table-hover tbody tr:hover > * {
+  background: #f7f9fa;
+}
+
+.tool-tabs {
+  padding: 5px;
+  border-radius: 7px;
+  background: #f2f5f7;
+  box-shadow: none;
+}
+
+.tool-tabs .nav-link {
+  border-radius: 5px;
+}
+
+.tool-tabs .nav-link.active {
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(22, 48, 72, .07);
+}
+
+.query-input-shell,
+.result-overview,
+.stats-summary span,
+.parallel-accuracy-note,
+.upload-dropzone,
+.upload-rules {
+  border-color: #d7e0e7;
+  border-radius: 7px;
+  background: #f7f9fa;
+  box-shadow: none;
+}
+
+.query-tag {
+  border-radius: 4px;
+}
+
+.parallel-result,
+.parallel-result:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.parallel-pair-card {
+  background: linear-gradient(90deg, var(--parallel-track-soft), #fff 14%);
+}
+
+.alert,
+.stepper,
+.management-nav,
+.management-guide,
+.management-callout,
+.management-recipient-list li,
+.user-announcement,
+.corpus-access-notice,
+.admin-console-jump,
+.admin-inline-form {
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.stepper,
+.management-nav,
+.admin-console-jump {
+  background: #fff;
+  backdrop-filter: none;
+}
+
+.management-hero {
+  margin-bottom: 20px;
+  padding: 24px;
+  border: 1px solid #dce3e9;
+  border-left: 3px solid #2172ad;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.management-guide,
+.management-callout {
+  border-color: #d7e0e7;
+  background: #f6f8fa;
+}
+
+.management-nav a,
+.admin-console-jump a {
+  border-radius: 5px;
+}
+
+.management-nav a:hover,
+.management-nav a.active,
+.admin-console-jump a:hover {
+  color: #174f80;
+  background: #e9f1f7;
+}
+
+.admin-console-record__body {
+  background: #f7f9fa;
+}
+
+.public-body .auth-page {
+  background: #f3f5f7;
+}
+
+.auth-shell,
+.legal-page__header,
+.legal-page__content {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+.auth-brand-panel {
+  background: #174f80;
+}
+
+.legal-page__header {
+  background: #f7f9fa;
+}
+
+.progress-bar {
+  background: #2172ad;
+}
+
+.platform-footer {
+  border-top-color: #dce3e9;
+  background: #f7f8fa;
+}
+
+@media (max-width: 700px) {
+  .page-header {
+    padding: 18px;
+  }
+
+  .platform-card,
+  .filter-card,
+  .table-shell,
+  .metric-card,
+  .kwic-result-shell,
+  .parallel-result {
+    border-radius: 7px;
   }
 }
