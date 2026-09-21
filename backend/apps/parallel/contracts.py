@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 ALIGNMENT_UNITS = ("sentence", "paragraph")
 SEARCH_SIDES = ("zh", "en")
+DISPLAY_MODES = ("search", "browse")
 SORT_POSITIONS = (
     "",
     "L5",
@@ -32,6 +33,7 @@ class ParallelIndexCorrupt(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class ParallelQuery:
+    mode: str = "search"
     q: str = ""
     search_side: str = "zh"
     zh_contains: str = ""
@@ -51,6 +53,8 @@ class ParallelQuery:
     nth_entry: int = 1
 
     def validate(self) -> None:
+        if self.mode not in DISPLAY_MODES:
+            raise ValueError("mode must be search or browse.")
         if self.search_side not in SEARCH_SIDES:
             raise ValueError("search_side must be zh or en.")
         if self.alignment_unit not in ALIGNMENT_UNITS:
@@ -71,7 +75,12 @@ class ParallelQuery:
             self.en_not_contains,
             self.filename_contains,
         )
-        if not self.q and not self.zh_contains and not self.en_contains:
+        if (
+            self.mode == "search"
+            and not self.q
+            and not self.zh_contains
+            and not self.en_contains
+        ):
             raise ValueError("至少填写一个主检索词或包含条件。")
         if any(len(value) > MAX_CONDITION_LENGTH for value in values):
             raise ValueError(f"单个检索条件不能超过 {MAX_CONDITION_LENGTH} 个字符。")
@@ -148,6 +157,52 @@ class ParallelHit:
     def en_is_gap(self) -> bool:
         return not self.en_text.strip()
 
+    @property
+    def palette_class(self) -> str:
+        """Give both sides of one pair the same deterministic reading color."""
+        return f"parallel-track--{(self.global_position - 1) % 6 + 1}"
+
+    @property
+    def quality_class(self) -> str:
+        if self.zh_is_gap or self.en_is_gap:
+            return "gap"
+        if self.method in {"provided", "provided_structure_id"}:
+            return "verified"
+        if self.method in {"provided_paragraph_order", "provided_structure_order"}:
+            return "ordered"
+        if self.confidence >= 0.85:
+            return "high"
+        if self.confidence >= 0.65:
+            return "review"
+        return "low"
+
+    @property
+    def quality_label(self) -> str:
+        return {
+            "gap": "单边缺口",
+            "verified": "编号核验",
+            "ordered": "顺序核验",
+            "high": "自动高置信",
+            "review": "自动待抽检",
+            "low": "自动低置信",
+        }[self.quality_class]
+
+
+@dataclass(frozen=True, slots=True)
+class AlignmentQualitySummary:
+    pair_total: int = 0
+    verified_count: int = 0
+    ordered_count: int = 0
+    automatic_count: int = 0
+    review_count: int = 0
+    gap_count: int = 0
+
+    @property
+    def verified_percent(self) -> float:
+        if not self.pair_total:
+            return 0.0
+        return (self.verified_count / self.pair_total) * 100
+
 
 @dataclass(frozen=True, slots=True)
 class ParallelSearchResult:
@@ -159,6 +214,7 @@ class ParallelSearchResult:
     page_size: int
     num_pages: int
     auto_target_highlights: tuple[str, ...] = ()
+    alignment_quality: AlignmentQualitySummary = AlignmentQualitySummary()
 
     @property
     def has_previous(self) -> bool:

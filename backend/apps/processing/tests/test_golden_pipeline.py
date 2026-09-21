@@ -70,6 +70,9 @@ class GoldenPipelineTests(SimpleTestCase):
                     min_confidence=0.9,
                 )
             )
+            browse = parallel_engine.search(
+                ParallelQuery(mode="browse", alignment_unit="sentence")
+            )
             exported = tuple(
                 parallel_engine.iter_export_rows(
                     ParallelQuery(
@@ -91,4 +94,7 @@ class GoldenPipelineTests(SimpleTestCase):
         self.assertEqual(open_slot.total, 1)
         self.assertEqual(parallel.total, 1)
         self.assertEqual(parallel.hits[0].zh_text, "共同未来！")
+        self.assertEqual(browse.total, expected["parallel_pair_count"])
+        self.assertEqual(browse.alignment_quality.pair_total, expected["parallel_pair_count"])
+        self.assertEqual(browse.alignment_quality.verified_count, expected["parallel_pair_count"])
         self.assertEqual(len(exported), 1)

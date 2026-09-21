@@ -1626,6 +1626,7 @@ textarea.form-control {
 .parallel-result {
   margin-bottom: 14px;
   padding: 0;
+  overflow: hidden;
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -1635,14 +1636,119 @@ textarea.form-control {
 }
 
 .parallel-result__head {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr);
   border-bottom: 1px solid #e2ecf6;
   background: #f4f9ff;
+  color: #214f7e;
+  font-size: 0.82rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.parallel-result__head > div {
+  padding: 11px 14px;
+}
+
+.parallel-result__head > div:first-child {
+  text-align: center;
+}
+
+.parallel-result__head > div:last-child {
+  border-left: 1px solid #d8e6f3;
 }
 
 .parallel-pair-card {
-  border: 1px solid #e1ebf5;
-  border-radius: 12px;
-  background: #fff;
+  --parallel-track: #235fa4;
+  --parallel-track-soft: rgba(35, 95, 164, 0.07);
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  border-bottom: 1px solid #dce8f3;
+  background: linear-gradient(90deg, var(--parallel-track-soft), #fff 22%);
+}
+
+.parallel-pair-card:last-child {
+  border-bottom: 0;
+}
+
+.parallel-track--1 { --parallel-track: #0768b2; --parallel-track-soft: rgba(7, 104, 178, 0.08); }
+.parallel-track--2 { --parallel-track: #008a87; --parallel-track-soft: rgba(0, 138, 135, 0.08); }
+.parallel-track--3 { --parallel-track: #a33a35; --parallel-track-soft: rgba(163, 58, 53, 0.08); }
+.parallel-track--4 { --parallel-track: #2c7b42; --parallel-track-soft: rgba(44, 123, 66, 0.08); }
+.parallel-track--5 { --parallel-track: #6754a5; --parallel-track-soft: rgba(103, 84, 165, 0.08); }
+.parallel-track--6 { --parallel-track: #9a6512; --parallel-track-soft: rgba(154, 101, 18, 0.08); }
+
+.parallel-pair-index {
+  padding: 14px 8px;
+  border-right: 4px solid var(--parallel-track);
+  color: var(--parallel-track);
+  text-align: center;
+  background: var(--parallel-track-soft);
+}
+
+.parallel-pair-main {
+  min-width: 0;
+}
+
+.parallel-result__meta {
+  padding: 8px 14px;
+  border-bottom: 1px solid #edf3f8;
+  color: #657c93;
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.parallel-pair-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
+  min-height: 86px;
+}
+
+.parallel-pair-divider {
+  background: #d8e6f3;
+}
+
+.parallel-result__text {
+  min-width: 0;
+  padding: 15px 18px 17px;
+  color: var(--parallel-track);
+  font-family: "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
+  font-size: 18px;
+  line-height: 1.78;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.parallel-quality {
+  display: inline-flex;
+  margin-right: 6px;
+  padding: 2px 7px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.parallel-quality--verified { color: #176738; background: #e8f7ed; border-color: #bfe7cc; }
+.parallel-quality--ordered { color: #075f7b; background: #e7f6fa; border-color: #bae2ec; }
+.parallel-quality--high { color: #286622; background: #eef8e8; border-color: #cce5bd; }
+.parallel-quality--review { color: #805300; background: #fff5d9; border-color: #ead391; }
+.parallel-quality--low,
+.parallel-quality--gap { color: #9a2f2a; background: #fff0ee; border-color: #efc2bd; }
+
+.parallel-accuracy-note {
+  margin: -2px 0 12px;
+  padding: 10px 14px;
+  border: 1px solid #cddff0;
+  border-left: 4px solid #1768aa;
+  border-radius: 10px;
+  color: #365b7d;
+  background: #f6faff;
+  font-size: 0.82rem;
+  line-height: 1.6;
 }
 
 .chart-panel,
@@ -2533,6 +2639,27 @@ textarea.form-control {
   .platform-card__body,
   .filter-card {
     padding: 18px;
+  }
+
+  .parallel-result__head {
+    grid-template-columns: 58px minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .parallel-pair-card {
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .parallel-pair-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .parallel-pair-divider {
+    width: auto;
+    height: 1px;
+  }
+
+  .parallel-result__text {
+    padding: 13px 14px;
   }
 
   .public-body > .platform-navbar {
