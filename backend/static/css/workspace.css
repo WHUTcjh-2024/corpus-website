@@ -340,12 +340,10 @@ body.public-body {
   width: var(--workspace-sidebar-width) !important;
   height: calc(100vh - var(--workspace-header-height));
   overflow: hidden;
-  border-right: 1px solid #d4e3f2;
-  color: #294968;
-  background:
-    radial-gradient(circle at 0 0, rgba(205, 229, 255, 0.66), transparent 230px),
-    linear-gradient(180deg, #fafdff 0%, #f3f8fd 60%, #eef5fc 100%) !important;
-  box-shadow: 12px 0 38px rgba(25, 67, 111, 0.08);
+  border-right: 1px solid #dfe7ef;
+  color: #334e68;
+  background: #f8fafc !important;
+  box-shadow: none;
 }
 
 /* Bootstrap resets `.offcanvas-lg` to static at desktop widths. Keep the
@@ -360,25 +358,14 @@ body.public-body {
   }
 }
 
-.platform-sidebar::before {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 2;
-  height: 3px;
-  background: linear-gradient(90deg, #0750ae, #3f9bf4 68%, rgba(63, 155, 244, 0));
-  content: "";
-}
-
 .platform-sidebar .offcanvas-body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 17px 14px 14px;
+  padding: 18px 14px 16px;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-color: #bfd4e9 transparent;
+  scrollbar-color: #c8d4df transparent;
   scrollbar-width: thin;
 }
 
@@ -387,16 +374,16 @@ body.public-body {
 }
 
 .platform-sidebar .offcanvas-body::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: #bfd4e9;
+  border-radius: 4px;
+  background: #c8d4df;
 }
 
 .platform-sidebar .offcanvas-header {
   min-height: 68px;
   padding: 11px 14px;
-  border-bottom: 1px solid #d9e7f5;
-  color: #123b6c;
-  background: rgba(250, 253, 255, 0.98);
+  border-bottom: 1px solid #dfe7ef;
+  color: #17324d;
+  background: #f8fafc;
 }
 
 .platform-sidebar .btn-close {
@@ -413,13 +400,13 @@ body.public-body {
 .sidebar-mobile-brand__mark {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
-  border-radius: 11px;
+  border-radius: 8px;
   color: #fff;
-  background: linear-gradient(145deg, #1769d2, #064193);
-  box-shadow: 0 8px 18px rgba(7, 80, 174, 0.2);
+  background: #145ca8;
+  box-shadow: none;
 }
 
 .sidebar-mobile-brand__mark svg {
@@ -434,9 +421,9 @@ body.public-body {
 
 .sidebar-mobile-brand h2 {
   margin: 0;
-  color: #123b6c;
+  color: #17324d;
   font-size: 0.88rem;
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .sidebar-mobile-brand small {
@@ -450,48 +437,31 @@ body.public-body {
 }
 
 .sidebar-workspace-card {
-  position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  min-height: 70px;
-  padding: 11px 12px;
-  overflow: hidden;
-  border: 1px solid #d7e7f6;
-  border-radius: 15px;
-  background:
-    radial-gradient(circle at 100% 0, rgba(210, 233, 255, 0.8), transparent 50%),
-    rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 25px rgba(24, 71, 119, 0.07), inset 0 1px 0 #fff;
-  gap: 10px;
-}
-
-.sidebar-workspace-card::after {
-  position: absolute;
-  right: -18px;
-  bottom: -29px;
-  width: 80px;
-  height: 80px;
-  border: 1px solid rgba(30, 115, 211, 0.09);
-  border-radius: 50%;
-  content: "";
+  min-height: 52px;
+  margin: 0 4px 12px;
+  padding: 6px 6px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 11px;
 }
 
 .sidebar-workspace-card__icon {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 11px;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
   color: #fff;
-  background: linear-gradient(145deg, #1f76db, #0750ae);
-  box-shadow: 0 8px 18px rgba(7, 80, 174, 0.2);
+  background: #145ca8;
+  box-shadow: none;
 }
 
 .sidebar-workspace-card__icon svg {
-  width: 21px;
-  height: 21px;
+  width: 19px;
+  height: 19px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
@@ -502,8 +472,8 @@ body.public-body {
 .sidebar-workspace-card__copy {
   display: grid;
   min-width: 0;
-  padding-right: 38px;
-  gap: 4px;
+  padding-right: 0;
+  gap: 0;
 }
 
 .sidebar-workspace-card__copy small {
@@ -518,31 +488,11 @@ body.public-body {
 
 .sidebar-workspace-card__copy strong {
   overflow: hidden;
-  color: #113d70;
-  font-size: 0.82rem;
-  font-weight: 900;
+  color: #17324d;
+  font-size: 0.84rem;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.sidebar-workspace-card__status {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  display: inline-flex;
-  align-items: center;
-  color: #3b806d;
-  font-size: 0.54rem;
-  font-weight: 850;
-  gap: 4px;
-}
-
-.sidebar-workspace-card__status i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #1da879;
-  box-shadow: 0 0 0 3px rgba(29, 168, 121, 0.12);
 }
 
 .sidebar-nav {
@@ -553,15 +503,15 @@ body.public-body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 18px 9px 6px;
-  color: #6f86a0;
-  font-size: 0.63rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  margin: 17px 10px 6px;
+  color: #8493a3;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .sidebar-section-label span {
-  color: #5b7591;
+  color: inherit;
 }
 
 .sidebar-section-label small {
@@ -576,48 +526,39 @@ body.public-body {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 44px;
-  margin: 2px 0;
-  padding: 5px 9px 5px 7px;
+  min-height: 40px;
+  margin: 1px 0;
+  padding: 4px 9px;
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: 12px;
-  color: #385675;
-  font-size: 0.79rem;
-  font-weight: 800;
-  gap: 9px;
-  transition: color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  border-radius: 8px;
+  color: #425b72;
+  font-size: 0.8rem;
+  font-weight: 600;
+  gap: 8px;
+  transition: color 140ms ease, background 140ms ease;
 }
 
 .sidebar-link::after {
-  width: 7px;
-  height: 7px;
-  margin-left: auto;
-  flex: 0 0 auto;
-  border-top: 1.5px solid currentColor;
-  border-right: 1.5px solid currentColor;
-  opacity: 0;
-  content: "";
-  transform: translateX(-3px) rotate(45deg);
-  transition: opacity 160ms ease, transform 160ms ease;
+  display: none;
 }
 
 .sidebar-link__icon {
   display: grid;
   place-items: center;
-  width: 31px;
-  height: 31px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
-  border: 1px solid #dce9f6;
-  border-radius: 9px;
-  color: #6686a6;
-  background: rgba(255, 255, 255, 0.72);
-  transition: color 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  border: 0;
+  border-radius: 6px;
+  color: #6b8298;
+  background: transparent;
+  transition: color 140ms ease, background 140ms ease;
 }
 
 .sidebar-link__icon svg {
-  width: 17px;
-  height: 17px;
+  width: 16px;
+  height: 16px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -632,48 +573,41 @@ body.public-body {
 }
 
 .sidebar-link:hover {
-  border-color: #d5e6f6;
-  color: #064193;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 7px 17px rgba(27, 78, 130, 0.06);
+  border-color: transparent;
+  color: #173f68;
+  background: #eef3f7;
+  box-shadow: none;
   transform: none;
 }
 
-.sidebar-link:hover::after,
-.sidebar-link.active::after {
-  opacity: 0.65;
-  transform: translateX(0) rotate(45deg);
-}
-
 .sidebar-link:hover .sidebar-link__icon {
-  border-color: #c7def5;
-  color: #0750ae;
-  background: #f7fbff;
+  color: #145ca8;
+  background: transparent;
 }
 
 .sidebar-link.active {
-  border-color: #b8d6f5;
-  color: #064193;
-  background: linear-gradient(90deg, #edf6ff 0%, rgba(255, 255, 255, 0.94) 100%);
-  box-shadow: 0 8px 20px rgba(14, 83, 155, 0.1), inset 0 1px 0 #fff;
+  border-color: transparent;
+  color: #124b87;
+  background: #e8f1fa;
+  box-shadow: none;
 }
 
 .sidebar-link.active::before {
   position: absolute;
-  top: 9px;
-  bottom: 9px;
+  top: 8px;
+  bottom: 8px;
   left: 0;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #56adff, #0750ae);
+  width: 2px;
+  border-radius: 0 2px 2px 0;
+  background: #145ca8;
   content: "";
 }
 
 .sidebar-link.active .sidebar-link__icon {
-  border-color: #1769d2;
-  color: #fff;
-  background: linear-gradient(145deg, #2682e7, #0750ae);
-  box-shadow: 0 7px 15px rgba(7, 80, 174, 0.21);
+  border-color: transparent;
+  color: #145ca8;
+  background: transparent;
+  box-shadow: none;
 }
 
 .sidebar-link:focus-visible,
@@ -686,41 +620,42 @@ body.public-body {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 60px;
-  margin-top: 11px;
-  padding: 9px 10px;
-  border: 1px solid #ccdef0;
-  border-radius: 14px;
-  color: #315273;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 9px 20px rgba(24, 71, 119, 0.06);
+  min-height: 54px;
+  margin-top: auto;
+  padding: 14px 8px 2px;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+  border-radius: 0;
+  color: #425b72;
+  background: transparent;
+  box-shadow: none;
   gap: 9px;
-  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition: color 140ms ease;
 }
 
 .sidebar-help:hover {
-  border-color: #a9caeb;
-  color: #123f72;
-  background: #fff;
-  box-shadow: 0 12px 25px rgba(24, 71, 119, 0.1);
-  transform: translateY(-1px);
+  border-color: #e2e8f0;
+  color: #124b87;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 .sidebar-help__icon {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
-  border-radius: 11px;
-  color: #fff;
-  background: linear-gradient(145deg, #1769d2, #064193);
-  box-shadow: 0 7px 15px rgba(7, 80, 174, 0.18);
+  border-radius: 6px;
+  color: #5f7890;
+  background: transparent;
+  box-shadow: none;
 }
 
 .sidebar-help__icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -735,9 +670,9 @@ body.public-body {
 }
 
 .sidebar-help__copy strong {
-  color: #174775;
+  color: #334e68;
   font-size: 0.76rem;
-  font-weight: 900;
+  font-weight: 600;
 }
 
 .sidebar-help__copy small {
