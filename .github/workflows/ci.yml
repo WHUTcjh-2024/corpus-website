@@ -119,8 +119,6 @@ jobs:
         run: python -m compileall -q apps config
       - name: Lint Python
         run: python -m ruff check .
-      - name: Evaluate corpus Agent safety and grounding contracts
-        run: python manage.py evaluate_corpus_agent --min-pass-rate 1.0
       - name: Audit Python dependencies
         run: python -m pip_audit -r requirements.txt
       - name: Run tests with coverage
@@ -129,7 +127,7 @@ jobs:
       - name: Build Go auditor for Redis Streams end-to-end test
         working-directory: backend/go/corpus-auditor
         run: CGO_ENABLED=0 go build -trimpath -o /tmp/corpus-auditor-service ./cmd/corpus-auditor-service
-      - name: Exercise Agent Saga through Redis Streams and the Go worker
+      - name: Exercise audits through Redis Streams and the Go worker
         env:
           REQUIRE_GO_AUDITOR_E2E: "true"
           CORPUS_AUDITOR_E2E_BINARY: /tmp/corpus-auditor-service

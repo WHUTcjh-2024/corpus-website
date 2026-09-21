@@ -48,12 +48,11 @@ def healthz(request: HttpRequest) -> JsonResponse:
 
 
 def readyz(request: HttpRequest) -> JsonResponse:
-    """Readiness includes every dependency required to accept Agent work."""
+    """Readiness includes every dependency required to accept application work."""
     checks = {
         "database": _database_ready(),
         "redis": _redis_ready(),
         "data_root": settings.DATA_ROOT.exists(),
-        "agent_model": _agent_model_ready(),
         "auditor_queue": _auditor_queue_ready(),
     }
     status_code = 200 if all(checks.values()) else 503
@@ -86,17 +85,6 @@ def _redis_ready() -> bool:
         return bool(client.ping())
     except Exception:
         return False
-
-
-def _agent_model_ready() -> bool:
-    """A model is optional: deterministic grounded mode remains production-ready."""
-    if not settings.AGENT_MODEL_ENABLED:
-        return True
-    return bool(
-        settings.AGENT_MODEL_BASE_URL
-        and settings.AGENT_MODEL_API_KEY
-        and settings.AGENT_MODEL_NAME
-    )
 
 
 def _auditor_queue_ready() -> bool:

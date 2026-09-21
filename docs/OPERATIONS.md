@@ -52,13 +52,6 @@ On a 2-core host, keep processing and auditor concurrency at `1` so background
 CPU work cannot consume both cores while web requests are waiting. Increase one
 setting at a time only after a mixed web-and-worker load test.
 
-The `agent` queue is consumed by `processing-worker` because its tools access
-the same immutable corpus artifacts. Agent runs are durable state machines, not
-long-lived HTTP requests: inspect an
-`AgentRun` and its step trace before replaying any dead-letter Outbox event. A run in
-`waiting_approval` is healthy and must never be replayed to bypass the user
-confirmation boundary. See [CORPUS_AGENT_HARNESS.md](CORPUS_AGENT_HARNESS.md).
-
 ## Metrics and alerting
 
 `GET /metrics` returns Prometheus text metrics only when the request includes
@@ -70,17 +63,11 @@ Create alerts for:
 - `corpus_outbox_events{status="dead_letter"} > 0` for 5 minutes.
 - `corpus_outbox_oldest_pending_age_seconds > 300` for 10 minutes.
 - sustained growth of `corpus_outbox_events{status="pending"}`.
-- `corpus_agent_runs{status="failed"} > 0` for 10 minutes.
-- a sustained `corpus_agent_runs{status="waiting_approval"}` backlog above the
-  operating threshold; expired approvals should be allowed to age out rather
-  than auto-approved.
-- `corpus_agent_external_wait_oldest_age_seconds > 300` for 10 minutes. This
-  detects an Agent Saga blocked after issuing an audit command.
 - `corpus_parallel_audit_oldest_active_age_seconds > 600` for 10 minutes. This
   detects a stuck Redis Streams command, worker, or result projection path.
 `/healthz` is liveness only: it answers whether the Django process is alive.
 Container orchestration must use `/readyz`, which additionally checks PostgreSQL,
-Redis, the mounted data directory, optional model configuration, and the Redis
+Redis, the mounted data directory, and the Redis
 Streams dependency used by the Go auditor. The Go auditor's `/readyz` checks
 Redis before it accepts traffic, while `/healthz` remains available during a
 transient broker outage for diagnosis.
@@ -110,7 +97,7 @@ connections, and cache hit rate before changing worker counts or indexes.
 ## Prometheus profile
 
 The production Compose file includes a `monitoring` profile with Prometheus and
-three outbox alert rules. Before enabling it, write the same token used by the
+the bundled outbox and auditor alert rules. Before enabling it, write the same token used by the
 web service into an untracked file:
 
 ```bash

@@ -42,7 +42,6 @@ export default defineConfig(({ command }) => ({
       "/search": "http://127.0.0.1:8010",
       "/parallel": "http://127.0.0.1:8010",
       "/statistics": "http://127.0.0.1:8010",
-      "/agent": "http://127.0.0.1:8010",
       "/exports": "http://127.0.0.1:8010",
       "/feedback": "http://127.0.0.1:8010",
       "/management": "http://127.0.0.1:8010",

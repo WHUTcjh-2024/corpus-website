@@ -7,7 +7,6 @@ import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import skipUnless
-from unittest.mock import patch
 from uuid import uuid4
 
 from django.contrib.auth import get_user_model
@@ -15,10 +14,12 @@ from django.test import TransactionTestCase, override_settings
 from redis import Redis
 
 from apps.accounts.models import ApplicationStatus, UserProfile, UserRole
-from apps.agent.models import AgentRunMode, AgentRunStatus
-from apps.agent.services import create_agent_run, execute_agent_run
 from apps.audits.models import ParallelAudit, ParallelAuditStatus
-from apps.audits.services import consume_parallel_audit_results, publish_parallel_audit_command
+from apps.audits.services import (
+    consume_parallel_audit_results,
+    create_parallel_audit,
+    publish_parallel_audit_command,
+)
 from apps.corpora.models import (
     Corpus,
     CorpusAccessLevel,
@@ -27,7 +28,6 @@ from apps.corpora.models import (
     CorpusStatus,
     CorpusType,
 )
-from apps.outbox.models import OutboxEvent, OutboxTaskName
 from apps.processing.models import ProcessingTask, ProcessingTaskStatus
 
 
@@ -35,7 +35,7 @@ from apps.processing.models import ProcessingTask, ProcessingTaskStatus
     os.getenv("REQUIRE_GO_AUDITOR_E2E") == "true",
     "Go auditor end-to-end checks run only where Redis and the worker binary are provisioned.",
 )
-class GoAuditorSagaE2ETests(TransactionTestCase):
+class GoAuditorE2ETests(TransactionTestCase):
     """Exercise the real Python control plane, Redis Streams, and Go data plane."""
 
     def setUp(self) -> None:
@@ -92,7 +92,7 @@ class GoAuditorSagaE2ETests(TransactionTestCase):
         self.addCleanup(self._stop_worker)
         self._wait_for_worker_start()
 
-    def test_quality_review_saga_crosses_redis_and_go_before_resuming(self) -> None:
+    def test_parallel_audit_crosses_redis_and_go(self) -> None:
         user = get_user_model().objects.create_user("go-e2e-user")
         UserProfile.objects.create(
             user=user,
@@ -130,42 +130,16 @@ class GoAuditorSagaE2ETests(TransactionTestCase):
             + "\n",
             encoding="utf-8",
         )
-        run, _ = create_agent_run(
-            user=user,
-            corpus=corpus,
-            mode=AgentRunMode.QUALITY_REVIEW,
-            query="",
-            language=None,
-            max_results=3,
-            idempotency_key="go-worker-saga-e2e",
-        )
-
         # The command is published through its ordinary Outbox-consumer entry
         # point; this avoids a separate Celery process yet exercises Redis.
-        with patch("apps.agent.tools.dispatch_parallel_audit"):
-            outcome = execute_agent_run(str(run.pk))
-        self.assertEqual(outcome["status"], AgentRunStatus.WAITING_EXTERNAL)
-        audit = ParallelAudit.objects.get(processing_task=processing_task)
+        audit = create_parallel_audit(corpus=corpus, processing_task=processing_task)
         self.assertEqual(publish_parallel_audit_command(str(audit.pk))["status"], "published")
 
         self._wait_for_terminal_projection(audit)
         audit.refresh_from_db()
-        run.refresh_from_db()
         self.assertEqual(audit.status, ParallelAuditStatus.SUCCESS)
-        self.assertEqual(run.status, AgentRunStatus.PENDING)
         self.assertTrue(Path(audit.report_path).is_file())
-        self.assertTrue(
-            OutboxEvent.objects.filter(
-                task_name=OutboxTaskName.RESUME_CORPUS_AGENT,
-                deduplication_key=f"agent-resume:{run.pk}:parallel-audit:{audit.pk}",
-            ).exists()
-        )
-
-        resumed = execute_agent_run(str(run.pk))
-        run.refresh_from_db()
-        self.assertEqual(resumed["status"], AgentRunStatus.SUCCEEDED)
-        self.assertEqual(run.status, AgentRunStatus.SUCCEEDED)
-        self.assertIn(f"audit:{audit.pk}", run.answer)
+        self.assertEqual(audit.summary["total_pairs"], 2)
 
     def _wait_for_worker_start(self) -> None:
         deadline = time.monotonic() + 10

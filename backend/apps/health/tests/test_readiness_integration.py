@@ -20,7 +20,6 @@ class ReadinessIntegrationTests(TestCase):
                 "database": True,
                 "redis": True,
                 "data_root": True,
-                "agent_model": True,
                 "auditor_queue": True,
             },
         )
