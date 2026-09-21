@@ -6,7 +6,6 @@ import time
 from django.core.management.base import BaseCommand, CommandError
 from django.db import close_old_connections
 
-from apps.agent.services import expire_external_waits, expire_pending_approvals
 from apps.outbox.services import publish_pending_events, purge_published_events
 
 
@@ -21,8 +20,6 @@ class Command(BaseCommand):
         parser.add_argument("--loop", action="store_true")
         parser.add_argument("--interval", type=float, default=5.0)
         parser.add_argument("--cleanup-interval", type=float, default=3600.0)
-        parser.add_argument("--approval-cleanup-interval", type=float, default=60.0)
-        parser.add_argument("--external-wait-cleanup-interval", type=float, default=60.0)
 
     def handle(self, *args, **options) -> None:
         if options["limit"] < 1:
@@ -31,14 +28,7 @@ class Command(BaseCommand):
             raise CommandError("--interval must be greater than zero")
         if options["cleanup_interval"] <= 0:
             raise CommandError("--cleanup-interval must be greater than zero")
-        if options["approval_cleanup_interval"] <= 0:
-            raise CommandError("--approval-cleanup-interval must be greater than zero")
-        if options["external_wait_cleanup_interval"] <= 0:
-            raise CommandError("--external-wait-cleanup-interval must be greater than zero")
-
         next_cleanup_at = time.monotonic()
-        next_approval_cleanup_at = time.monotonic()
-        next_external_wait_cleanup_at = time.monotonic()
         previous_iteration_failed = False
         while True:
             # Management commands do not get Django's request-boundary connection
@@ -67,18 +57,6 @@ class Command(BaseCommand):
                     if deleted:
                         self.stdout.write(f"purged={deleted}")
                     next_cleanup_at = current_time + options["cleanup_interval"]
-                if current_time >= next_approval_cleanup_at:
-                    expired = expire_pending_approvals()
-                    if expired:
-                        self.stdout.write(f"expired_agent_approvals={expired}")
-                    next_approval_cleanup_at = current_time + options["approval_cleanup_interval"]
-                if current_time >= next_external_wait_cleanup_at:
-                    expired = expire_external_waits()
-                    if expired:
-                        self.stdout.write(f"expired_agent_external_waits={expired}")
-                    next_external_wait_cleanup_at = (
-                        current_time + options["external_wait_cleanup_interval"]
-                    )
                 if previous_iteration_failed:
                     logger.warning("Outbox publisher database loop recovered")
                 previous_iteration_failed = False

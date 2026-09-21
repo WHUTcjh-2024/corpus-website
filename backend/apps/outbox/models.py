@@ -16,8 +16,6 @@ class OutboxTaskName(models.TextChoices):
     PROCESS_CORPUS = "processing.process_corpus", "加工语料"
     BUILD_EXPORT = "exports.build_export", "生成导出"
     AUDIT_PARALLEL_CORPUS = "audits.audit_parallel_corpus", "平行语料审计"
-    RUN_CORPUS_AGENT = "agent.run_corpus_agent", "Run corpus Agent"
-    RESUME_CORPUS_AGENT = "agent.resume_corpus_agent", "Resume corpus Agent"
     PUBLISH_AUDIT_COMMAND = "audits.publish_parallel_audit_command", "Publish parallel audit command"
 
 

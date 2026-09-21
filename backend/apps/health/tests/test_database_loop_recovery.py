@@ -12,14 +12,6 @@ from apps.outbox.services import PublishSummary
 
 class DatabaseLoopRecoveryTests(SimpleTestCase):
     @patch(
-        "apps.outbox.management.commands.publish_outbox.expire_external_waits",
-        return_value=0,
-    )
-    @patch(
-        "apps.outbox.management.commands.publish_outbox.expire_pending_approvals",
-        return_value=0,
-    )
-    @patch(
         "apps.outbox.management.commands.publish_outbox.purge_published_events",
         return_value=0,
     )
@@ -38,8 +30,6 @@ class DatabaseLoopRecoveryTests(SimpleTestCase):
         _sleep,
         publish_pending_events,
         _purge_published_events,
-        _expire_pending_approvals,
-        _expire_external_waits,
     ) -> None:
         with self.assertRaises(KeyboardInterrupt):
             call_command(

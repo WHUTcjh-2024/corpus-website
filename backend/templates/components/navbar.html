@@ -50,7 +50,6 @@
         <a class="{% if request.resolver_match.namespace == 'parallel' %}active{% endif %}" href="{% url 'corpora:list' %}?tool=parallel">对齐工具</a>
         <a class="{% if request.resolver_match.namespace == 'statistics' %}active{% endif %}" href="{% url 'corpora:list' %}?tool=statistics">统计分析</a>
         <a class="{% if request.resolver_match.namespace == 'research_history' %}active{% endif %}" href="{% url 'research_history:list' %}">检索历史</a>
-        <a class="{% if request.resolver_match.namespace == 'agent' %}active{% endif %}" href="{% url 'agent:workspace' %}">智能 Agent</a>
         <a class="{% if request.resolver_match.namespace == 'exports' %}active{% endif %}" href="{% url 'exports:list' %}">导出管理</a>
         <a class="{% if request.resolver_match.namespace == 'feedback' %}active{% endif %}" href="{% url 'feedback:list' %}">反馈帮助</a>
       </nav>

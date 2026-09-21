@@ -485,7 +485,6 @@ def build_report() -> Path:
             ["Compose 配置", "本地与生产配置均可解析", "config --quiet", "通过"],
             ["Nginx 配置", "syntax is ok", "nginx -t；含分级限流与单 IP 连接限制", "通过"],
             ["前端依赖审计", "0 vulnerabilities", "npm audit --omit=dev --audit-level=high", "通过"],
-            ["现有 Agent 质量门", "5/5", "通过率 100%；仅作存量质量门，不属于合同验收范围", "通过"],
         ],
         [1.46, 1.56, 3.25, 0.58],
     )
