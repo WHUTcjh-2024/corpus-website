@@ -22,6 +22,13 @@ SORT_CHOICES = (
 
 
 class ParallelSearchForm(forms.Form):
+    mode = forms.ChoiceField(
+        label="工作模式",
+        choices=(("search", "关键词检索"), ("browse", "对齐浏览")),
+        initial="search",
+        required=False,
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
     q = forms.CharField(
         label="主检索词",
         max_length=200,
@@ -197,6 +204,9 @@ class ParallelSearchForm(forms.Form):
     def clean_search_side(self) -> str:
         return self.cleaned_data.get("search_side") or "zh"
 
+    def clean_mode(self) -> str:
+        return self.cleaned_data.get("mode") or "search"
+
     def clean_alignment_unit(self) -> str:
         return self.cleaned_data.get("alignment_unit") or self.default_alignment_unit
 
@@ -209,6 +219,7 @@ class ParallelSearchForm(forms.Form):
     def to_query(self, cleaned: dict | None = None) -> ParallelQuery:
         values = cleaned if cleaned is not None else self.cleaned_data
         return ParallelQuery(
+            mode=values.get("mode") or "search",
             q=values.get("q", ""),
             search_side=values.get("search_side", "zh"),
             zh_contains=values.get("zh_contains", ""),

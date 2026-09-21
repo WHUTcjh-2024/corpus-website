@@ -14,6 +14,7 @@ from apps.processing.text import token_matches
 from .contracts import (
     ALIGNMENT_UNITS,
     SEARCH_SIDES,
+    AlignmentQualitySummary,
     HighlightFragment,
     ParallelHit,
     ParallelIndexCorrupt,
@@ -130,6 +131,11 @@ class ParallelSearchEngine:
                     if query.infer_target_highlights
                     else ()
                 )
+                alignment_quality = _alignment_quality_summary(
+                    connection,
+                    where_sql=where_sql,
+                    parameters=parameters,
+                )
         except sqlite3.DatabaseError as exc:
             raise ParallelIndexCorrupt("平行语料索引读取失败。") from exc
 
@@ -152,6 +158,7 @@ class ParallelSearchEngine:
             page_size=page_size,
             num_pages=num_pages,
             auto_target_highlights=auto_target_highlights,
+            alignment_quality=alignment_quality,
         )
 
     def preview(self, *, alignment_unit: str, limit: int = 5) -> tuple[ParallelHit, ...]:
@@ -713,6 +720,32 @@ def _parallel_select_columns(columns: set[str]) -> str:
         "global_position, pair_id, pair_ordinal, zh_text, en_text, "
         f"alignment_unit, method, confidence, {source_columns}, {token_columns}"
     )
+
+
+def _alignment_quality_summary(
+    connection: sqlite3.Connection,
+    *,
+    where_sql: str,
+    parameters: tuple[object, ...],
+) -> AlignmentQualitySummary:
+    row = connection.execute(
+        f"""
+        SELECT
+            COUNT(*),
+            SUM(CASE WHEN method IN ('provided', 'provided_structure_id')
+                AND trim(zh_text) != '' AND trim(en_text) != '' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN method IN ('provided_paragraph_order', 'provided_structure_order')
+                AND trim(zh_text) != '' AND trim(en_text) != '' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN method LIKE 'automatic_%' THEN 1 ELSE 0 END),
+            SUM(CASE WHEN method LIKE 'automatic_%' AND confidence < 0.85 THEN 1 ELSE 0 END),
+            SUM(CASE WHEN trim(zh_text) = '' OR trim(en_text) = '' THEN 1 ELSE 0 END)
+        FROM parallel_pairs
+        WHERE {where_sql}
+        """,
+        parameters,
+    ).fetchone()
+    values = tuple(int(value or 0) for value in (row or (0, 0, 0, 0, 0, 0)))
+    return AlignmentQualitySummary(*values)
 
 
 def _decode_token_spans(value: str) -> tuple[tuple[str, int, int], ...]:

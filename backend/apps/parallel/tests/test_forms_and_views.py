@@ -56,6 +56,21 @@ class ParallelSearchFormTests(SimpleTestCase):
         self.assertFalse(form.is_valid())
         self.assertIn("__all__", form.errors)
 
+    def test_browse_mode_accepts_empty_query(self) -> None:
+        form = ParallelSearchForm(
+            {
+                "mode": "browse",
+                "search_side": "zh",
+                "alignment_unit": "sentence",
+                "page_size": "20",
+                "context_size": "20",
+            },
+            default_alignment_unit="sentence",
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.to_query().mode, "browse")
+
 
 class ParallelViewTests(SimpleTestCase):
     def setUp(self) -> None:
@@ -100,6 +115,25 @@ class ParallelViewTests(SimpleTestCase):
         engine.search.assert_called_once()
         audit.assert_called_once()
         self.assertIsNotNone(render_mock.call_args.args[2]["result"])
+
+    def test_browse_dispatches_without_a_search_term(self) -> None:
+        engine = Mock()
+        engine.search.return_value = SimpleNamespace(total=20)
+        with (
+            patch.object(views, "get_object_or_404", return_value=self.corpus),
+            patch.object(views, "visible_corpora_for", return_value=self.visible()),
+            patch.object(views, "ensure_corpus_index_ready", return_value=None),
+            patch.object(views, "ParallelSearchEngine", return_value=engine),
+            patch.object(views, "record_audit_event"),
+            patch.object(views, "render", return_value=HttpResponse("browse")),
+        ):
+            response = views.parallel_search.__wrapped__(
+                self.request("mode=browse&alignment_unit=sentence&page_size=20"),
+                self.corpus.pk,
+            )
+
+        self.assertEqual(response.content, b"browse")
+        self.assertEqual(engine.search.call_args.args[0].mode, "browse")
 
     def test_search_handles_denial_unready_and_runtime_index_failure(self) -> None:
         with (
