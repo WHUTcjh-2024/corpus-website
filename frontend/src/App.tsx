@@ -1,10 +1,8 @@
 import type { FormEvent, MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { fetchPublicCorpusOverview, fetchSession } from "./api/client";
+import { fetchSession } from "./api/client";
 import type { SessionPayload } from "./api/types";
-import { CorpusShowcase } from "./home/CorpusShowcase";
-import { EMPTY_PUBLIC_CORPUS_OVERVIEW } from "./home/constants";
 import { HomeFooter } from "./home/HomeFooter";
 import { HomeHeader } from "./home/HomeHeader";
 import { HomeHero } from "./home/HomeHero";
@@ -13,11 +11,6 @@ import { safeInternalDestination } from "./home/utils";
 function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [publicCorpusOverview, setPublicCorpusOverview] = useState(
-    EMPTY_PUBLIC_CORPUS_OVERVIEW,
-  );
-  const [publicCorpusLoading, setPublicCorpusLoading] = useState(true);
-  const [publicCorpusError, setPublicCorpusError] = useState(false);
   const [loginMessage, setLoginMessage] = useState("");
   const [loginPrompt, setLoginPrompt] = useState("");
   const [pendingDestination, setPendingDestination] = useState<string | null>(null);
@@ -27,16 +20,6 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const loginSectionRef = useRef<HTMLDivElement>(null);
   const usernameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    fetchPublicCorpusOverview()
-      .then((payload) => {
-        setPublicCorpusOverview(payload);
-        setPublicCorpusError(false);
-      })
-      .catch(() => setPublicCorpusError(true))
-      .finally(() => setPublicCorpusLoading(false));
-  }, []);
 
   useEffect(() => {
     let isActive = true;
@@ -196,14 +179,6 @@ function App() {
             onSubmit: handleLogin,
             onUsernameChange: setUsername,
           }}
-        />
-        <CorpusShowcase
-          hasError={publicCorpusError}
-          isLoading={publicCorpusLoading}
-          overview={publicCorpusOverview}
-          onProtectedNavigation={(event, label, href) =>
-            void handleProtectedNavigation(event, label, href)
-          }
         />
         <HomeFooter />
       </main>

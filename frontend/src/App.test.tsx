@@ -7,17 +7,14 @@ import {
   anonymousSession,
   authenticatedSession,
   jsonResponse,
-  publicOverview,
 } from "./test/fixtures";
 
 type ApiScenario = {
-  isPublicOverviewAvailable?: boolean;
   loginError?: string;
   session?: typeof anonymousSession;
 };
 
 function installApiScenario({
-  isPublicOverviewAvailable = true,
   loginError,
   session = anonymousSession,
 }: ApiScenario = {}) {
@@ -25,13 +22,6 @@ function installApiScenario({
     const path = String(input);
     if (path === "/api/session/") {
       return Promise.resolve(jsonResponse(session));
-    }
-    if (path === "/api/public-corpora/") {
-      return Promise.resolve(
-        isPublicOverviewAvailable
-          ? jsonResponse(publicOverview)
-          : new Response(null, { status: 503, statusText: "Unavailable" }),
-      );
     }
     if (path === "/api/csrf/") {
       return Promise.resolve(jsonResponse({ csrf_token: "csrf-test-token" }));
@@ -50,22 +40,25 @@ function installApiScenario({
 }
 
 describe("App", () => {
-  it("hydrates the public catalogue and authenticated session", async () => {
-    installApiScenario({ session: authenticatedSession });
+  it("hydrates the authenticated session without loading the removed showcase", async () => {
+    const fetchMock = installApiScenario({ session: authenticatedSession });
     render(<App />);
 
     expect(
-      await screen.findByRole("heading", { name: "中国社会各阶级的分析" }),
+      await screen.findByText("研究员，可以使用全部已授权功能。"),
     ).toBeInTheDocument();
-    expect(screen.getByText("研究员，可以使用全部已授权功能。")).toBeInTheDocument();
-    expect(screen.getByText("2 组样本")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "老师项目语料库" }),
+    ).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input) === "/api/public-corpora/"),
+    ).toBe(false);
   });
 
   it("prompts anonymous users before protected navigation", async () => {
     const user = userEvent.setup();
     installApiScenario();
     render(<App />);
-    await screen.findByText("2 组样本");
 
     await user.click(screen.getByRole("link", { name: "检索中心" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -77,7 +70,6 @@ describe("App", () => {
     const user = userEvent.setup();
     const fetchMock = installApiScenario({ loginError: "账号或密码错误" });
     render(<App />);
-    await screen.findByText("2 组样本");
 
     await user.type(screen.getByPlaceholderText("请输入用户名"), "test");
     await user.type(screen.getByPlaceholderText("请输入密码"), "wrong");
@@ -105,15 +97,5 @@ describe("App", () => {
     );
     await user.click(screen.getByRole("button", { name: "关闭登录提示" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-  });
-
-  it("reports a public catalogue outage without breaking login", async () => {
-    installApiScenario({ isPublicOverviewAvailable: false });
-    render(<App />);
-
-    expect(
-      await screen.findByText("公开目录暂时无法读取，请刷新页面重试。"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "登录平台" })).toBeInTheDocument();
   });
 });
