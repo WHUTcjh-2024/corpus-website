@@ -23,9 +23,9 @@ REQUIRED_PROCESSED_FILES = (
     "documents.jsonl",
     "paragraphs.jsonl",
     "sentences.jsonl",
-    "tokens.jsonl",
     "parallel_pairs.jsonl",
 )
+TOKEN_ARCHIVE_FILES = ("tokens.jsonl", "tokens.jsonl.gz")
 
 REQUIRED_TABLE_COLUMNS = {
     "documents": {"document_id", "filename", "language"},
@@ -33,7 +33,6 @@ REQUIRED_TABLE_COLUMNS = {
     "tokens": {
         "global_position",
         "stream_position",
-        "token_id",
         "normalized",
         "surface",
         "lemma",
@@ -149,6 +148,7 @@ def inspect_corpus_index(
     tracked_paths = (
         index_path,
         *(processed_root / filename for filename in REQUIRED_PROCESSED_FILES),
+        *(processed_root / filename for filename in TOKEN_ARCHIVE_FILES),
     )
     fingerprint = tuple(_path_fingerprint(path) for path in tracked_paths)
     return _inspect_corpus_index_snapshot(str(corpus_id), str(root), fingerprint)
@@ -177,6 +177,8 @@ def _inspect_corpus_index_snapshot(
         for filename in REQUIRED_PROCESSED_FILES
         if not (processed_root / filename).is_file()
     ]
+    if not any((processed_root / filename).is_file() for filename in TOKEN_ARCHIVE_FILES):
+        missing_processed.append("tokens.jsonl(.gz)")
     if not index_path.is_file() or missing_processed:
         missing = ["kwic_index.sqlite"] if not index_path.is_file() else []
         missing.extend(missing_processed)

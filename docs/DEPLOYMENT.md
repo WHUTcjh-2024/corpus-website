@@ -68,6 +68,7 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml exec web python m
 ```
 
 索引校验失败时运行 `repair_corpus_indexes`；它从登记的源文件重新加工，不应手工修改 SQLite 索引。
+已有语料的容量压缩使用受控的[索引压缩流程](STORAGE_COMPACTION.md)，先构建隔离副本并对照检索结果。
 
 ## 回滚与监控
 

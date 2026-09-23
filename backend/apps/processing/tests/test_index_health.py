@@ -44,6 +44,7 @@ class IndexInspectionTests(SimpleTestCase):
             if filename == "meta.json":
                 content = json.dumps(metadata or {"schema_version": SCHEMA_VERSION})
             (root / filename).write_text(content, encoding="utf-8")
+        (root / "tokens.jsonl").write_text("", encoding="utf-8")
 
     def create_schema(
         self, *, omit_table: str = "", omit_column: tuple[str, str] = ("", "")
@@ -98,9 +99,15 @@ class IndexInspectionTests(SimpleTestCase):
     def test_accepts_complete_current_schema(self) -> None:
         self.write_processed_files()
         self.create_schema()
+        (self.processed_root() / "tokens.jsonl").unlink()
+        (self.processed_root() / "tokens.jsonl.gz").write_bytes(b"archive")
         health = self.inspect()
         self.assertTrue(health.is_ready)
         self.assertEqual(health.reader_label, "索引可用")
+
+        (self.processed_root() / "tokens.jsonl.gz").unlink()
+        (self.processed_root() / "tokens.jsonl").write_text("", encoding="utf-8")
+        self.assertTrue(self.inspect().is_ready)
 
     def test_path_fingerprint_handles_missing_and_existing_files(self) -> None:
         missing = self.root / "missing"

@@ -1,4 +1,7 @@
+import gzip
 import json
+import sqlite3
+from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -46,6 +49,16 @@ class ArtifactWriterTests(SimpleTestCase):
                 language=hit.language,
                 row_id=hit.row_id,
             )
+            token_archive = root / "processed" / "corpus" / "tokens.jsonl.gz"
+            with gzip.open(token_archive, "rt", encoding="utf-8") as archive:
+                archived_tokens = [json.loads(line) for line in archive]
+            with closing(sqlite3.connect(root / "indexes" / "corpus" / "kwic_index.sqlite")) as connection:
+                token_columns = {
+                    row[1] for row in connection.execute("PRAGMA table_info(tokens)")
+                }
+                ngram_schema = connection.execute(
+                    "SELECT sql FROM sqlite_master WHERE name = 'ngrams'"
+                ).fetchone()[0]
 
         self.assertEqual(report["counts"]["type_count"], 2)
         self.assertEqual(
@@ -54,3 +67,6 @@ class ArtifactWriterTests(SimpleTestCase):
         )
         self.assertEqual(file_view.keyword, "AI")
         self.assertEqual(file_view.filename, "en.txt")
+        self.assertEqual(len(archived_tokens), 2)
+        self.assertNotIn("token_id", token_columns)
+        self.assertIn("WITHOUT ROWID", ngram_schema)

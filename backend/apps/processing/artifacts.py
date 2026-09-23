@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import shutil
@@ -22,7 +23,7 @@ PROCESSED_JSONL_FILES = {
     "documents": "documents.jsonl",
     "paragraphs": "paragraphs.jsonl",
     "sentences": "sentences.jsonl",
-    "tokens": "tokens.jsonl",
+    "tokens": "tokens.jsonl.gz",
     "parallel_pairs": "parallel_pairs.jsonl",
 }
 DEFERRED_INDEX_FILES: tuple[str, ...] = ()
@@ -60,8 +61,11 @@ class ArtifactWriter:
         self.processed_staging.mkdir(parents=True, exist_ok=False)
         self.index_staging.mkdir(parents=True, exist_ok=False)
         for key, filename in PROCESSED_JSONL_FILES.items():
-            self._handles[key] = (self.processed_staging / filename).open(
-                "w", encoding="utf-8", newline="\n"
+            path = self.processed_staging / filename
+            self._handles[key] = (
+                gzip.open(path, "wt", encoding="utf-8", newline="\n", compresslevel=6)
+                if key == "tokens"
+                else path.open("w", encoding="utf-8", newline="\n")
             )
         self._sqlite = sqlite3.connect(self.index_staging / "kwic_index.sqlite")
         self._sqlite.execute(
@@ -88,7 +92,6 @@ class ArtifactWriter:
             CREATE TABLE tokens (
                 global_position INTEGER PRIMARY KEY,
                 stream_position INTEGER NOT NULL,
-                token_id TEXT NOT NULL UNIQUE,
                 normalized TEXT NOT NULL,
                 surface TEXT NOT NULL,
                 lemma TEXT NOT NULL,
@@ -114,7 +117,7 @@ class ArtifactWriter:
                 document_range INTEGER NOT NULL DEFAULT 0,
                 contains_punctuation INTEGER NOT NULL,
                 PRIMARY KEY (language, n, normalized)
-            )
+            ) WITHOUT ROWID
             """
         )
         self._sqlite.execute(
@@ -277,7 +280,6 @@ class ArtifactWriter:
                 (
                     self._global_position,
                     self._stream_positions[stream_key],
-                    token.id,
                     token.normalized,
                     token.text,
                     token.lemma,
@@ -293,10 +295,10 @@ class ArtifactWriter:
         self._sqlite.executemany(
             """
             INSERT INTO tokens (
-                global_position, stream_position, token_id, normalized, surface, lemma, pos,
+                global_position, stream_position, normalized, surface, lemma, pos,
                 language, document_id, sentence_id, sentence_position,
                 document_start, document_end, is_punctuation
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -494,8 +496,6 @@ class ArtifactWriter:
                 ON tokens(document_id, global_position);
             CREATE UNIQUE INDEX idx_tokens_document_language_stream
                 ON tokens(document_id, language, stream_position);
-            CREATE INDEX idx_tokens_document_language_chars
-                ON tokens(document_id, language, document_start, document_end);
             CREATE INDEX idx_documents_filename
                 ON documents(filename COLLATE NOCASE, document_id);
             CREATE INDEX idx_tokens_sentence_position

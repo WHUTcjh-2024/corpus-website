@@ -5,6 +5,7 @@ data/teacher_private/*
 data/user_uploads/*
 data/processed/*
 data/indexes/*
+data/.storage-pilot/
 data/exports/*
 data/manifests/*
 !data/**/.gitkeep
